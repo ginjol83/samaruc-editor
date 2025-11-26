@@ -1,0 +1,61 @@
+/* Modern, simple style for Retro Editor */
+
+.root {
+    -fx-font-family: 'Segoe UI', 'Arial', sans-serif;
+    -fx-background-color: #23272e;
+}
+
+.menu-bar {
+    -fx-background-color: #23272e;
+    -fx-text-fill: #eee;
+}
+.menu .label {
+    -fx-text-fill: #eee;
+}
+.menu-item {
+    -fx-background-color: transparent;
+    -fx-text-fill: #eee;
+}
+.menu-item:focused, .menu-item:hover {
+    -fx-background-color: #444;
+}
+
+.tool-bar {
+    -fx-background-color: #2c313c;
+    -fx-spacing: 8;
+    -fx-padding: 6 10 6 10;
+}
+.tool-bar .button {
+    -fx-background-color: #393e4a;
+    -fx-text-fill: #eee;
+    -fx-font-size: 14px;
+    -fx-padding: 6 12 6 12;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+}
+.tool-bar .button:focused, .tool-bar .button:hover {
+    -fx-background-color: #50566b;
+}
+
+.tab-pane {
+    -fx-background-color: #23272e;
+}
+.tab {
+    -fx-background-color: #2c313c;
+    -fx-text-fill: #eee;
+}
+.tab:selected {
+    -fx-background-color: #393e4a;
+}
+
+.code-area {
+    -fx-background-color: #181c22;
+    -fx-font-size: 14px;
+    -fx-text-fill: #eee;
+    -fx-highlight-fill: #444;
+    -fx-highlight-text-fill: #fff;
+}
+
+.label {
+    -fx-text-fill: #eee;
+}

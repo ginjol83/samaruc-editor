@@ -1,0 +1,81 @@
+/* app.css - tema claro (valores inline compatibles con JavaFX) */
+.root {
+    -fx-font-family: "Roboto", "Segoe UI", sans-serif;
+    -fx-base: #ffffff;
+    -fx-background-color: #f6f8fb;
+    -fx-text-fill: #0f1721;
+}
+
+.menu-bar, .menu {
+    -fx-background-color: transparent;
+}
+
+.tool-bar {
+    -fx-padding: 6px;
+    -fx-background-color: linear-gradient(#f8fbff, #e9eef8);
+    -fx-border-color: #d6dbe6;
+    -fx-border-width: 0 0 1 0;
+    -fx-pref-height: 56;
+}
+
+.tool-bar .button,
+.tb-button {
+    -fx-pref-width: 48px;
+    -fx-pref-height: 48px;
+    -fx-background-radius: 8px;
+    -fx-padding: 6px;
+    -fx-background-color: transparent;
+    -fx-cursor: hand;
+    -fx-alignment: center;
+}
+
+.tb-button:hover {
+    -fx-background-color: rgba(255,255,255,0.9);
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.06), 8, 0, 0, 2);
+}
+
+.button .font-icon {
+    -fx-font-size: 20px;
+}
+
+/* Tooltips */
+.tooltip {
+    -fx-font-size: 11px;
+}
+
+/* TabPane and editor adjustments */
+.tab-pane .tab-header-area {
+    -fx-background-color: transparent;
+}
+
+/* Console */
+.text-area {
+    -fx-font-family: "Source Code Pro", monospace;
+}
+
+/* Toast label */
+.toast-label {
+    -fx-background-color: rgba(0,0,0,0.8);
+    -fx-text-fill: white;
+    -fx-padding: 8px;
+    -fx-background-radius: 4px;
+}
+
+/* Palette selection */
+.palette-selected {
+    -fx-border-color: yellow;
+    -fx-border-width: 2;
+}
+
+/* Footer */
+.footer-box {
+    -fx-padding: 6;
+    -fx-alignment: center-right;
+    -fx-background-color: #fff;
+    -fx-border-color: #ddd;
+    -fx-border-width: 1 0 0 0;
+}
+.footer-label {
+    -fx-text-fill: #111;
+    -fx-font-size: 12px;
+}

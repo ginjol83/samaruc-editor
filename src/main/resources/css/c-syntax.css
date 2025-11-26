@@ -1,0 +1,12 @@
+/* Simple C syntax highlighting for RichTextFX */
+.code-area .keyword {
+    -fx-fill: #0000ff;
+    -fx-font-weight: bold;
+}
+.code-area .comment {
+    -fx-fill: #008000;
+    -fx-font-style: italic;
+}
+.code-area .string {
+    -fx-fill: #b22222;
+}

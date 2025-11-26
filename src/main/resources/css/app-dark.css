@@ -1,0 +1,40 @@
+/* app-dark.css - tema oscuro (valores inline compatibles con JavaFX) */
+.root {
+    -fx-font-family: "Roboto", "Segoe UI", sans-serif;
+    -fx-base: #0b1220;
+    -fx-background-color: #0f1721;
+    -fx-text-fill: #e6eef8;
+}
+
+.tool-bar {
+    -fx-padding: 6px;
+    -fx-background-color: linear-gradient(#0b1220, #0f1721);
+    -fx-border-color: #1f2937;
+    -fx-border-width: 0 0 1 0;
+    -fx-pref-height: 56;
+}
+
+.tool-bar .button {
+    -fx-pref-width: 48px;
+    -fx-pref-height: 48px;
+    -fx-background-radius: 8px;
+    -fx-padding: 6px;
+    -fx-background-color: transparent;
+}
+
+.tb-button {
+    -fx-pref-width: 48px;
+    -fx-pref-height: 48px;
+    -fx-background-radius: 8px;
+    -fx-padding: 6px;
+    -fx-background-color: transparent;
+}
+
+.tb-button:hover {
+    -fx-background-color: rgba(255,255,255,0.03);
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.08), 8, 0, 0, 2);
+}
+
+.button .font-icon {
+    -fx-font-size: 20px;
+}

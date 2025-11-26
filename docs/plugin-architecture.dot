@@ -1,0 +1,48 @@
+digraph plugin_system {
+  rankdir=LR;
+  node [shape=record, fontname="Sans"];
+
+  subgraph cluster_host {
+    label="Host (retro-editor)";
+    style=rounded;
+    MainApp [label="MainApp\n(src/main/java/com/retroeditor/MainApp.java)", shape=box];
+    PluginManager [label="PluginManager\n(src/main/java/com/retroeditor/plugin/PluginManager.java)", shape=box];
+    PluginContextImpl [label="PluginContextImpl\n(src/main/java/com/retroeditor/plugin/PluginContextImpl.java)", shape=box];
+    Plugin [label="Plugin (interface)\n(src/main/java/com/retroeditor/plugin/Plugin.java)", shape=box];
+    AppLogger [label="AppLogger\n(src/main/java/com/retroeditor/service/AppLogger.java)", shape=box];
+    PluginInfo [label="PluginInfo\n(src/main/java/com/retroeditor/plugin/PluginInfo.java)", shape=box];
+  }
+
+  subgraph cluster_plugins {
+    label="Runtime plugin JARs (plugins/)";
+    style=rounded;
+    PluginsDir [label="plugins/*.jar", shape=folder];
+    Jar [label="plugin.jar\n(META-INF/services/... )", shape=note];
+    ImplClass [label="PluginImpl class\n(com.example.MyPlugin)", shape=component];
+    FXML [label="views/*.fxml (opcional)", shape=oval];
+  }
+
+  // Flow edges
+  MainApp -> PluginManager [label="init & pass Stage/Scene/MenuBar"];
+  PluginManager -> PluginsDir [label="discoverPlugins()"];
+  PluginsDir -> Jar [label="found jar"];
+  Jar -> PluginManager [label="open URL, create ChildFirstClassLoader"];
+  PluginManager -> ImplClass [label="ServiceLoader.load(Plugin.class, pluginClassLoader)", style=dashed];
+  ImplClass -> PluginContextImpl [label="new PluginContextImpl(stage,scene,menuBar)"];
+  ImplClass -> Plugin [label="implements Plugin"];
+  ImplClass -> FXML [label="optional FXML resources (use plugin classloader)"];
+
+  // Lifecycle
+  PluginManager -> ImplClass [label="instantiate & call onLoad(ctx)", color=green];
+  PluginManager -> ImplClass [label="call onEnable() after UI ready", color=blue, style=bold];
+  ImplClass -> PluginContextImpl [label="registerMenu()/log()/...", color=purple];
+  PluginManager -> ImplClass [label="onDisable() -> ctx.unregisterAll() -> close classloader", color=red];
+
+  // Logging
+  ImplClass -> AppLogger [label="AppLogger.logMonitor()", style=dotted];
+  PluginManager -> AppLogger [label="log(...)", style=dotted];
+
+  // Notes
+  note1 [label="ChildFirstClassLoader:\n- child-first load\n- parent-first exceptions for java/javafx/...", shape=note];
+  PluginManager -> note1 [style=dotted];
+}

@@ -1,0 +1,31 @@
+@startuml
+' Diagrama de secuencia: carga y descarga de plugins
+actor User
+
+User -> MainApp : start()
+MainApp -> PluginManager : new(stage, scene, menuBar)
+MainApp -> PluginManager : loadPlugins()
+PluginManager -> PluginJar : scan plugins/ -> found jar
+PluginManager -> ChildFirstClassLoader : new(url)
+PluginManager -> ServiceLoader : load(Plugin.class, loader)
+ServiceLoader -> PluginImpl : instantiate
+PluginImpl -> PluginContextImpl : new(ctx)
+PluginManager -> PluginImpl : onLoad(ctx)
+PluginManager -> PluginImpl : onEnable()
+note right of PluginImpl
+  Plugins can register menus,
+  load FXML with plugin classloader,
+  call AppLogger.logMonitor(...)
+end note
+
+== Secuencia: descarga/recarga ==
+PluginManager -> PluginImpl : onDisable()
+PluginManager -> PluginContextImpl : unregisterAll()
+PluginManager -> ChildFirstClassLoader : close()
+
+note left
+  - ChildFirstClassLoader: intenta cargar desde el JAR del plugin primero (child-first),
+    pero delega parent-first para paquetes core (java.*, javafx.*, org.slf4j.*, etc.)
+  - Al cargar FXML proporcionado por el plugin, usar FXMLLoader.setClassLoader(pluginClassLoader)
+end note
+@enduml

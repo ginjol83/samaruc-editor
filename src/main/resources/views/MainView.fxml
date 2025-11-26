@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import org.fxmisc.richtext.CodeArea?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml" fx:controller="com.retroeditor.controller.MainController">
+
+    <!-- BARRA SUPERIOR -->
+    <top>
+        <VBox>
+            <MenuBar fx:id="menuBar">
+                <menus>
+                    <Menu fx:id="menuArchivo" text="Archivo">
+                        <MenuItem fx:id="menuItemNuevo" text="Nuevo" onAction="#onNewTab" />
+                        <MenuItem fx:id="menuItemAbrir" text="Abrir" onAction="#onOpenFile" />
+                        <MenuItem fx:id="menuItemGuardar" text="Guardar" onAction="#onSaveFile" />
+                        <MenuItem fx:id="menuItemGuardarComo" text="Guardar como" onAction="#onSaveAsFile" />
+                        <SeparatorMenuItem />
+                        <MenuItem fx:id="menuItemCerrar" text="Cerrar pestaña" onAction="#onCloseFile" />
+                        <SeparatorMenuItem />
+                        <MenuItem fx:id="menuItemConfig" text="Configuración" onAction="#onOpenConfig" />
+                        <SeparatorMenuItem />
+                        <MenuItem fx:id="menuItemSalir" text="Salir" onAction="#onExit" />
+                    </Menu>
+                    <Menu fx:id="menuCompilacion" text="Compilación/Ejecución">
+                        <MenuItem fx:id="menuItemCompilar" text="Compilar" onAction="#onCompilar" />
+                        <MenuItem fx:id="menuItemEjecutar" text="Ejecutar" onAction="#onEjecutar" />
+                    </Menu>
+                    <Menu fx:id="menuEdicion" text="Edición">
+                        <MenuItem fx:id="menuItemDeshacer" text="Deshacer" onAction="#onUndo" />
+                        <MenuItem fx:id="menuItemRehacer" text="Rehacer" onAction="#onRedo" />
+                        <SeparatorMenuItem />
+                        <MenuItem fx:id="menuItemCortar" text="Cortar" onAction="#onCut" />
+                        <MenuItem fx:id="menuItemCopiar" text="Copiar" onAction="#onCopy" />
+                        <MenuItem fx:id="menuItemPegar" text="Pegar" onAction="#onPaste" />
+                        <SeparatorMenuItem />
+                        <MenuItem fx:id="menuItemFind" text="Buscar en archivo" onAction="#onFindInFile" />
+                        <MenuItem fx:id="menuItemFindProject" text="Buscar en proyecto" onAction="#onFindInProject" />
+                    </Menu>
+
+                    <Menu fx:id="menuAyuda" text="Ayuda">
+                        <MenuItem fx:id="menuItemManual" text="Manual" onAction="#onOpenManual" />
+                        <MenuItem fx:id="menuItemCreditos" text="Créditos" onAction="#onShowCredits" />
+                    </Menu>
+                </menus>
+            </MenuBar>
+
+            <ToolBar fx:id="toolBar">
+                <!-- Proyecto -->
+                <Button fx:id="btnNuevoProyecto" onAction="#onNuevoProyecto">
+                    <tooltip><Tooltip text="Nuevo proyecto" /></tooltip>
+                </Button>
+                <Button fx:id="btnAbrirProyecto" onAction="#onAbrirProyecto">
+                    <tooltip><Tooltip text="Abrir proyecto" /></tooltip>
+                </Button>
+                <Separator />
+                <!-- Archivo -->
+                <Button fx:id="btnNuevo" onAction="#onNewTab">
+                    <tooltip><Tooltip text="Nuevo archivo" /></tooltip>
+                </Button>
+                <!-- 'Open file' toolbar button removed per user request -->
+                <Button fx:id="btnSave" onAction="#onSaveFile">
+                    <tooltip><Tooltip text="Guardar archivo" /></tooltip>
+                </Button>
+                <Button fx:id="btnClose" onAction="#onCloseFile">
+                    <tooltip><Tooltip text="Cerrar archivo" /></tooltip>
+                </Button>
+                <Separator />
+                <!-- Edición -->
+                <Button fx:id="btnUndo" onAction="#onUndo">
+                    <tooltip><Tooltip text="Deshacer" /></tooltip>
+                </Button>
+                <Button fx:id="btnRedo" onAction="#onRedo">
+                    <tooltip><Tooltip text="Rehacer" /></tooltip>
+                </Button>
+                <Separator />
+                <!-- Buscar -->
+                <Button fx:id="btnFind" onAction="#onFindInFile">
+                    <tooltip><Tooltip text="Buscar en archivo (Ctrl+F)" /></tooltip>
+                </Button>
+                <Button fx:id="btnFindProject" onAction="#onFindInProject">
+                    <tooltip><Tooltip text="Buscar en proyecto (Ctrl+H)" /></tooltip>
+                </Button>
+                <Button fx:id="btnCut" onAction="#onCut">
+                    <tooltip><Tooltip text="Cortar" /></tooltip>
+                </Button>
+                <Button fx:id="btnCopy" onAction="#onCopy">
+                    <tooltip><Tooltip text="Copiar" /></tooltip>
+                </Button>
+                <Button fx:id="btnPaste" onAction="#onPaste">
+                    <tooltip><Tooltip text="Pegar" /></tooltip>
+                </Button>
+                <Separator />
+                <!-- Compilación / Ejecución -->
+                <Button fx:id="btnCompilar" onAction="#onCompilar">
+                    <tooltip><Tooltip text="Compilar" /></tooltip>
+                </Button>
+                <Button fx:id="btnEjecutar" onAction="#onEjecutar">
+                    <tooltip><Tooltip text="Ejecutar" /></tooltip>
+                </Button>
+                <Separator />
+                <!-- Configuración -->
+                <Button fx:id="btnConfig" onAction="#onOpenConfig">
+                    <tooltip><Tooltip text="Configuración" /></tooltip>
+                </Button>
+                <!-- Pixel Editor removed: functionality extracted to plugin -->
+                <ToggleButton fx:id="btnThemeToggle" selected="false">
+                    <tooltip><Tooltip text="Alternar tema claro/oscuro" /></tooltip>
+                </ToggleButton>
+                <!-- Ayuda -->
+                <Button fx:id="btnManual" onAction="#onOpenManual">
+                    <tooltip><Tooltip text="Abrir manual de usuario" /></tooltip>
+                </Button>
+            </ToolBar>
+        </VBox>
+    </top>
+
+    <!-- CENTRO -->
+<center>
+    <!-- Split principal con el explorador de proyecto y el editor -->
+    <SplitPane orientation="HORIZONTAL" fx:id="mainSplitPane" BorderPane.alignment="CENTER" dividerPositions="0.18">
+        <items>
+            <AnchorPane fx:id="projectExplorerAnchor" minWidth="180.0" maxWidth="350.0" prefWidth="220.0">
+                <fx:include source="ProjectExplorer.fxml" />
+            </AnchorPane>
+
+            <!-- Contenedor vertical con el editor y el panel de salida -->
+            <VBox fx:id="editorContainer" spacing="2.0">
+                <!-- Dock area for transient panels like search -->
+                <AnchorPane fx:id="searchDock" minHeight="0" maxHeight="120" prefHeight="0" />
+                <TabPane fx:id="tabPane" VBox.vgrow="ALWAYS" />
+
+                <!-- Panel inferior con consola y footer -->
+                <VBox fx:id="outputContainer" minHeight="180" maxHeight="180">
+                    <TabPane fx:id="outputTabPane"
+                             tabClosingPolicy="UNAVAILABLE"
+                             style="-fx-background-color: #fff;"
+                             VBox.vgrow="ALWAYS">
+                        <tabs>
+                            <Tab text="Consola">
+                                <TextArea fx:id="consoleOutputArea"
+                                          editable="false"
+                                          wrapText="true"
+                                          style="-fx-control-inner-background: #fff; -fx-text-fill: #111;" />
+                            </Tab>
+                            <Tab text="Monitor">
+                                <TextArea fx:id="debuggerOutputArea"
+                                          editable="false"
+                                          wrapText="true"
+                                          style="-fx-control-inner-background: #fff; -fx-text-fill: #111;" />
+                            </Tab>
+                        </tabs>
+                    </TabPane>
+
+                    <HBox style="-fx-padding: 6; -fx-alignment: center-right; -fx-background-color: #fff; -fx-border-color: #ddd; -fx-border-width: 1 0 0 0;"
+                          minHeight="28" maxHeight="28">
+                        <Label fx:id="lblFooter"
+                               text="Desarrollado por Andres Gimenez © 2025"
+                               style="-fx-text-fill: #111; -fx-font-size: 12px;" />
+                    </HBox>
+                </VBox>
+            </VBox>
+        </items>
+    </SplitPane>
+</center>
+
+<!-- El bottom del BorderPane queda vacío -->
+<bottom/>
+
+
+</BorderPane>

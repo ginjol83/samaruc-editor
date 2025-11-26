@@ -1,0 +1,133 @@
+@startuml
+' PlantUML: Diagrama de clases y secuencia del sistema de plugins
+' Archivo generado automáticamente para explicar la arquitectura de plugins.
+
+skinparam classAttributeIconSize 0
+
+package "Host (retro-editor)" {
+  class MainApp {
+    +start(Stage)
+    +main(String[])
+  }
+
+  class PluginManager {
+    -pluginsDir: File
+    -propsFile: File
+    -props: Properties
+    -loaded: List<Plugin>
+    -pluginLoaders: Map<Plugin, ClassLoader>
+    -pluginContexts: Map<Plugin, PluginContext>
+    +loadPlugins(): void
+    +enablePlugins(): void
+    +disablePlugins(): void
+    +reloadPlugins(): void
+    +discoverPlugins(): List<PluginInfo>
+  }
+
+  interface Plugin {
+    +onLoad(ctx: PluginContext): void
+    +onEnable(): void
+    +onDisable(): void
+    +getName(): String
+  }
+
+  interface PluginContext {
+    +getPrimaryStage(): Stage
+    +getScene(): Scene
+    +getMenuBar(): MenuBar
+    +log(message: String): void
+    +registerMenu(menu: Menu): void
+    +unregisterMenu(menu: Menu): void
+    +unregisterAll(): void
+  }
+
+  class PluginContextImpl {
+    -stage: Stage
+    -scene: Scene
+    -menuBar: MenuBar
+    -registeredMenus: List<Menu>
+    +getPrimaryStage(): Stage
+    +getScene(): Scene
+    +getMenuBar(): MenuBar
+    +log(message: String): void
+    +registerMenu(menu: Menu): void
+    +unregisterMenu(menu: Menu): void
+    +unregisterAll(): void
+  }
+
+  class PluginInfo {
+    +jarName: String
+    +enabled: boolean
+    +implNames: List<String>
+  }
+
+  class AppLogger {
+    +logMonitor(category: String, message: String): void
+  }
+
+  class ChildFirstClassLoader {
+    +ChildFirstClassLoader(URL[] urls, ClassLoader parent)
+    +loadClass(name: String, resolve: boolean): Class
+  }
+}
+
+package "Plugins (runtime JARs)" {
+  class PluginJar <<artifact>> {
+    +serviceDescriptor: META-INF/services/com.retroeditor.plugin.Plugin
+    +implClass: com.example.MyPlugin
+    +resources: views/*.fxml (optional)
+  }
+
+  class PluginImpl {
+    +onLoad(ctx: PluginContext)
+    +onEnable()
+    +onDisable()
+    +getName(): String
+  }
+}
+
+' Relaciones (clases)
+PluginManager --> PluginContextImpl : creates
+PluginManager --> ChildFirstClassLoader : uses
+PluginManager --> PluginInfo : returns
+PluginManager --> AppLogger : logs via
+PluginImpl ..|> Plugin
+PluginContextImpl ..|> PluginContext
+PluginJar --> PluginImpl : contains
+PluginManager ..> PluginImpl : loads/instantiates
+
+' Diagrama de secuencia para la carga de plugins
+
+== Secuencia: carga de plugins ==
+
+actor User
+
+User -> MainApp : start()
+MainApp -> PluginManager : new(stage, scene, menuBar)
+MainApp -> PluginManager : loadPlugins()
+PluginManager -> PluginJar : scan plugins/ -> found jar
+PluginManager -> ChildFirstClassLoader : new(url)
+PluginManager -> ServiceLoader : load(Plugin.class, loader)
+ServiceLoader -> PluginImpl : instantiate
+PluginImpl -> PluginContextImpl : new(ctx)
+PluginManager -> PluginImpl : onLoad(ctx)
+   PluginManager -> PluginImpl : onEnable()
+   note right of PluginImpl
+     Plugins can register menus,
+     load FXML with plugin classloader,
+     call AppLogger.logMonitor(...)
+   end note
+
+== Secuencia: descarga/recarga ==
+PluginManager -> PluginImpl : onDisable()
+PluginManager -> PluginContextImpl : unregisterAll()
+PluginManager -> ChildFirstClassLoader : close()
+
+' Nota técnica
+note left
+  - ChildFirstClassLoader: intenta cargar desde el JAR del plugin primero (child-first),
+    pero delega parent-first para paquetes core (java.*, javafx.*, org.slf4j.*, etc.)
+  - Al cargar FXML proporcionado por el plugin, usar FXMLLoader.setClassLoader(pluginClassLoader)
+end note
+
+@enduml

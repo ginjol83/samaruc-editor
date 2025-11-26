@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.TabPane?>
+<?import javafx.scene.control.Tab?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.TextField?>
+<VBox xmlns:fx="http://javafx.com/fxml" fx:controller="com.retroeditor.controller.config.ConfigController" spacing="16" alignment="CENTER" style="-fx-padding: 32;">
+    <TabPane fx:id="tabPaneConfig" minWidth="400" minHeight="200">
+        <tabs>
+            <Tab fx:id="tabIdioma" text="Idioma">
+                <VBox spacing="12" alignment="CENTER_LEFT">
+                    <Label fx:id="lblIdioma" text="Selecciona el idioma de la interfaz:" />
+                    <ComboBox fx:id="comboIdioma" prefWidth="180" />
+                    <Button fx:id="btnGuardarIdioma" text="Guardar" onAction="#onSaveLanguage" />
+                </VBox>
+            </Tab>
+            <Tab fx:id="tabCompilador" text="Compilador">
+                <VBox spacing="12" alignment="CENTER_LEFT">
+                    <!-- Label fx:id="lblCompilador" text="Ruta del compilador C:" />
+                    <TextField fx:id="txtCompilador" prefWidth="260" />
+                    <Button fx:id="btnGuardarCompilador" text="Guardar" onAction="#onSaveCompilador" / -->
+                    <Label text="Selecciona el compilador:" />
+                    <ComboBox fx:id="comboCompilador" prefWidth="180" />
+                    <Label text="RUTA DE BIN DE GBDK:" />
+                    <HBox spacing="6" alignment="CENTER_LEFT">
+                        <TextField fx:id="txtGbdkBin" prefWidth="220" promptText="/ruta/a/gbdk/bin" />
+                        <Button fx:id="btnSeleccionarGbdkBin" text="..." onAction="#onSeleccionarGbdkBin" />
+                        <Button fx:id="btnGuardarGbdkBin" text="Guardar GBDK" onAction="#onSaveGbdkBin" />
+                    </HBox>
+                    <Label text="RUTA DE BIN DE SPECTRUM:" />
+                    <HBox spacing="6" alignment="CENTER_LEFT">
+                        <TextField fx:id="txtSpectrumBin" prefWidth="220" promptText="/ruta/a/spectrum/bin" />
+                        <Button fx:id="btnSeleccionarSpectrumBin" text="..." onAction="#onSeleccionarSpectrumBin" />
+                        <Button fx:id="btnGuardarSpectrumBin" text="Guardar Spectrum" onAction="#onSaveSpectrumBin" />
+                    </HBox>
+                    <Label text="RUTA/EXECUTABLE DE JSPECCY (emulador):" />
+                    <HBox spacing="6" alignment="CENTER_LEFT">
+                        <TextField fx:id="txtJspeccyBin" prefWidth="220" promptText="/ruta/a/jspeccy.jar o jspeccy" />
+                        <Button fx:id="btnSeleccionarJspeccyBin" text="..." onAction="#onSeleccionarJspeccyBin" />
+                        <Button fx:id="btnGuardarJspeccyBin" text="Guardar JSpeccy" onAction="#onSaveJspeccyBin" />
+                    </HBox>
+                </VBox>
+            </Tab>
+            <Tab fx:id="tabPlugins" text="Plugins">
+                <VBox spacing="8" alignment="CENTER_LEFT" style="-fx-padding:10;">
+                    <Label text="Plugins instalados (carpeta ./plugins):" />
+                    <HBox spacing="8" alignment="CENTER_LEFT">
+                        <ListView fx:id="lstPlugins" prefWidth="320" prefHeight="160" />
+                        <VBox spacing="6">
+                            <Button fx:id="btnInstallPlugin" text="Instalar..." onAction="#onInstallPlugin" />
+                            <Button fx:id="btnEnable" text="Habilitar" onAction="#onEnablePlugin" />
+                            <Button fx:id="btnDisable" text="Deshabilitar" onAction="#onDisablePlugin" />
+                            <Button fx:id="btnOpenFolder" text="Abrir carpeta" onAction="#onOpenPluginsFolder" />
+                            <Button fx:id="btnRefreshPlugins" text="Refrescar" onAction="#onRefreshPlugins" />
+                        </VBox>
+                    </HBox>
+                    <Label fx:id="lblPluginInfo" text="Selecciona un plugin para ver detalles." wrapText="true" />
+                </VBox>
+            </Tab>
+        </tabs>
+    </TabPane>
+    <Button fx:id="btnCerrarConfig" text="Cerrar" onAction="#onCloseConfig" />
+</VBox>

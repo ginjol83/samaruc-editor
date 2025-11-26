@@ -1,0 +1,57 @@
+# Build outputs
+/target/
+**/target/
+
+# Maven shade generated reduced POM
+dependency-reduced-pom.xml
+
+# Maven reports
+**/target/surefire-reports/
+**/target/failsafe-reports/
+
+# Eclipse project files
+.project
+.classpath
+.settings/
+
+# IDEs
+/.idea/
+*.iml
+.vscode/
+
+# IntelliJ/IDE-generated output
+out/
+
+# Plugin jars and packaged samples
+/plugins/*.jar
+/samples/*/target/
+/samples/*/*.jar
+
+# Compiled classes and logs
+*.class
+*.log
+
+# jars and packaged artifacts (ignore build artifacts)
+**/target/*.jar
+**/target/*.war
+**/target/*.ear
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Misc
+*.tmp
+*.swp
+*~
+*.bak
+
+# Coverage / reports
+jacoco.exec
+coverage/
+
+# Local runtime files
+logs/
+
