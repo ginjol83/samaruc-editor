@@ -7,6 +7,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.ResourceBundle;
 
+import javafx.event.ActionEvent;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 import com.retroeditor.controller.build.BuildController;
@@ -350,28 +351,28 @@ public class MainController {
     }
 
     @FXML
-    private void onFindInFile(javafx.event.ActionEvent event) {
+    private void onFindInFile(ActionEvent event) {
         if (searchController != null) searchController.showFindInFileDialog();
     }
 
 
     @FXML
-    private void onFindInProject(javafx.event.ActionEvent event) {
+    private void onFindInProject(ActionEvent event) {
         if (searchController != null) searchController.showFindInProjectDialog();
     }
 
     @FXML
-    private void onCompilar(javafx.event.ActionEvent event) {
+    private void onCompilar(ActionEvent event) {
         buildController.onCompilar(event, consoleOutputArea, tabPane, tabFileMap, configModel);
     }
 
     @FXML
-    private void onEjecutar(javafx.event.ActionEvent event) {
+    private void onEjecutar(ActionEvent event) {
         buildController.onEjecutar(event, consoleOutputArea, tabPane, tabFileMap, configModel);
     }
 
     @FXML
-    private void onNuevoProyecto(javafx.event.ActionEvent event) {
+    private void onNuevoProyecto(ActionEvent event) {
         File creado = fxUtils.createNewProject(getStage());
         if (creado != null) {
             setProyectoActual(creado);
@@ -385,7 +386,7 @@ public class MainController {
     }
 
     @FXML
-    private void onAbrirProyecto(javafx.event.ActionEvent event) {
+    private void onAbrirProyecto(ActionEvent event) {
         File carpeta = fxUtils.openExistingProject(getStage());
         if (carpeta != null) setProyectoActual(carpeta);
     }
@@ -418,7 +419,7 @@ public class MainController {
     private boolean isConfigDialogOpen = false;
 
     @FXML
-    public void onOpenConfig(javafx.event.ActionEvent event) {
+    public void onOpenConfig(ActionEvent event) {
         if (event != null) event.consume();
         if (isConfigDialogOpen || isRefreshingLanguage) {
             if (configStage != null && configStage.isShowing()) configStage.toFront();
@@ -466,7 +467,7 @@ public class MainController {
      * Metodo para generar un nuevo tab de editor
      */
     @FXML
-    public void onNewTab(javafx.event.ActionEvent event) {
+    public void onNewTab(ActionEvent event) {
         // Asegurarse de que hay un proyecto abierto antes de crear un nuevo archivo
         if (this.currentProjectDir == null) {
             Alert alert = new Alert(Alert.AlertType.WARNING);
@@ -480,34 +481,34 @@ public class MainController {
     }
 
     @FXML
-    private void onExit(javafx.event.ActionEvent event) { Platform.exit(); }
+    private void onExit(ActionEvent event) { Platform.exit(); }
 
     @FXML
-    private void onOpenFile(javafx.event.ActionEvent event)   { fileOptionsController.onOpenFile(event, tabPane, tabFileMap, editorModel, syntaxHighlighter); }
+    private void onOpenFile(ActionEvent event)   { fileOptionsController.onOpenFile(event, tabPane, tabFileMap, editorModel, syntaxHighlighter); }
 
     @FXML
-    private void onSaveFile(javafx.event.ActionEvent event)   { fileOptionsController.onSaveFile(event, tabPane, tabFileMap, editorModel); }
+    private void onSaveFile(ActionEvent event)   { fileOptionsController.onSaveFile(event, tabPane, tabFileMap, editorModel); }
 
     @FXML
-    private void onSaveAsFile(javafx.event.ActionEvent event) { fileOptionsController.onSaveAsFile(event, tabPane, tabFileMap, editorModel); }
+    private void onSaveAsFile(ActionEvent event) { fileOptionsController.onSaveAsFile(event, tabPane, tabFileMap, editorModel); }
 
     @FXML
-    private void onCloseFile(javafx.event.ActionEvent event)  { fileOptionsController.onCloseFile(event, tabPane, tabFileMap, editorModel); }
+    private void onCloseFile(ActionEvent event)  { fileOptionsController.onCloseFile(event, tabPane, tabFileMap, editorModel); }
 
     @FXML
-    private void onUndo(javafx.event.ActionEvent event)       { editOptionsController.onUndo(event, tabPane); }
+    private void onUndo(ActionEvent event)       { editOptionsController.onUndo(event, tabPane); }
 
     @FXML
-    private void onRedo(javafx.event.ActionEvent event)       { editOptionsController.onRedo(event, tabPane); }
+    private void onRedo(ActionEvent event)       { editOptionsController.onRedo(event, tabPane); }
 
     @FXML
-    private void onCut(javafx.event.ActionEvent event)        { editOptionsController.onCut(event, tabPane); }
+    private void onCut(ActionEvent event)        { editOptionsController.onCut(event, tabPane); }
 
     @FXML
-    private void onCopy(javafx.event.ActionEvent event)       { editOptionsController.onCopy(event, tabPane); }
+    private void onCopy(ActionEvent event)       { editOptionsController.onCopy(event, tabPane); }
 
     @FXML
-    private void onPaste(javafx.event.ActionEvent event)      { editOptionsController.onPaste(event, tabPane); }
+    private void onPaste(ActionEvent event)      { editOptionsController.onPaste(event, tabPane); }
 
     @FXML
     private void onOpenManual()                               { helpController.onOpenManual(); }

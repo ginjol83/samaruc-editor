@@ -13,9 +13,11 @@ Editor de código C básico en Java usando JavaFX y FXML.
 - Java 17+
 - Maven
 
-## Ejecutar
+## Instalar y ejecutar
 
 ```bash
+mvn compile
+mvn install
 mvn javafx:run
 ```
 
