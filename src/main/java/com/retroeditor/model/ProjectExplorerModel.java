@@ -60,4 +60,39 @@ public class ProjectExplorerModel {
         return true;
     }
 
+    /**
+     * Borra un archivo o carpeta. Si es carpeta, el borrado es recursivo.
+     * @param target Archivo o carpeta a borrar.
+     * @return true si el borrado se completó.
+     * @throws java.io.IOException si no se puede borrar.
+     */
+    public boolean deleteFileOrDirectory(java.io.File target) throws java.io.IOException {
+        if (target == null) throw new java.io.IOException("Elemento inválido");
+        if (!target.exists()) throw new java.io.IOException("El elemento no existe: " + target.getName());
+
+        if (target.isDirectory()) {
+            java.nio.file.Files.walkFileTree(target.toPath(), new java.nio.file.SimpleFileVisitor<java.nio.file.Path>() {
+                @Override
+                public java.nio.file.FileVisitResult visitFile(java.nio.file.Path file, java.nio.file.attribute.BasicFileAttributes attrs) throws java.io.IOException {
+                    java.nio.file.Files.delete(file);
+                    return java.nio.file.FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public java.nio.file.FileVisitResult postVisitDirectory(java.nio.file.Path dir, java.io.IOException exc) throws java.io.IOException {
+                    if (exc != null) throw exc;
+                    java.nio.file.Files.delete(dir);
+                    return java.nio.file.FileVisitResult.CONTINUE;
+                }
+            });
+            return true;
+        }
+
+        if (!target.delete()) {
+            throw new java.io.IOException("No se pudo borrar: " + target.getName());
+        }
+
+        return true;
+    }
+
 }

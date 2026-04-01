@@ -3,11 +3,14 @@ package com.retroeditor.controller.projectExplorer;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Optional;
 
 import com.retroeditor.controller.MainController;
 import com.retroeditor.model.ProjectExplorerModel;
 
 import javafx.fxml.FXML;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.TextInputDialog;
@@ -274,6 +277,42 @@ public class ProjectExplorerController {
                         mainController.openFileFromExplorer(file);
                     }
                 }
+                event.consume();
+                return;
+            }
+
+            if (event.getCode() == KeyCode.DELETE) {
+                FileTreeItem selected = (FileTreeItem) treeView.getSelectionModel().getSelectedItem();
+
+                if (selected == null) return;
+
+                File target = getFileFromTreeItem(selected);
+
+                if (target == null) return;
+
+                if (rootDirectory != null && target.getAbsolutePath().equals(rootDirectory.getAbsolutePath())) {
+                    showError("No se puede borrar la carpeta raíz del proyecto.");
+                    event.consume();
+                    return;
+                }
+
+                if (!confirmDelete(target)) {
+                    event.consume();
+                    return;
+                }
+
+                try {
+                    boolean targetWasDirectory = target.isDirectory();
+                    projectExplorerModel.deleteFileOrDirectory(target);
+                    if (mainController != null) {
+                        mainController.closeTabsForDeletedTarget(target, targetWasDirectory);
+                    }
+                    refreshTree();
+                } catch (IOException ex) {
+                    showError("Error al borrar: " + ex.getMessage());
+                }
+
+                event.consume();
             }
         });
 
@@ -346,8 +385,13 @@ public class ProjectExplorerController {
     /**
      * Refresca el árbol de archivos.
      */
-    private void refreshTree() {
+    public void refreshTree() {
         if (rootDirectory != null) setRootDirectory(rootDirectory);
+    }
+
+    @FXML
+    private void onRefreshTree() {
+        refreshTree();
     }
 
     /**
@@ -428,6 +472,18 @@ public class ProjectExplorerController {
      */
     private void showError(String msg) {
         projectExplorerModel.showError(msg);
+    }
+
+    private boolean confirmDelete(File target) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        String type = target.isDirectory() ? "carpeta" : "archivo";
+
+        alert.setTitle("Confirmar borrado");
+        alert.setHeaderText("Se va a borrar el " + type + ": " + target.getName());
+        alert.setContentText("Esta acción no se puede deshacer. ¿Quieres continuar?");
+
+        Optional<ButtonType> result = alert.showAndWait();
+        return result.isPresent() && result.get() == ButtonType.OK;
     }
 }
 

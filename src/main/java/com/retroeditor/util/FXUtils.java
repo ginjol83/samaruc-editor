@@ -16,6 +16,7 @@ import java.util.ResourceBundle;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.LineNumberFactory;
 
+import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.service.syntax.SyntaxHighlighter;
 import com.retroeditor.view.UIElements;
 
@@ -97,6 +98,17 @@ public class FXUtils {
      * @param resourcePath classpath del recurso (ej. "/views/home/home.html")
      */
     public Tab addHomeTab(String resourcePath, TabPane tabPane) {
+        return addHomeTab(resourcePath, tabPane, "Home", null);
+    }
+
+    /**
+     * Añade una pestaña Home con título e id personalizados.
+     * @param resourcePath classpath del recurso HTML
+     * @param tabPane contenedor de pestañas
+     * @param tabTitle texto de la pestaña
+     * @param tabId id opcional de la pestaña para localizarla luego
+     */
+    public Tab addHomeTab(String resourcePath, TabPane tabPane, String tabTitle, String tabId) {
         try {
             WebView   web    = new WebView();
             WebEngine engine = web.getEngine();
@@ -104,10 +116,40 @@ public class FXUtils {
 
             engine.load(url);
 
-            Tab tab          = new Tab("Home", web);
+            Tab tab          = new Tab(tabTitle != null ? tabTitle : "Home", web);
             tab.setClosable(true);
+            if (tabId != null && !tabId.isEmpty()) tab.setId(tabId);
 
             tabPane.getTabs().add(0, tab); // añade como primera pestaña
+            tabPane.getSelectionModel().select(tab);
+
+            return tab;
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * Añade una pestaña Home con contenido HTML ya renderizado.
+     * @param htmlContent html completo
+     * @param tabPane contenedor de pestañas
+     * @param tabTitle texto de la pestaña
+     * @param tabId id opcional de la pestaña para localizarla luego
+     */
+    public Tab addHomeTabContent(String htmlContent, TabPane tabPane, String tabTitle, String tabId) {
+        try {
+            WebView   web    = new WebView();
+            WebEngine engine = web.getEngine();
+
+            engine.loadContent(htmlContent != null ? htmlContent : "", "text/html");
+
+            Tab tab          = new Tab(tabTitle != null ? tabTitle : "Home", web);
+            tab.setClosable(true);
+            if (tabId != null && !tabId.isEmpty()) tab.setId(tabId);
+
+            tabPane.getTabs().add(0, tab);
             tabPane.getSelectionModel().select(tab);
 
             return tab;
@@ -151,33 +193,37 @@ public class FXUtils {
             bundle = ResourceBundle.getBundle("i18n.MessagesBundle", java.util.Locale.forLanguageTag("es"));
         }
 
-        uiElements.btnCut.setTooltip           (new Tooltip(bundle.getString("button.cut")));
-        uiElements.btnOpen.setTooltip          (new Tooltip(bundle.getString("button.open")));
-        uiElements.btnSave.setTooltip          (new Tooltip(bundle.getString("button.save")));
-        uiElements.btnUndo.setTooltip          (new Tooltip(bundle.getString("button.undo")));
-        uiElements.btnRedo.setTooltip          (new Tooltip(bundle.getString("button.redo")));
-        uiElements.btnCopy.setTooltip          (new Tooltip(bundle.getString("button.copy")));
-        uiElements.btnNuevo.setTooltip         (new Tooltip(bundle.getString("button.new")));
-        uiElements.btnClose.setTooltip         (new Tooltip(bundle.getString("button.close")));
-        uiElements.btnPaste.setTooltip         (new Tooltip(bundle.getString("button.paste")));
-        uiElements.btnConfig.setTooltip        (new Tooltip(bundle.getString("button.config")));
-        uiElements.btnCompilar.setTooltip      (new Tooltip(bundle.getString("button.compile")));
-        uiElements.btnEjecutar.setTooltip      (new Tooltip(bundle.getString("button.run")));
-        uiElements.btnNuevoProyecto.setTooltip (new Tooltip(bundle.getString("button.newProject")));
-        uiElements.btnAbrirProyecto.setTooltip (new Tooltip(bundle.getString("button.openProject")));
+        // Null-checks en todos los botones para evitar NPE cuando alguno no existe en el FXML
+        if (uiElements.btnCut          != null) uiElements.btnCut.setTooltip           (new Tooltip(bundle.getString("button.cut")));
+        if (uiElements.btnOpen         != null) uiElements.btnOpen.setTooltip          (new Tooltip(bundle.getString("button.open")));
+        if (uiElements.btnSave         != null) uiElements.btnSave.setTooltip          (new Tooltip(bundle.getString("button.save")));
+        if (uiElements.btnUndo         != null) uiElements.btnUndo.setTooltip          (new Tooltip(bundle.getString("button.undo")));
+        if (uiElements.btnRedo         != null) uiElements.btnRedo.setTooltip          (new Tooltip(bundle.getString("button.redo")));
+        if (uiElements.btnCopy         != null) uiElements.btnCopy.setTooltip          (new Tooltip(bundle.getString("button.copy")));
+        if (uiElements.btnNuevo        != null) uiElements.btnNuevo.setTooltip         (new Tooltip(bundle.getString("button.new")));
+        if (uiElements.btnClose        != null) uiElements.btnClose.setTooltip         (new Tooltip(bundle.getString("button.close")));
+        if (uiElements.btnPaste        != null) uiElements.btnPaste.setTooltip         (new Tooltip(bundle.getString("button.paste")));
+        if (uiElements.btnConfig       != null) uiElements.btnConfig.setTooltip        (new Tooltip(bundle.getString("button.config")));
+        if (uiElements.btnCompilar     != null) uiElements.btnCompilar.setTooltip      (new Tooltip(bundle.getString("button.compile")));
+        if (uiElements.btnCancelarCompilacion != null) uiElements.btnCancelarCompilacion.setTooltip(new Tooltip(bundle.getString("button.cancelCompile")));
+        if (uiElements.btnEjecutar     != null) uiElements.btnEjecutar.setTooltip      (new Tooltip(bundle.getString("button.run")));
+        if (uiElements.btnNuevoProyecto!= null) uiElements.btnNuevoProyecto.setTooltip (new Tooltip(bundle.getString("button.newProject")));
+        if (uiElements.btnAbrirProyecto!= null) uiElements.btnAbrirProyecto.setTooltip (new Tooltip(bundle.getString("button.openProject")));
 
         if (uiElements.menuArchivo         != null) uiElements.menuArchivo.setText          (bundle.getString("menu.file"));
         if (uiElements.menuEdicion         != null) uiElements.menuEdicion.setText          (bundle.getString("menu.edit"));
+        if (uiElements.menuCompilacion     != null) uiElements.menuCompilacion.setText      (bundle.getString("menu.project"));
         if (uiElements.menuItemNuevo       != null) uiElements.menuItemNuevo.setText        (bundle.getString("button.new"));
         if (uiElements.menuItemAbrir       != null) uiElements.menuItemAbrir.setText        (bundle.getString("button.open"));
         if (uiElements.menuItemSalir       != null) uiElements.menuItemSalir.setText        (bundle.getString("menu.exit"));
         if (uiElements.menuItemConfig      != null) uiElements.menuItemConfig.setText       (bundle.getString("button.config"));
         if (uiElements.menuItemCerrar      != null) uiElements.menuItemCerrar.setText       (bundle.getString("button.close"));
-        if (uiElements.menuCompilacion     != null) uiElements.menuCompilacion.setText      (bundle.getString("menu.project"));
         if (uiElements.menuItemGuardar     != null) uiElements.menuItemGuardar.setText      (bundle.getString("button.save"));
         if (uiElements.menuItemCompilar    != null) uiElements.menuItemCompilar.setText     (bundle.getString("button.compile"));
         if (uiElements.menuItemEjecutar    != null) uiElements.menuItemEjecutar.setText     (bundle.getString("button.run"));
         if (uiElements.menuItemGuardarComo != null) uiElements.menuItemGuardarComo.setText  (bundle.getString("button.saveAs"));
+        if (uiElements.menuItemFind        != null) uiElements.menuItemFind.setText         (bundle.getString("menu.find.file"));
+        if (uiElements.menuItemFindProject != null) uiElements.menuItemFindProject.setText  (bundle.getString("menu.find.project"));
     }
 
     /**
@@ -207,8 +253,11 @@ public class FXUtils {
         Tab    tab     = addTab(tabName, content, syntaxHighlighter, tabPane);
 
         if (file == null) newFileCounter++;
-        
+
         tabFileMap.put(tab, file);
+
+        // Limpieza cuando el usuario cierra el tab con la X integrada
+        tab.setOnClosed(e -> tabFileMap.remove(tab));
     }
 
     /**
@@ -217,8 +266,18 @@ public class FXUtils {
      * @return La carpeta del nuevo proyecto, o null si se cancela la operación.
      */
     public File createNewProject(Stage parentStage) {
+        return createNewProject(parentStage, null);
+    }
+
+    /**
+     * Crea un nuevo proyecto en una carpeta seleccionada por el usuario.
+     * @param parentStage La ventana principal (stage) de la aplicación.
+     * @param bundle ResourceBundle opcional para i18n.
+     * @return La carpeta del nuevo proyecto, o null si se cancela la operación.
+     */
+    public File createNewProject(Stage parentStage, ResourceBundle bundle) {
         DirectoryChooser chooser = new DirectoryChooser();
-        chooser.setTitle("Selecciona carpeta para el nuevo proyecto");
+        chooser.setTitle(msg(bundle, "dialog.project.new.selectFolder.title", "Selecciona carpeta para el nuevo proyecto"));
         File parent = chooser.showDialog(parentStage);
 
         if (parent != null) {
@@ -226,9 +285,9 @@ public class FXUtils {
             while (true) {
                 javafx.scene.control.TextInputDialog dialog = new javafx.scene.control.TextInputDialog();
 
-                dialog.setTitle      ("Nombre del proyecto");
-                dialog.setHeaderText ("Introduce el nombre para el nuevo proyecto");
-                dialog.setContentText("Nombre:");
+                dialog.setTitle      (msg(bundle, "dialog.project.new.name.title", "Nombre del proyecto"));
+                dialog.setHeaderText (msg(bundle, "dialog.project.new.name.header", "Introduce el nombre para el nuevo proyecto"));
+                dialog.setContentText(msg(bundle, "dialog.project.new.name.label", "Nombre:"));
 
                 java.util.Optional<String> result = dialog.showAndWait();
 
@@ -238,9 +297,9 @@ public class FXUtils {
 
                 if (nombre.isEmpty()) {
                     javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR);
-                    alert.setTitle      ("Nombre inválido");
+                    alert.setTitle      (msg(bundle, "dialog.project.new.invalid.title", "Nombre invalido"));
                     alert.setHeaderText (null);
-                    alert.setContentText("El nombre del proyecto no puede estar vacío.");
+                    alert.setContentText(msg(bundle, "dialog.project.new.invalid.empty", "El nombre del proyecto no puede estar vacio."));
                     alert.showAndWait   ();
 
                     continue; 
@@ -249,9 +308,9 @@ public class FXUtils {
                 // Valida que el nombre no contenga separadores de ruta
                 if (nombre.contains(java.io.File.separator) || nombre.contains("/")) {
                     javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR);
-                    alert.setTitle      ("Nombre inválido");
+                    alert.setTitle      (msg(bundle, "dialog.project.new.invalid.title", "Nombre invalido"));
                     alert.setHeaderText (null);
-                    alert.setContentText("El nombre no puede contener separadores de ruta.");
+                    alert.setContentText(msg(bundle, "dialog.project.new.invalid.separator", "El nombre no puede contener separadores de ruta."));
                     alert.showAndWait   ();
                     continue;
                 }
@@ -259,16 +318,16 @@ public class FXUtils {
                 File nuevoProyecto = new File(parent, nombre);
 
                 if (nuevoProyecto.exists()) {
-                    ButtonType overwrite = new ButtonType("Sobrescribir", ButtonBar.ButtonData.YES);
-                    ButtonType retry     = new ButtonType("Reintentar"  , ButtonBar.ButtonData.OK_DONE);
-                    ButtonType cancel    = new ButtonType("Cancelar"    , ButtonBar.ButtonData.CANCEL_CLOSE);
+                    ButtonType overwrite = new ButtonType(msg(bundle, "dialog.project.new.action.overwrite", "Sobrescribir"), ButtonBar.ButtonData.YES);
+                    ButtonType retry     = new ButtonType(msg(bundle, "dialog.project.new.action.retry", "Reintentar")  , ButtonBar.ButtonData.OK_DONE);
+                    ButtonType cancel    = new ButtonType(msg(bundle, "dialog.project.new.action.cancel", "Cancelar")    , ButtonBar.ButtonData.CANCEL_CLOSE);
                     Alert      alert     = new Alert( Alert.AlertType.CONFIRMATION,
-                                                    "Ya existe una carpeta con ese nombre. Puedes sobrescribirla (se eliminará su contenido) o probar otro nombre.",
+                                                    msg(bundle, "dialog.project.new.exists.content", "Ya existe una carpeta con ese nombre. Puedes sobrescribirla (se eliminara su contenido) o probar otro nombre."),
                                                     overwrite, 
                                                     retry, 
                                                     cancel);
 
-                    alert.setTitle      ("Ya existe");
+                    alert.setTitle      (msg(bundle, "dialog.project.new.exists.title", "Ya existe"));
                     alert.setHeaderText (null);
 
                     Optional<ButtonType> choice = alert.showAndWait();
@@ -298,14 +357,14 @@ public class FXUtils {
                         });
                     } catch (IOException ex) {
 
-                        ButtonType retryDel  = new ButtonType("Reintentar", ButtonBar.ButtonData.OK_DONE);
-                        ButtonType cancelDel = new ButtonType("Cancelar",   ButtonBar.ButtonData.CANCEL_CLOSE);
+                        ButtonType retryDel  = new ButtonType(msg(bundle, "dialog.project.new.action.retry", "Reintentar"), ButtonBar.ButtonData.OK_DONE);
+                        ButtonType cancelDel = new ButtonType(msg(bundle, "dialog.project.new.action.cancel", "Cancelar"),   ButtonBar.ButtonData.CANCEL_CLOSE);
                         Alert err            = new Alert(AlertType.CONFIRMATION,
-                                                         "No se pudo eliminar la carpeta existente: " + ex.getMessage(), 
+                                                         msg(bundle, "dialog.project.new.overwriteError.content", "No se pudo eliminar la carpeta existente") + ": " + ex.getMessage(), 
                                                          retryDel, 
                                                          cancelDel);
 
-                        err.setTitle     ("Error al sobrescribir");
+                        err.setTitle     (msg(bundle, "dialog.project.new.overwriteError.title", "Error al sobrescribir"));
                         err.setHeaderText(null);
 
                         Optional<ButtonType> choice2 = err.showAndWait();
@@ -323,13 +382,13 @@ public class FXUtils {
                 if (nuevoProyecto.mkdir()) {
                     return nuevoProyecto;
                 } else {
-                    ButtonType retry  = new ButtonType("Reintentar", ButtonBar.ButtonData.OK_DONE);
-                    ButtonType cancel = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+                    ButtonType retry  = new ButtonType(msg(bundle, "dialog.project.new.action.retry", "Reintentar"), ButtonBar.ButtonData.OK_DONE);
+                    ButtonType cancel = new ButtonType(msg(bundle, "dialog.project.new.action.cancel", "Cancelar"), ButtonBar.ButtonData.CANCEL_CLOSE);
                     Alert alert       = new Alert     (Alert.AlertType.CONFIRMATION, 
-                                                                                                 "No se pudo crear la carpeta del proyecto. Comprueba permisos.", 
+                                                                                                 msg(bundle, "dialog.project.new.createError.content", "No se pudo crear la carpeta del proyecto. Comprueba permisos."), 
                                                                                                  retry, 
                                                                                                  cancel);
-                    alert.setTitle("Error");
+                    alert.setTitle(msg(bundle, "dialog.project.new.createError.title", "Error"));
                     alert.setHeaderText(null);
                     Optional<ButtonType> choice = alert.showAndWait();
                     if (!choice.isPresent() || choice.get().getButtonData() == ButtonBar.ButtonData.CANCEL_CLOSE) {
@@ -349,9 +408,19 @@ public class FXUtils {
      * @return La carpeta del proyecto seleccionado, o null si se cancela la operación.
      */
     public File openExistingProject(Stage parentStage) {
+        return openExistingProject(parentStage, null);
+    }
+
+    /**
+     * Abre un proyecto existente seleccionando una carpeta.
+     * @param parentStage La ventana principal (stage) de la aplicación.
+     * @param bundle ResourceBundle opcional para i18n.
+     * @return La carpeta del proyecto seleccionado, o null si se cancela la operación.
+     */
+    public File openExistingProject(Stage parentStage, ResourceBundle bundle) {
 
         DirectoryChooser chooser = new DirectoryChooser();
-        chooser.setTitle("Abrir proyecto existente");
+        chooser.setTitle(msg(bundle, "dialog.project.open.selectFolder.title", "Abrir proyecto existente"));
         File carpeta             = chooser.showDialog(parentStage);
 
         if (carpeta != null && carpeta.isDirectory()) {
@@ -359,6 +428,15 @@ public class FXUtils {
         }
 
         return null;
+    }
+
+    private String msg(ResourceBundle bundle, String key, String fallback) {
+        if (bundle == null) return fallback;
+        try {
+            return bundle.getString(key);
+        } catch (Exception ignored) {
+            return fallback;
+        }
     }
 
     /**
@@ -370,6 +448,8 @@ public class FXUtils {
      * @param syntaxHighlighter Resaltador de sintaxis a utilizar.
      */
     public void onNewTab(ActionEvent event, int newFileCounter, TabPane tabPane, Map<Tab, File> tabFileMap, SyntaxHighlighter syntaxHighlighter) {
+        String tabName = "nuevo" + newFileCounter + ".c";
+        UserActionMonitor.newTabCreated(tabName);
         addNewTab(null, "",  tabFileMap, syntaxHighlighter, tabPane, newFileCounter);
     }
 }

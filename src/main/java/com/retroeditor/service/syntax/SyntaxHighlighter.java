@@ -19,12 +19,16 @@ public class SyntaxHighlighter {
         "union", "unsigned", "void",    "volatile", "while",     "_Alignas",  "_Alignof", "_Atomic", "_Bool",  "_Complex",       "_Generic"
     };
 
-    private static final String  KEYWORD_PATTERN = "\\b(" + String.join("|", KEYWORDS) + ")\\b";
-    private static final String  COMMENT_PATTERN = "//[^\\n]*|/\\*(.|\\R)*?\\*/";
-    private static final String  STRING_PATTERN  = "\"([^\\\\\"\\\\]|\\\\.)*\"";
+    private static final String  KEYWORD_PATTERN      = "\\b(" + String.join("|", KEYWORDS) + ")\\b";
+    // [\\s\\S]*? en lugar de (.|\\R)*? para evitar retroceso exponencial en comentarios multilínea no cerrados
+    private static final String  COMMENT_PATTERN      = "//[^\\n]*|/\\*[\\s\\S]*?\\*/";
+    private static final String  STRING_PATTERN       = "\"([^\\\\\"\\\\]|\\\\.)*\"";
+    // (?m) activa MULTILINE para que ^ funcione al inicio de cada línea
+    private static final String  PREPROCESSOR_PATTERN = "(?m)^[ \\t]*#[^\\n]*";
 
     private static final Pattern PATTERN         = Pattern.compile(
-                                                           "(?<KEYWORD>" + KEYWORD_PATTERN + ")"
+                                                           "(?<PREPROCESSOR>" + PREPROCESSOR_PATTERN + ")"
+                                                         + "|(?<KEYWORD>" + KEYWORD_PATTERN + ")"
                                                          + "|(?<COMMENT>" + COMMENT_PATTERN + ")"
                                                          + "|(?<STRING>" + STRING_PATTERN + ")"
                                                     );
@@ -42,9 +46,10 @@ public class SyntaxHighlighter {
 
         while (matcher.find()) {
             String styleClass =
-                    matcher.group("KEYWORD") != null ? "keyword" :
-                    matcher.group("COMMENT") != null ? "comment" :
-                    matcher.group("STRING")  != null ? "string"  :
+                    matcher.group("PREPROCESSOR") != null ? "preprocessor" :
+                    matcher.group("KEYWORD")       != null ? "keyword"      :
+                    matcher.group("COMMENT")       != null ? "comment"      :
+                    matcher.group("STRING")        != null ? "string"       :
                     null;
 
             assert styleClass != null;

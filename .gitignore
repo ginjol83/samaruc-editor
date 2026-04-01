@@ -55,3 +55,33 @@ coverage/
 # Local runtime files
 logs/
 
+# Release/package outputs
+/release/
+/release-input/
+
+# Local packaging/tooling cache
+/tools/
+
+# Project temporary extraction/check folders
+/tmp-check/
+/tmp-check2/
+/tmp-check-input/
+/tmp-check-release/
+/tmp-check-target/
+
+# Local extracted artifacts and build logs
+/libs/schema/
+jpackage.log
+jarlist.txt
+
+# Root-level temp dirs from local JAR extraction/debug sessions
+/META-INF/
+/configuration/
+/gui/
+/machine/
+/org/
+/schema/
+/utilities/
+/tv/
+/z80core/
+

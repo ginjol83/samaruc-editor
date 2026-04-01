@@ -11,12 +11,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import javafx.application.Platform;
-import javafx.scene.control.TextArea;
+import org.fxmisc.richtext.StyleClassedTextArea;
 
 /**
- * Clase utilitaria para lanzar emuladores externos (JSpeccy, coffee-gb, etc.) como procesos externos
+ * Clase utilitaria para lanzar emuladores externos (Emulicious, JSpeccy, etc.) como procesos externos
  */
 public class EmulatorLauncher {
+
+    private static final String JSPECCY_MAIN_CLASS = "gui.JSpeccy";
 
     /** Resultado del lanzamiento del emulador */
     public static class LaunchResult {
@@ -27,14 +29,14 @@ public class EmulatorLauncher {
 
     /**
      * Lanza JSpeccy con la ROM especificada y transmite su salida a un área de texto JavaFX.
-     * @param jspeccyPath Ruta al ejecutable o JAR de JSpe
+     * @param jspeccyPath Ruta al ejecutable o JAR de JSpeccy
      * @param romFile Archivo ROM a cargar en el emulador.
      * @param console Área de texto JavaFX donde se transmitirá la salida del emulador (puede ser null).
      * @param extraArgs Argumentos adicionales para pasar a JSpeccy (puede ser null).
      * @return Resultado del lanzamiento que incluye el proceso.
      * @throws IOException Si ocurre un error al iniciar el emulador.
      */
-    public static LaunchResult launchJSpeccy(File jspeccyPath, File romFile, TextArea console, List<String> extraArgs) throws IOException {
+    public static LaunchResult launchJSpeccy(File jspeccyPath, File romFile, StyleClassedTextArea console, List<String> extraArgs) throws IOException {
         if (jspeccyPath == null || !jspeccyPath.exists()) throw new IOException("Ruta de JSpeccy no válida: " + jspeccyPath);
         if (romFile == null     || !romFile.exists())     throw new IOException("ROM no encontrada: " + romFile);
 
@@ -43,8 +45,11 @@ public class EmulatorLauncher {
         
         if (nameLower.endsWith(".jar")) {
             cmd.add("java");
-            cmd.add("-jar");
-            cmd.add(jspeccyPath.getAbsolutePath());
+            // JSpeccy depende de JAXB (javax.*) y en Java moderno no viene en el JRE.
+            // Lo lanzamos con classpath explícito para reutilizar dependencias ya presentes en la app.
+            cmd.add("-cp");
+            cmd.add(buildJspeccyClasspath(jspeccyPath));
+            cmd.add(JSPECCY_MAIN_CLASS);
             cmd.add(romFile.getAbsolutePath());
         } else {
             cmd.add(jspeccyPath.getAbsolutePath());
@@ -55,6 +60,9 @@ public class EmulatorLauncher {
 
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.redirectErrorStream(true);
+        // Establecer el directorio de trabajo al directorio del JAR de JSpeccy para que
+        // encuentre JSpeccy.xml (configuración de escala, etc.) en esa misma carpeta.
+        pb.directory(jspeccyPath.getParentFile());
         Process proc      = pb.start();
 
         // Salida del emulador en un hilo separado
@@ -82,6 +90,73 @@ public class EmulatorLauncher {
         es.shutdown();
         
         return new LaunchResult(proc);
+    }
+
+    private static String buildJspeccyClasspath(File jspeccyJar) {
+        String appClasspath = System.getProperty("java.class.path", "");
+
+        if (appClasspath == null || appClasspath.isBlank()) {
+            return jspeccyJar.getAbsolutePath();
+        }
+
+        return jspeccyJar.getAbsolutePath() + File.pathSeparator + appClasspath;
+    }
+
+    /**
+     * Lanza Emulicious con la ROM especificada y transmite su salida a un área de texto JavaFX.
+     * @param emuliciousJar Ruta al JAR de Emulicious.
+     * @param romFile Archivo ROM a cargar en el emulador.
+     * @param console Área de texto JavaFX donde se transmitirá la salida del emulador (puede ser null).
+     * @param extraArgs Argumentos adicionales para pasar a Emulicious (puede ser null).
+     * @return Resultado del lanzamiento que incluye el proceso.
+     * @throws IOException Si ocurre un error al iniciar el emulador.
+     */
+    public static LaunchResult launchEmulicious(File emuliciousJar, File romFile, StyleClassedTextArea console, List<String> extraArgs) throws IOException {
+        if (emuliciousJar == null || !emuliciousJar.exists()) throw new IOException("Ruta de Emulicious no válida: " + emuliciousJar);
+        if (romFile == null || !romFile.exists()) throw new IOException("ROM no encontrada: " + romFile);
+
+        List<String> cmd = new ArrayList<>();
+        cmd.add("java");
+        cmd.add("-jar");
+        cmd.add(emuliciousJar.getAbsolutePath());
+        cmd.add(romFile.getAbsolutePath());
+
+        if (extraArgs != null) cmd.addAll(extraArgs);
+
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+
+        ExecutorService es = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "emulicious-output");
+            t.setDaemon(true);
+            return t;
+        });
+
+        es.submit(() -> {
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    final String out = line;
+                    if (console != null) {
+                        Platform.runLater(() -> console.appendText(out + System.lineSeparator()));
+                    } else {
+                        System.out.println(out);
+                    }
+                }
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        });
+        es.shutdown();
+
+        return new LaunchResult(proc);
+    }
+
+    /** @deprecated Usar {@link #launchEmulicious} en su lugar. */
+    @Deprecated
+    public static LaunchResult launchCoffeeGb(File jar, File romFile, StyleClassedTextArea console, List<String> extraArgs) throws IOException {
+        return launchEmulicious(jar, romFile, console, extraArgs);
     }
 
     /**

@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 
 import org.fxmisc.richtext.CodeArea;
 
+import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.util.FXUtils;
 
 import javafx.application.Platform;
@@ -63,12 +64,6 @@ public class SearchController {
         this.tabFileMap     = tabFileMap;
         this.editorModel    = editorModel;
         this.mainController = mainController;
-
-        // Registrar atajos de teclado globales para búsqueda
-        if (owner != null && owner.getScene() != null) {
-            owner.getScene().getAccelerators().put(new KeyCodeCombination(KeyCode.F, KeyCombination.CONTROL_DOWN), () -> showFindInFileDialog());
-            owner.getScene().getAccelerators().put(new KeyCodeCombination(KeyCode.H, KeyCombination.CONTROL_DOWN), () -> showFindInProjectDialog());
-        }
     }
 
 
@@ -76,6 +71,7 @@ public class SearchController {
      * Muestra el panel de búsqueda en el archivo actual.
      */
     public void showFindInFileDialog() {
+        UserActionMonitor.findInFileDialogOpened();
         Platform.runLater(() -> {
             // Siempre mostrar el Stage flotante para el panel de búsqueda (UX consistente / preferencia del usuario)
             if (findPanelStage != null && findPanelStage.isShowing()) {
@@ -265,23 +261,26 @@ public class SearchController {
             needle = term.toLowerCase();
         }
 
-        int start = area.getSelection().getEnd();
-        int idx = -1;
+        int start    = area.getSelection().getEnd();
+        int idx      = -1;
+        int matchEnd = -1;
 
         try {
             if (regex) {
                 java.util.regex.Matcher m = java.util.regex.Pattern.compile(term, caseSensitive ? 0 : java.util.regex.Pattern.CASE_INSENSITIVE).matcher(text);
-                
+
                 if (m.find(start)) {
-                    idx = m.start(); 
+                    idx      = m.start();
+                    matchEnd = m.end();
+                } else if (start > 0 && m.find(0)) {
+                    idx      = m.start();
+                    matchEnd = m.end();
                 }
-                 else if (start > 0 && m.find(0)) {
-                         idx = m.start();
-                 }
             } else {
                 idx = hay.indexOf(needle, Math.max(0, start));
 
                 if (idx < 0 && start > 0) idx = hay.indexOf(needle, 0);
+                if (idx >= 0) matchEnd = idx + needle.length();
             }
         } catch (Exception ex) {
             return;
@@ -289,10 +288,10 @@ public class SearchController {
 
         if (idx >= 0) {
             final int fidx = idx;
-            final int flen = Math.max(1, term.length());
+            final int fend = (matchEnd > idx) ? matchEnd : idx + Math.max(1, term.length());
             Platform.runLater(() -> {
                 area.requestFocus();
-                area.selectRange(fidx, Math.min(area.getLength(), fidx + flen));
+                area.selectRange(fidx, Math.min(area.getLength(), fend));
                 lastSearchIndex = fidx;
                 lastSearchTerm = term;
             });
@@ -325,21 +324,26 @@ public class SearchController {
 
         if (start < 0) start = text.length();
 
-        int idx = -1;
+        int idx      = -1;
+        int matchEnd = -1;
 
         try {
             if (regex) {
                 java.util.regex.Pattern p = java.util.regex.Pattern.compile(term, caseSensitive ? 0 : java.util.regex.Pattern.CASE_INSENSITIVE);
                 java.util.regex.Matcher m = p.matcher(text);
-                int last = -1;
+                int last    = -1;
+                int lastEnd = -1;
 
                 while (m.find() && m.start() < start) {
-                    last = m.start();
+                    last    = m.start();
+                    lastEnd = m.end();
                 }
 
-                idx = last;
+                idx      = last;
+                matchEnd = lastEnd;
             } else {
                 idx = hay.lastIndexOf(needle, start);
+                if (idx >= 0) matchEnd = idx + needle.length();
             }
 
         } catch (Exception ex) {
@@ -347,11 +351,11 @@ public class SearchController {
         }
         if (idx >= 0) {
             final int fidx = idx;
-            final int flen = Math.max(1, term.length());
+            final int fend = (matchEnd > idx) ? matchEnd : idx + Math.max(1, term.length());
 
             Platform.runLater(() -> {
                 area.requestFocus();
-                area.selectRange(fidx, Math.min(area.getLength(), fidx + flen));
+                area.selectRange(fidx, Math.min(area.getLength(), fend));
                 lastSearchIndex = fidx;
                 lastSearchTerm  = term;
             });
@@ -380,14 +384,15 @@ public class SearchController {
             if (regex) {
                 java.util.regex.Matcher m = java.util.regex.Pattern.compile(term, caseSensitive ? 0 : java.util.regex.Pattern.CASE_INSENSITIVE).matcher(text);
                 while (m.find()) {
-                    list.add(new IndexSnippet(m.start(), getSnippet(text, m.start(), m.end() - m.start())));
+                    int len = m.end() - m.start();
+                    list.add(new IndexSnippet(m.start(), len, getSnippet(text, m.start(), len)));
                 }
             } else {
                 String hay = caseSensitive ? text : text.toLowerCase();
                 String needle = caseSensitive ? term : term.toLowerCase();
                 int idx = 0;
                 while ((idx = hay.indexOf(needle, idx)) >= 0) {
-                    list.add(new IndexSnippet(idx, getSnippet(text, idx, term.length())));
+                    list.add(new IndexSnippet(idx, term.length(), getSnippet(text, idx, term.length())));
                     idx += Math.max(1, term.length());
                 }
             }
@@ -401,12 +406,14 @@ public class SearchController {
      * Clase que obtiene un fragmento de texto alrededor de una coincidencia.
      */
     private static class IndexSnippet { 
-        final int    index; 
+        final int    index;
+        final int    matchLength;
         final String snippet; 
 
-        IndexSnippet(int i, String s) {
-            index   =i; 
-            snippet =s;
+        IndexSnippet(int i, int len, String s) {
+            index       = i;
+            matchLength = len;
+            snippet     = s;
         } 
     }
 
@@ -450,7 +457,7 @@ public class SearchController {
                     if (area != null) {
                         int idx = sel.index;
                         area.requestFocus();
-                        area.selectRange(idx, Math.min(area.getLength(), idx + term.length()));
+                        area.selectRange(idx, Math.min(area.getLength(), idx + sel.matchLength));
                     }
                 }
             }
@@ -461,6 +468,7 @@ public class SearchController {
      * Muestra el diálogo de búsqueda en todo el proyecto.
      */
     public void showFindInProjectDialog() {
+        UserActionMonitor.findInProjectDialogOpened();
 
         Platform.runLater(() -> {
             Dialog<ButtonType> dialog = new Dialog<>();
@@ -593,20 +601,20 @@ public class SearchController {
         });
     }
 
-    /** 
-     * Clase estatica que representa una coincidencia de búsqueda en un archivo.
+    /**
+     * Coincidencia de búsqueda en proyecto.
      */
     private static class SearchMatch {
         final File   file;
         final int    index;
         final String snippet;
-        
-        SearchMatch(File f, int i, String s) {
-            file    = f; 
-            index   = i; 
-            snippet = s; 
-        }
 
+        SearchMatch(File file, int index, String snippet) {
+            this.file = file;
+            this.index = index;
+            this.snippet = snippet;
+        }
     }
-    
+
 }
+

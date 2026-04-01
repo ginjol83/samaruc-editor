@@ -7,6 +7,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import com.retroeditor.service.UserActionMonitor;
+
 /**
  * Modelo para el editor de texto
  */
@@ -22,6 +24,7 @@ public class EditorModel {
         String content = Files.readString(file.toPath());
         
         fileContents.put(file, content);
+        UserActionMonitor.fileOpened(file.getName(), file.length());
     }
 
     /**
@@ -30,6 +33,7 @@ public class EditorModel {
      */
     public void newFile(File file) {
         fileContents.put(file, "");
+        UserActionMonitor.fileCreated(file.getAbsolutePath());
     }
 
     /**
@@ -42,6 +46,7 @@ public class EditorModel {
         Files.writeString(file.toPath(), content);
         
         fileContents.put(file, content);
+        UserActionMonitor.fileSaved(file.getName(), content.length());
     }
 
     /**
@@ -67,5 +72,6 @@ public class EditorModel {
      */
     public void closeFile(File file) {
         fileContents.remove(file);
+        UserActionMonitor.fileClosed(file.getName());
     }
 }

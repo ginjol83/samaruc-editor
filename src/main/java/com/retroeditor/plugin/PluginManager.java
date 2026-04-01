@@ -17,11 +17,15 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ServiceLoader;
+import java.util.Collections;
 
 import javafx.scene.Scene;
+import javafx.scene.Parent;
+import javafx.scene.Node;
 import javafx.stage.Stage;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.Menu;
+import javafx.scene.control.ToolBar;
 import com.retroeditor.service.AppLogger;
 
 /**
@@ -43,6 +47,11 @@ public class PluginManager {
     // seguimiento para una limpieza correcta al descargar
     private final Map<Plugin, URLClassLoader> pluginLoaders  = new HashMap<>();
     private final Map<Plugin, PluginContext>  pluginContexts = new HashMap<>();
+    private final Map<Plugin, List<Menu>> pluginAddedMenus = new HashMap<>();
+    private final Map<Plugin, Map<ToolBar, List<Node>>> pluginAddedToolbarItems = new HashMap<>();
+    private boolean hostUiBaselineCaptured = false;
+    private List<Menu> hostBaseMenus = Collections.emptyList();
+    private Map<ToolBar, List<Node>> hostBaseToolbarItems = Collections.emptyMap();
 
     /**
      * Metodo para crear un nuevo PluginManager.
@@ -241,9 +250,51 @@ public class PluginManager {
      * Habilitar todos los plugins cargados.
      */
     public void enablePlugins() {
+        captureHostUiBaselineIfNeeded();
+
         for (Plugin p : loaded) {
-            try { p.onEnable(); } catch (Throwable t) { log("Error enabling " + p.getName() + ": " + t.getMessage()); }
+            try { enablePluginWithUiTracking(p); } catch (Throwable t) { log("Error enabling " + p.getName() + ": " + t.getMessage()); }
         }
+    }
+
+    private void captureHostUiBaselineIfNeeded() {
+        if (hostUiBaselineCaptured) return;
+
+        hostBaseMenus = snapshotMenus();
+        hostBaseToolbarItems = snapshotToolbarItems();
+        hostUiBaselineCaptured = true;
+    }
+
+    private void enablePluginWithUiTracking(Plugin plugin) {
+        List<Menu> menuBefore = snapshotMenus();
+        Map<ToolBar, List<Node>> toolbarBefore = snapshotToolbarItems();
+
+        plugin.onEnable();
+
+        List<Menu> menuAfter = snapshotMenus();
+        List<Menu> addedMenus = new ArrayList<>();
+        for (Menu m : menuAfter) {
+            if (!menuBefore.contains(m)) addedMenus.add(m);
+        }
+        pluginAddedMenus.put(plugin, addedMenus);
+
+        Map<ToolBar, List<Node>> toolbarAfter = snapshotToolbarItems();
+        Map<ToolBar, List<Node>> addedItems = new HashMap<>();
+
+        for (Map.Entry<ToolBar, List<Node>> entry : toolbarAfter.entrySet()) {
+            ToolBar bar = entry.getKey();
+            List<Node> afterNodes = entry.getValue();
+            List<Node> beforeNodes = toolbarBefore.getOrDefault(bar, Collections.emptyList());
+
+            List<Node> diff = new ArrayList<>();
+            for (Node n : afterNodes) {
+                if (!beforeNodes.contains(n)) diff.add(n);
+            }
+
+            if (!diff.isEmpty()) addedItems.put(bar, diff);
+        }
+
+        pluginAddedToolbarItems.put(plugin, addedItems);
     }
 
     /**
@@ -254,6 +305,9 @@ public class PluginManager {
         for (Plugin p : new ArrayList<>(loaded)) {
 
             try { p.onDisable(); } catch (Throwable t) { log("Error disabling " + p.getName() + ": " + t.getMessage()); }
+
+            cleanupTrackedUi(p);
+
             PluginContext ctx = pluginContexts.get(p);
 
             if (ctx != null) {
@@ -268,8 +322,83 @@ public class PluginManager {
 
             pluginContexts.remove(p);
             pluginLoaders.remove(p);
+            pluginAddedMenus.remove(p);
+            pluginAddedToolbarItems.remove(p);
         }
+
+        restoreHostUiBaseline();
         loaded.clear();
+    }
+
+    private void restoreHostUiBaseline() {
+        if (!hostUiBaselineCaptured) return;
+
+        if (menuBar != null) {
+            try {
+                menuBar.getMenus().setAll(hostBaseMenus);
+            } catch (Throwable ignored) {
+            }
+        }
+
+        for (Map.Entry<ToolBar, List<Node>> entry : hostBaseToolbarItems.entrySet()) {
+            ToolBar bar = entry.getKey();
+            if (bar == null) continue;
+
+            try {
+                bar.getItems().setAll(entry.getValue());
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    private void cleanupTrackedUi(Plugin plugin) {
+        List<Menu> addedMenus = pluginAddedMenus.get(plugin);
+        if (menuBar != null && addedMenus != null) {
+            for (Menu m : new ArrayList<>(addedMenus)) {
+                try { menuBar.getMenus().remove(m); } catch (Throwable ignored) {}
+            }
+        }
+
+        Map<ToolBar, List<Node>> addedToolbarItems = pluginAddedToolbarItems.get(plugin);
+        if (addedToolbarItems != null) {
+            for (Map.Entry<ToolBar, List<Node>> entry : addedToolbarItems.entrySet()) {
+                ToolBar bar = entry.getKey();
+                if (bar == null) continue;
+
+                for (Node n : new ArrayList<>(entry.getValue())) {
+                    try { bar.getItems().remove(n); } catch (Throwable ignored) {}
+                }
+            }
+        }
+    }
+
+    private List<Menu> snapshotMenus() {
+        if (menuBar == null) return Collections.emptyList();
+        return new ArrayList<>(menuBar.getMenus());
+    }
+
+    private Map<ToolBar, List<Node>> snapshotToolbarItems() {
+        Map<ToolBar, List<Node>> out = new HashMap<>();
+        if (scene == null || scene.getRoot() == null) return out;
+
+        List<ToolBar> bars = new ArrayList<>();
+        collectToolBars(scene.getRoot(), bars);
+
+        for (ToolBar b : bars) {
+            if (b != null) out.put(b, new ArrayList<>(b.getItems()));
+        }
+        return out;
+    }
+
+    private void collectToolBars(Node node, List<ToolBar> out) {
+        if (node == null) return;
+        if (node instanceof ToolBar) out.add((ToolBar) node);
+
+        if (node instanceof Parent) {
+            for (Node child : ((Parent) node).getChildrenUnmodifiable()) {
+                collectToolBars(child, out);
+            }
+        }
     }
 
     /**

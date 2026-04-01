@@ -27,11 +27,32 @@
     -fx-background-color: transparent;
     -fx-cursor: hand;
     -fx-alignment: center;
+    -fx-border-color: transparent;
+    -fx-border-width: 1px;
+    -fx-border-radius: 8px;
 }
 
 .tb-button:hover {
-    -fx-background-color: rgba(255,255,255,0.9);
-    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.06), 8, 0, 0, 2);
+    -fx-background-color: #e8edf7;
+    -fx-border-color: #c5cde0;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.08), 6, 0, 0, 2);
+}
+
+.tb-button:pressed {
+    -fx-background-color: #c7d0e8;
+    -fx-border-color: #8ea0c4;
+    -fx-effect: innershadow(three-pass-box, rgba(0,0,0,0.18), 4, 0, 0, 2);
+    -fx-translate-y: 1px;
+}
+
+.tb-button:focused {
+    -fx-border-color: #5b8dd9;
+    -fx-background-color: #e8edf7;
+}
+
+.tb-button:disabled {
+    -fx-opacity: 0.38;
+    -fx-cursor: default;
 }
 
 .button .font-icon {
@@ -51,6 +72,18 @@
 /* Console */
 .text-area {
     -fx-font-family: "Source Code Pro", monospace;
+}
+
+.styled-text-area {
+    -fx-font-family: "Source Code Pro", monospace;
+}
+
+.styled-text-area .console-line-error {
+    -fx-fill: #b91c1c;
+}
+
+.styled-text-area .console-line-warning {
+    -fx-fill: #b45309;
 }
 
 /* Toast label */
@@ -79,3 +112,58 @@
     -fx-text-fill: #111;
     -fx-font-size: 12px;
 }
+
+.compile-status-label {
+    -fx-padding: 3 10 3 10;
+    -fx-background-radius: 12px;
+    -fx-font-weight: bold;
+}
+
+.compile-status-idle {
+    -fx-text-fill: #166534;
+    -fx-background-color: #dcfce7;
+}
+
+.compile-status-running {
+    -fx-text-fill: #92400e;
+    -fx-background-color: #fef3c7;
+}
+
+.compile-status-error {
+    -fx-text-fill: #991b1b;
+    -fx-background-color: #fee2e2;
+}
+
+.compile-status-warning {
+    -fx-text-fill: #92400e;
+    -fx-background-color: #ffedd5;
+}
+
+.compile-progress {
+    -fx-progress-color: #b45309;
+}
+.compile-progress .percentage {
+    -fx-fill: transparent;
+}
+.compile-progress .indicator {
+    -fx-background-color: transparent;
+}
+
+.diag-legend-text {
+    -fx-font-size: 11px;
+    -fx-text-fill: #374151;
+}
+
+.diag-legend-dot {
+    -fx-font-size: 10px;
+    -fx-padding: 0 2 0 4;
+}
+
+.diag-legend-dot-error {
+    -fx-text-fill: #ff3b30;
+}
+
+.diag-legend-dot-warning {
+    -fx-text-fill: #f1c40f;
+}
+

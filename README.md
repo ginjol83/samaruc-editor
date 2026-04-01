@@ -1,4 +1,3 @@
-
 # SamaruC Editor
 
 Editor de código C básico en Java usando JavaFX y FXML.
@@ -28,3 +27,6 @@ mvn javafx:run
 
 ## Notas
 - El resaltado de sintaxis es básico y puede mejorarse.
+
+## Build de release
+- Consulta `README-build-release.md` para el flujo de `build-release.ps1` (jpackage + copia garantizada de `libs`).

@@ -31,6 +31,7 @@ public class UIElements {
     public Button   btnPaste;
     public Button   btnConfig;
     public Button   btnCompilar;
+    public Button   btnCancelarCompilacion;
     public Button   btnEjecutar;
     public Button   btnNuevoProyecto;
     public Button   btnAbrirProyecto;

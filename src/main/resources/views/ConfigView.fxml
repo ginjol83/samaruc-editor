@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.AnchorPane?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ListView?>
 <?import javafx.scene.control.Button?>
@@ -8,60 +9,104 @@
 <?import javafx.scene.control.Tab?>
 <?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.TextField?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.ProgressIndicator?>
 <VBox xmlns:fx="http://javafx.com/fxml" fx:controller="com.retroeditor.controller.config.ConfigController" spacing="16" alignment="CENTER" style="-fx-padding: 32;">
+    <Label fx:id="lblTituloConfig" text="Configuración" />
     <TabPane fx:id="tabPaneConfig" minWidth="400" minHeight="200">
-        <tabs>
-            <Tab fx:id="tabIdioma" text="Idioma">
-                <VBox spacing="12" alignment="CENTER_LEFT">
+        <Tab fx:id="tabIdioma" text="Idioma">
+            <AnchorPane>
+                <VBox spacing="10" alignment="TOP_LEFT" style="-fx-padding: 14;" AnchorPane.topAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0">
                     <Label fx:id="lblIdioma" text="Selecciona el idioma de la interfaz:" />
-                    <ComboBox fx:id="comboIdioma" prefWidth="180" />
-                    <Button fx:id="btnGuardarIdioma" text="Guardar" onAction="#onSaveLanguage" />
-                </VBox>
-            </Tab>
-            <Tab fx:id="tabCompilador" text="Compilador">
-                <VBox spacing="12" alignment="CENTER_LEFT">
-                    <!-- Label fx:id="lblCompilador" text="Ruta del compilador C:" />
-                    <TextField fx:id="txtCompilador" prefWidth="260" />
-                    <Button fx:id="btnGuardarCompilador" text="Guardar" onAction="#onSaveCompilador" / -->
-                    <Label text="Selecciona el compilador:" />
-                    <ComboBox fx:id="comboCompilador" prefWidth="180" />
-                    <Label text="RUTA DE BIN DE GBDK:" />
-                    <HBox spacing="6" alignment="CENTER_LEFT">
-                        <TextField fx:id="txtGbdkBin" prefWidth="220" promptText="/ruta/a/gbdk/bin" />
-                        <Button fx:id="btnSeleccionarGbdkBin" text="..." onAction="#onSeleccionarGbdkBin" />
-                        <Button fx:id="btnGuardarGbdkBin" text="Guardar GBDK" onAction="#onSaveGbdkBin" />
-                    </HBox>
-                    <Label text="RUTA DE BIN DE SPECTRUM:" />
-                    <HBox spacing="6" alignment="CENTER_LEFT">
-                        <TextField fx:id="txtSpectrumBin" prefWidth="220" promptText="/ruta/a/spectrum/bin" />
-                        <Button fx:id="btnSeleccionarSpectrumBin" text="..." onAction="#onSeleccionarSpectrumBin" />
-                        <Button fx:id="btnGuardarSpectrumBin" text="Guardar Spectrum" onAction="#onSaveSpectrumBin" />
-                    </HBox>
-                    <Label text="RUTA/EXECUTABLE DE JSPECCY (emulador):" />
-                    <HBox spacing="6" alignment="CENTER_LEFT">
-                        <TextField fx:id="txtJspeccyBin" prefWidth="220" promptText="/ruta/a/jspeccy.jar o jspeccy" />
-                        <Button fx:id="btnSeleccionarJspeccyBin" text="..." onAction="#onSeleccionarJspeccyBin" />
-                        <Button fx:id="btnGuardarJspeccyBin" text="Guardar JSpeccy" onAction="#onSaveJspeccyBin" />
-                    </HBox>
-                </VBox>
-            </Tab>
-            <Tab fx:id="tabPlugins" text="Plugins">
-                <VBox spacing="8" alignment="CENTER_LEFT" style="-fx-padding:10;">
-                    <Label text="Plugins instalados (carpeta ./plugins):" />
+                    <ComboBox fx:id="comboIdioma" prefWidth="220" />
                     <HBox spacing="8" alignment="CENTER_LEFT">
-                        <ListView fx:id="lstPlugins" prefWidth="320" prefHeight="160" />
-                        <VBox spacing="6">
-                            <Button fx:id="btnInstallPlugin" text="Instalar..." onAction="#onInstallPlugin" />
-                            <Button fx:id="btnEnable" text="Habilitar" onAction="#onEnablePlugin" />
-                            <Button fx:id="btnDisable" text="Deshabilitar" onAction="#onDisablePlugin" />
-                            <Button fx:id="btnOpenFolder" text="Abrir carpeta" onAction="#onOpenPluginsFolder" />
-                            <Button fx:id="btnRefreshPlugins" text="Refrescar" onAction="#onRefreshPlugins" />
-                        </VBox>
+                        <Button fx:id="btnGuardarIdioma" text="Guardar" onAction="#onSaveLanguage" prefWidth="170" />
                     </HBox>
-                    <Label fx:id="lblPluginInfo" text="Selecciona un plugin para ver detalles." wrapText="true" />
                 </VBox>
-            </Tab>
-        </tabs>
+            </AnchorPane>
+        </Tab>
+        <Tab fx:id="tabCompilador" text="Compilador">
+            <AnchorPane>
+            <VBox spacing="12" alignment="TOP_LEFT" style="-fx-padding: 14;" AnchorPane.topAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0">
+                <Label fx:id="lblCompilador" text="Selecciona el compilador:" />
+                <ComboBox fx:id="comboCompilador" prefWidth="220" />
+                <TextField fx:id="txtCompilador" visible="false" managed="false" />
+                <TabPane fx:id="tabPaneCompilerOptions" prefWidth="620" tabClosingPolicy="UNAVAILABLE">
+                    <Tab fx:id="tabCompilerGbdk" text="GBDK">
+                        <VBox spacing="12" alignment="CENTER_LEFT" style="-fx-padding: 8 0 0 0;">
+                            <Label fx:id="lblGbdkBin" text="RUTA DE BIN DE GBDK:" />
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <TextField fx:id="txtGbdkBin" prefWidth="220" promptText="/ruta/a/gbdk/bin" />
+                                <Button fx:id="btnSeleccionarGbdkBin" text="..." onAction="#onSeleccionarGbdkBin" />
+                                <Button fx:id="btnGuardarGbdkBin" text="Guardar GBDK" onAction="#onSaveGbdkBin" />
+                            </HBox>
+                            <Label fx:id="lblGbdkOpts" text="Opciones de optimización GBDK:" />
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <Label fx:id="lblGbdkOptLevel" text="Nivel de optimización:" />
+                                <ComboBox fx:id="comboGbdkOptLevel" prefWidth="100" onAction="#onSaveGbdkOpts" />
+                            </HBox>
+                            <CheckBox fx:id="chkGbdkOptSpeed" text="--opt-code-speed  (optimizar para velocidad)" onAction="#onSaveGbdkOpts" />
+                            <CheckBox fx:id="chkGbdkOptSize"  text="--opt-code-size   (optimizar para tamaño)"    onAction="#onSaveGbdkOpts" />
+                            <Label fx:id="lblGbdkDefines" text="Defines (-D), separados por coma o espacio:" />
+                            <TextField fx:id="txtGbdkDefines" prefWidth="420" promptText="DEBUG, USE_FAST_IRQ" />
+                            <Label fx:id="lblGbdkIncludes" text="Includes (-I), separados por ; o coma:" />
+                            <TextField fx:id="txtGbdkIncludes" prefWidth="420" promptText="include; libs/include" />
+                            <Label fx:id="lblGbdkExtraArgs" text="Argumentos extra GBDK:" />
+                            <TextField fx:id="txtGbdkExtraArgs" prefWidth="420" promptText="--max-allocs-per-node 30000" />
+                        </VBox>
+                    </Tab>
+                    <Tab fx:id="tabCompilerZ88dk" text="z88dk">
+                        <VBox spacing="12" alignment="CENTER_LEFT" style="-fx-padding: 8 0 0 0;">
+                            <Label fx:id="lblZ88dkBin" text="RUTA DE BIN DE z88dk:" />
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <TextField fx:id="txtSpectrumBin" prefWidth="220" promptText="/ruta/a/z88dk/bin" />
+                                <Button fx:id="btnSeleccionarSpectrumBin" text="..." onAction="#onSeleccionarSpectrumBin" />
+                                <Button fx:id="btnGuardarSpectrumBin" text="Guardar z88dk" onAction="#onSaveSpectrumBin" />
+                            </HBox>
+                            <Label fx:id="lblZ88dkOpts" text="Opciones de compilación z88dk:" />
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <Label fx:id="lblZ88dkClib" text="Opción -clib:" />
+                                <ComboBox fx:id="comboZ88dkClib" prefWidth="120" onAction="#onSaveZ88dkFlags" />
+                            </HBox>
+                            <CheckBox fx:id="chkZ88dkCrtOrgCode" text="Usar -pragma-define:CRT_ORG_CODE=32768" onAction="#onSaveZ88dkFlags" />
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <Label fx:id="lblZ88dkTarget" text="Target z88dk:" />
+                                <TextField fx:id="txtZ88dkTarget" prefWidth="120" promptText="+zx" />
+                            </HBox>
+                            <CheckBox fx:id="chkZ88dkCreateApp" text="Usar -create-app" onAction="#onSaveZ88dkFlags" />
+                            <Label fx:id="lblZ88dkDefines" text="Defines (-D), separados por coma o espacio:" />
+                            <TextField fx:id="txtZ88dkDefines" prefWidth="420" promptText="DEBUG, USE_ULA" />
+                            <Label fx:id="lblZ88dkIncludes" text="Includes (-I), separados por ; o coma:" />
+                            <TextField fx:id="txtZ88dkIncludes" prefWidth="420" promptText="include; libs/include" />
+                            <Label fx:id="lblZ88dkExtraArgs" text="Argumentos extra z88dk:" />
+                            <TextField fx:id="txtZ88dkExtraArgs" prefWidth="420" promptText="-SO3 --max-allocs-per-node 50000" />
+                        </VBox>
+                    </Tab>
+                </TabPane>
+                <Button fx:id="btnGuardarCompilador" text="Guardar configuración" onAction="#onSaveCompilador" prefWidth="170" />
+                <Label fx:id="lblError" style="-fx-text-fill: #c62828;" wrapText="true" />
+            </VBox>
+            </AnchorPane>
+        </Tab>
+        <Tab fx:id="tabPlugins" text="Plugins">
+            <AnchorPane>
+            <VBox spacing="10" alignment="TOP_LEFT" style="-fx-padding: 14;" AnchorPane.topAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0">
+                <Label fx:id="lblPluginsInstalled" text="Plugins instalados (carpeta ./plugins):" />
+                <HBox spacing="12" alignment="TOP_LEFT">
+                    <ListView fx:id="lstPlugins" prefWidth="360" prefHeight="180" />
+                    <VBox spacing="6">
+                        <Button fx:id="btnInstallPlugin" text="Instalar..." onAction="#onInstallPlugin" prefWidth="130" />
+                        <Button fx:id="btnEnable" text="Habilitar" onAction="#onEnablePlugin" prefWidth="130" />
+                        <Button fx:id="btnDisable" text="Deshabilitar" onAction="#onDisablePlugin" prefWidth="130" />
+                        <Button fx:id="btnOpenFolder" text="Abrir carpeta" onAction="#onOpenPluginsFolder" prefWidth="130" />
+                        <Button fx:id="btnRefreshPlugins" text="Refrescar" onAction="#onRefreshPlugins" prefWidth="130" />
+                        <ProgressIndicator fx:id="progressPluginsReload" prefWidth="20" prefHeight="20" visible="false" managed="false" />
+                    </VBox>
+                </HBox>
+                <Label fx:id="lblPluginInfo" text="Selecciona un plugin para ver detalles." wrapText="true" />
+            </VBox>
+            </AnchorPane>
+        </Tab>
     </TabPane>
-    <Button fx:id="btnCerrarConfig" text="Cerrar" onAction="#onCloseConfig" />
+    <Button fx:id="btnCerrarConfig" text="Cerrar" onAction="#onCloseConfig" prefWidth="170" />
 </VBox>

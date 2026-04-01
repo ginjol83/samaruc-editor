@@ -9,6 +9,7 @@ import javafx.stage.Stage;
 public class MainApp extends Application {
 
     private static com.retroeditor.plugin.PluginManager pluginManager;
+    private com.retroeditor.controller.MainController mainController;
 
     /**
      * Inicia la aplicación.
@@ -24,7 +25,7 @@ public class MainApp extends Application {
 
             System.out.println("FXML cargado correctamente");
 
-            primaryStage.setTitle("Samaru - C");
+            primaryStage.setTitle("Samaruc");
             primaryStage.setScene(scene);
             primaryStage.setMaximized(true);
 
@@ -34,8 +35,8 @@ public class MainApp extends Application {
                 Object controller = loader.getController();
 
                 if (controller instanceof com.retroeditor.controller.MainController) {
-                    com.retroeditor.controller.MainController mc = (com.retroeditor.controller.MainController) controller;
-                    pluginManager = new com.retroeditor.plugin.PluginManager(primaryStage, scene, mc.getMenuBar());
+                    mainController = (com.retroeditor.controller.MainController) controller;
+                    pluginManager = new com.retroeditor.plugin.PluginManager(primaryStage, scene, mainController.getMenuBar());
                 } else {
                     pluginManager = new com.retroeditor.plugin.PluginManager(primaryStage, scene, null);
                 }
@@ -53,6 +54,11 @@ public class MainApp extends Application {
 
             primaryStage.getIcons().clear();
             primaryStage.getIcons().add(favicon);
+            primaryStage.setOnCloseRequest(event -> {
+                if (mainController != null) {
+                    mainController.shutdown();
+                }
+            });
             primaryStage.show();
 
         } catch (Exception e) {
@@ -63,6 +69,13 @@ public class MainApp extends Application {
 
     public static void main(String[] args) {
         launch(args);
+    }
+
+    @Override
+    public void stop() {
+        if (mainController != null) {
+            mainController.shutdown();
+        }
     }
 
     /**

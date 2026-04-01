@@ -2,6 +2,9 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 <?import org.fxmisc.richtext.CodeArea?>
+<?import org.fxmisc.richtext.StyleClassedTextArea?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+<?import javafx.scene.control.ProgressIndicator?>
 
 <BorderPane xmlns:fx="http://javafx.com/fxml" fx:controller="com.retroeditor.controller.MainController">
 
@@ -33,6 +36,8 @@
                         <MenuItem fx:id="menuItemCortar" text="Cortar" onAction="#onCut" />
                         <MenuItem fx:id="menuItemCopiar" text="Copiar" onAction="#onCopy" />
                         <MenuItem fx:id="menuItemPegar" text="Pegar" onAction="#onPaste" />
+                        <SeparatorMenuItem />
+                        <MenuItem fx:id="menuItemGoToLine" text="Ir a la linea..." onAction="#onGoToLine" />
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemFind" text="Buscar en archivo" onAction="#onFindInFile" />
                         <MenuItem fx:id="menuItemFindProject" text="Buscar en proyecto" onAction="#onFindInProject" />
@@ -95,6 +100,9 @@
                 <Button fx:id="btnCompilar" onAction="#onCompilar">
                     <tooltip><Tooltip text="Compilar" /></tooltip>
                 </Button>
+                <Button fx:id="btnCancelarCompilacion" onAction="#onCancelarCompilacion" disable="true">
+                    <tooltip><Tooltip text="Cancelar compilación" /></tooltip>
+                </Button>
                 <Button fx:id="btnEjecutar" onAction="#onEjecutar">
                     <tooltip><Tooltip text="Ejecutar" /></tooltip>
                 </Button>
@@ -104,9 +112,6 @@
                     <tooltip><Tooltip text="Configuración" /></tooltip>
                 </Button>
                 <!-- Pixel Editor removed: functionality extracted to plugin -->
-                <ToggleButton fx:id="btnThemeToggle" selected="false">
-                    <tooltip><Tooltip text="Alternar tema claro/oscuro" /></tooltip>
-                </ToggleButton>
                 <!-- Ayuda -->
                 <Button fx:id="btnManual" onAction="#onOpenManual">
                     <tooltip><Tooltip text="Abrir manual de usuario" /></tooltip>
@@ -138,25 +143,72 @@
                              VBox.vgrow="ALWAYS">
                         <tabs>
                             <Tab text="Consola">
-                                <TextArea fx:id="consoleOutputArea"
-                                          editable="false"
-                                          wrapText="true"
-                                          style="-fx-control-inner-background: #fff; -fx-text-fill: #111;" />
+                                <BorderPane>
+                                    <top>
+                                        <HBox alignment="CENTER_RIGHT"
+                                              style="-fx-padding: 2 4 2 4; -fx-background-color: #f5f5f5; -fx-border-color: #ddd; -fx-border-width: 0 0 1 0;">
+                            <Label fx:id="lblConsoleDotError" styleClass="diag-legend-dot diag-legend-dot-error" text="●" />
+                            <Label fx:id="lblConsoleLegendError" styleClass="diag-legend-text" text="Error" />
+                            <Label fx:id="lblConsoleDotWarning" styleClass="diag-legend-dot diag-legend-dot-warning" text="●" />
+                            <Label fx:id="lblConsoleLegendWarning" styleClass="diag-legend-text" text="Warning" />
+                            <Region HBox.hgrow="ALWAYS" />
+                            <Button fx:id="btnClearConsole"
+                                    onAction="#onClearConsole"
+                                    style="-fx-padding: 2 6 2 6; -fx-background-radius: 3; -fx-cursor: hand;">
+                                <graphic><FontIcon iconLiteral="fas-trash-alt" iconSize="13" /></graphic>
+                                <tooltip><Tooltip text="Limpiar consola" /></tooltip>
+                            </Button>
+                                        </HBox>
+                                    </top>
+                                    <center>
+                                        <StyleClassedTextArea fx:id="consoleOutputArea"
+                                                              editable="false"
+                                                              wrapText="true" />
+                                    </center>
+                                </BorderPane>
                             </Tab>
                             <Tab text="Monitor">
-                                <TextArea fx:id="debuggerOutputArea"
-                                          editable="false"
-                                          wrapText="true"
-                                          style="-fx-control-inner-background: #fff; -fx-text-fill: #111;" />
+                                <BorderPane>
+                                    <top>
+                                        <HBox alignment="CENTER_RIGHT"
+                                              style="-fx-padding: 2 4 2 4; -fx-background-color: #f5f5f5; -fx-border-color: #ddd; -fx-border-width: 0 0 1 0;">
+                            <Label fx:id="lblMonitorDotError" styleClass="diag-legend-dot diag-legend-dot-error" text="●" />
+                            <Label fx:id="lblMonitorLegendError" styleClass="diag-legend-text" text="Error" />
+                            <Label fx:id="lblMonitorDotWarning" styleClass="diag-legend-dot diag-legend-dot-warning" text="●" />
+                            <Label fx:id="lblMonitorLegendWarning" styleClass="diag-legend-text" text="Warning" />
+                            <Region HBox.hgrow="ALWAYS" />
+                            <Button fx:id="btnClearMonitor"
+                                    onAction="#onClearMonitor"
+                                    style="-fx-padding: 2 6 2 6; -fx-background-radius: 3; -fx-cursor: hand;">
+                                <graphic><FontIcon iconLiteral="fas-trash-alt" iconSize="13" /></graphic>
+                                <tooltip><Tooltip text="Limpiar monitor" /></tooltip>
+                            </Button>
+                                        </HBox>
+                                    </top>
+                                    <center>
+                                        <StyleClassedTextArea fx:id="debuggerOutputArea"
+                                                              editable="false"
+                                                              wrapText="true" />
+                                    </center>
+                                </BorderPane>
                             </Tab>
                         </tabs>
                     </TabPane>
 
-                    <HBox style="-fx-padding: 6; -fx-alignment: center-right; -fx-background-color: #fff; -fx-border-color: #ddd; -fx-border-width: 1 0 0 0;"
-                          minHeight="28" maxHeight="28">
+                    <HBox styleClass="footer-box"
+                          minHeight="32" maxHeight="32" spacing="6" alignment="CENTER_LEFT">
+                        <ProgressIndicator fx:id="progressCompile"
+                                           prefWidth="16" prefHeight="16"
+                                           maxWidth="16" maxHeight="16"
+                                           visible="false" managed="false"
+                                           styleClass="compile-progress" />
+                        <Label fx:id="lblCompileStatus"
+                               text="Listo"
+                               styleClass="footer-label compile-status-label compile-status-idle" />
+                        <Region HBox.hgrow="ALWAYS" />
                         <Label fx:id="lblFooter"
                                text="Desarrollado por Andres Gimenez © 2025"
-                               style="-fx-text-fill: #111; -fx-font-size: 12px;" />
+                               styleClass="footer-label" />
                     </HBox>
                 </VBox>
             </VBox>

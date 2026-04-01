@@ -4,42 +4,601 @@
     <meta charset="UTF-8">
     <title>Manual de Samaru C Retro Editor</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 2em; }
-        h1 { color: #2c3e50; }
-        nav { margin-bottom: 1em; }
-        nav a { margin-right: 1em; color: #2980b9; text-decoration: none; }
-        nav a:hover { text-decoration: underline; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 2em 3em;
+            line-height: 1.6;
+            background: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 3em;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 0.5em;
+            margin-bottom: 1em;
+        }
+        h2 {
+            color: #2980b9;
+            margin-top: 2em;
+            border-left: 4px solid #3498db;
+            padding-left: 0.5em;
+        }
+        h3 {
+            color: #34495e;
+            margin-top: 1.5em;
+        }
+        nav {
+            background: #ecf0f1;
+            padding: 1em;
+            margin-bottom: 2em;
+            border-radius: 5px;
+            border-left: 4px solid #3498db;
+        }
+        nav a {
+            margin-right: 1.5em;
+            color: #2980b9;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        nav a:hover {
+            text-decoration: underline;
+            color: #1abc9c;
+        }
+        .feature-list {
+            background: #f8f9fa;
+            padding: 1em 1.5em;
+            border-radius: 5px;
+            margin: 1em 0;
+        }
+        .feature-list li {
+            margin: 0.5em 0;
+        }
+        .keyboard-shortcut {
+            background: #34495e;
+            color: white;
+            padding: 0.2em 0.5em;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        .note {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 1em;
+            margin: 1em 0;
+            border-radius: 4px;
+        }
+        .tip {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            padding: 1em;
+            margin: 1em 0;
+            border-radius: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1em 0;
+        }
+        th, td {
+            padding: 0.8em;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #3498db;
+            color: white;
+        }
+        tr:hover {
+            background: #f5f5f5;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #e83e8c;
+        }
+        footer {
+            margin-top: 3em;
+            padding-top: 2em;
+            border-top: 2px solid #ecf0f1;
+            color: #7f8c8d;
+            font-size: 0.9em;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
-    <h1>Manual de Samaru C Retro Editor</h1>
-    <nav>
-        <a href="#intro">Introducción</a>
-        <a href="#proyectos">Proyectos</a>
-        <a href="#edicion">Edición</a>
-        <a href="#compilacion">Compilación/Ejecución</a>
-        <a href="#configuracion">Configuración</a>
-    </nav>
-    <section id="intro">
-        <h2>Introducción</h2>
-        <p>Retro Editor es un editor modular para C con explorador de archivos, consola y soporte para proyectos.</p>
-    </section>
-    <section id="proyectos">
-        <h2>Proyectos</h2>
-        <p>Desde el menú o la barra de herramientas puedes crear o abrir proyectos existentes.</p>
-    </section>
-    <section id="edicion">
-        <h2>Edición</h2>
-        <p>Abre, edita y guarda archivos fuente C. Usa las pestañas para trabajar con varios archivos a la vez.</p>
-    </section>
-    <section id="compilacion">
-        <h2>Compilación/Ejecución</h2>
-        <p>Compila y ejecuta tus programas desde el menú o la barra de herramientas. La salida aparece en la consola inferior.</p>
-    </section>
-    <section id="configuracion">
-        <h2>Configuración</h2>
-        <p>Personaliza el idioma y otras opciones desde el menú de configuración.</p>
-    </section>
-    <footer style="margin-top:2em; color:#888; font-size:0.9em;">Desarrollado por Andres Gimenez © 2025</footer>
+    <div class="container">
+        <h1>📘 Manual de Usuario - Samaru C Retro Editor</h1>
+
+        <nav>
+            <a href="#intro">Introducción</a>
+            <a href="#instalacion">Instalación</a>
+            <a href="#interfaz">Interfaz</a>
+            <a href="#proyectos">Proyectos</a>
+            <a href="#edicion">Edición</a>
+            <a href="#busqueda">Búsqueda</a>
+            <a href="#compilacion">Compilación</a>
+            <a href="#terminal">Terminal</a>
+            <a href="#configuracion">Configuración</a>
+            <a href="#atajos">Atajos de Teclado</a>
+            <a href="#faq">FAQ</a>
+        </nav>
+
+        <section id="intro">
+            <h2>🎯 Introducción</h2>
+            <p><strong>Retro Editor</strong> es un entorno de desarrollo integrado (IDE) especializado para programación en lenguaje C, diseñado con una interfaz moderna y funcional basada en JavaFX.</p>
+
+            <div class="feature-list">
+                <h3>Características principales:</h3>
+                <ul>
+                    <li>✅ <strong>Editor de código</strong> con resaltado de sintaxis para C/C++</li>
+                    <li>✅ <strong>Gestión de proyectos</strong> con explorador de archivos integrado</li>
+                    <li>✅ <strong>Compilación y ejecución</strong> directa desde el IDE</li>
+                    <li>✅ <strong>Terminal integrada</strong> con consola de salida y depuración</li>
+                    <li>✅ <strong>Búsqueda avanzada</strong> en archivos y proyectos completos</li>
+                    <li>✅ <strong>Pestañas múltiples</strong> para trabajar con varios archivos simultáneamente</li>
+                    <li>✅ <strong>Interfaz personalizable</strong> con temas claro y oscuro</li>
+                    <li>✅ <strong>Soporte multiidioma</strong> (Español/Inglés)</li>
+                    <li>✅ <strong>Deshacer/Rehacer</strong> con historial ilimitado</li>
+                    <li>✅ <strong>Iconos FontAwesome 5</strong> para una interfaz moderna</li>
+                </ul>
+            </div>
+
+            <div class="note">
+                <strong>📌 Nota:</strong> Este editor está optimizado para desarrollo de aplicaciones C, especialmente orientado a proyectos retro y desarrollo para Game Boy usando GBDK.
+            </div>
+        </section>
+
+        <section id="instalacion">
+            <h2>⚙️ Instalación y Requisitos</h2>
+
+            <h3>Requisitos del Sistema</h3>
+            <ul>
+                <li><strong>Java:</strong> JDK 17 o superior</li>
+                <li><strong>Maven:</strong> 3.6 o superior (para compilar desde código fuente)</li>
+                <li><strong>Compilador C:</strong> GCC, MinGW o GBDK (según tu proyecto)</li>
+                <li><strong>Sistema Operativo:</strong> Windows, Linux o macOS</li>
+            </ul>
+
+            <h3>Instalación desde Código Fuente</h3>
+            <p>Para compilar y ejecutar el editor desde el código fuente:</p>
+            <ol>
+                <li>Clona o descarga el repositorio del proyecto</li>
+                <li>Abre una terminal en el directorio del proyecto</li>
+                <li>Ejecuta los siguientes comandos:
+                    <pre><code>mvn clean compile
+mvn install
+mvn javafx:run</code></pre>
+                </li>
+            </ol>
+
+            <h3>Instalación desde Ejecutable</h3>
+            <p>Si tienes el paquete ejecutable (.exe en Windows):</p>
+            <ul>
+                <li>Extrae el archivo <code>RetroEditor-win.zip</code></li>
+                <li>Ejecuta <code>RetroEditor.exe</code></li>
+                <li>No requiere instalación de Java (incluye runtime embebido)</li>
+            </ul>
+        </section>
+
+        <section id="interfaz">
+            <h2>🖥️ Descripción de la Interfaz</h2>
+
+            <h3>Barra de Menús</h3>
+            <table>
+                <tr>
+                    <th>Menú</th>
+                    <th>Descripción</th>
+                </tr>
+                <tr>
+                    <td><strong>Archivo</strong></td>
+                    <td>Crear, abrir, guardar y cerrar archivos. Gestión de proyectos.</td>
+                </tr>
+                <tr>
+                    <td><strong>Edición</strong></td>
+                    <td>Deshacer, rehacer, cortar, copiar, pegar. Búsqueda en archivos.</td>
+                </tr>
+                <tr>
+                    <td><strong>Compilación</strong></td>
+                    <td>Compilar y ejecutar el proyecto actual.</td>
+                </tr>
+                <tr>
+                    <td><strong>Configuración</strong></td>
+                    <td>Ajustes de idioma, compilador y preferencias.</td>
+                </tr>
+                <tr>
+                    <td><strong>Ayuda</strong></td>
+                    <td>Acceso a este manual y acerca de.</td>
+                </tr>
+            </table>
+
+            <h3>Barra de Herramientas</h3>
+            <p>La barra de herramientas proporciona acceso rápido a las funciones más utilizadas:</p>
+            <ul>
+                <li>📁 <strong>Nuevo Proyecto / Abrir Proyecto:</strong> Gestión rápida de proyectos</li>
+                <li>📄 <strong>Nuevo / Abrir / Guardar / Cerrar:</strong> Operaciones con archivos</li>
+                <li>↶ <strong>Deshacer / Rehacer:</strong> Control del historial de edición</li>
+                <li>🔍 <strong>Buscar en archivo / Buscar en proyecto:</strong> Herramientas de búsqueda</li>
+                <li>✂️ <strong>Cortar / Copiar / Pegar:</strong> Edición de texto</li>
+                <li>🔨 <strong>Compilar / Ejecutar:</strong> Construcción y ejecución del código</li>
+                <li>⚙️ <strong>Configuración:</strong> Acceso a preferencias</li>
+                <li>🌓 <strong>Tema:</strong> Alternar entre tema claro y oscuro</li>
+                <li>❓ <strong>Manual:</strong> Abre este manual de usuario</li>
+            </ul>
+
+            <h3>Panel del Explorador de Proyectos</h3>
+            <p>Ubicado en el lado izquierdo, muestra la estructura de directorios y archivos del proyecto actual. Permite:</p>
+            <ul>
+                <li>Navegar por la estructura de carpetas</li>
+                <li>Abrir archivos con doble clic</li>
+                <li>Ver archivos .c, .h y otros tipos</li>
+            </ul>
+
+            <h3>Área de Edición con Pestañas</h3>
+            <p>El área central donde se editan los archivos. Características:</p>
+            <ul>
+                <li>Soporte para múltiples archivos abiertos simultáneamente</li>
+                <li>Resaltado de sintaxis automático para C/C++</li>
+                <li>Numeración de líneas</li>
+                <li>Indicador de archivo modificado (*) en la pestaña</li>
+            </ul>
+
+            <h3>Panel de Consola y Terminal</h3>
+            <p>Panel inferior con pestañas para:</p>
+            <ul>
+                <li><strong>Consola:</strong> Salida de compilación y ejecución</li>
+                <li><strong>Depurador:</strong> Mensajes de depuración y logs del sistema</li>
+            </ul>
+
+            <h3>Barra de Estado</h3>
+            <p>Muestra información del proyecto actual y el estado del editor.</p>
+        </section>
+
+        <section id="proyectos">
+            <h2>📂 Gestión de Proyectos</h2>
+
+            <h3>Crear un Nuevo Proyecto</h3>
+            <ol>
+                <li>Haz clic en el botón <strong>Nuevo Proyecto</strong> 📁 o usa el menú <em>Archivo → Nuevo Proyecto</em></li>
+                <li>Selecciona o crea una carpeta para el proyecto</li>
+                <li>El explorador mostrará la estructura del directorio</li>
+                <li>Comienza a crear archivos .c y .h</li>
+            </ol>
+
+            <h3>Abrir un Proyecto Existente</h3>
+            <ol>
+                <li>Haz clic en <strong>Abrir Proyecto</strong> 📂 o usa el menú <em>Archivo → Abrir Proyecto</em></li>
+                <li>Navega hasta la carpeta del proyecto</li>
+                <li>Selecciona el directorio raíz del proyecto</li>
+                <li>Todos los archivos del proyecto aparecerán en el explorador</li>
+            </ol>
+
+            <div class="tip">
+                <strong>💡 Consejo:</strong> Organiza tus proyectos con subdirectorios (src/, include/, build/) para mejor estructura y mantenimiento.
+            </div>
+
+            <h3>Trabajar con Archivos</h3>
+            <ul>
+                <li><strong>Crear archivo nuevo:</strong> Botón "Nuevo" o <span class="keyboard-shortcut">Ctrl+N</span></li>
+                <li><strong>Abrir archivo:</strong> Doble clic en el explorador o botón "Abrir"</li>
+                <li><strong>Guardar archivo:</strong> <span class="keyboard-shortcut">Ctrl+S</span> o botón "Guardar"</li>
+                <li><strong>Guardar como:</strong> Menú <em>Archivo → Guardar Como</em></li>
+                <li><strong>Cerrar archivo:</strong> Botón "Cerrar" o click en X de la pestaña</li>
+            </ul>
+        </section>
+
+        <section id="edicion">
+            <h2>✏️ Edición de Código</h2>
+
+            <h3>Resaltado de Sintaxis</h3>
+            <p>El editor proporciona resaltado automático para:</p>
+            <ul>
+                <li><strong style="color: #0000ff;">Palabras clave:</strong> if, else, for, while, return, struct, etc.</li>
+                <li><strong style="color: #008000;">Comentarios:</strong> // comentarios de línea y /* bloques */</li>
+                <li><strong style="color: #a31515;">Cadenas:</strong> "texto entre comillas"</li>
+                <li><strong style="color: #098658;">Números:</strong> 123, 0xFF, 3.14</li>
+                <li><strong style="color: #795e26;">Funciones:</strong> printf, scanf, main</li>
+                <li><strong style="color: #0000ff;">Directivas:</strong> #include, #define, #ifdef</li>
+            </ul>
+
+            <h3>Operaciones de Edición</h3>
+            <table>
+                <tr>
+                    <th>Operación</th>
+                    <th>Atajo</th>
+                    <th>Descripción</th>
+                </tr>
+                <tr>
+                    <td>Deshacer</td>
+                    <td><span class="keyboard-shortcut">Ctrl+Z</span></td>
+                    <td>Revierte la última acción</td>
+                </tr>
+                <tr>
+                    <td>Rehacer</td>
+                    <td><span class="keyboard-shortcut">Ctrl+Y</span></td>
+                    <td>Restaura la acción deshecha</td>
+                </tr>
+                <tr>
+                    <td>Cortar</td>
+                    <td><span class="keyboard-shortcut">Ctrl+X</span></td>
+                    <td>Corta el texto seleccionado</td>
+                </tr>
+                <tr>
+                    <td>Copiar</td>
+                    <td><span class="keyboard-shortcut">Ctrl+C</span></td>
+                    <td>Copia el texto seleccionado</td>
+                </tr>
+                <tr>
+                    <td>Pegar</td>
+                    <td><span class="keyboard-shortcut">Ctrl+V</span></td>
+                    <td>Pega desde el portapapeles</td>
+                </tr>
+                <tr>
+                    <td>Seleccionar todo</td>
+                    <td><span class="keyboard-shortcut">Ctrl+A</span></td>
+                    <td>Selecciona todo el texto</td>
+                </tr>
+            </table>
+
+            <h3>Características Avanzadas</h3>
+            <ul>
+                <li><strong>Numeración de líneas:</strong> Siempre visible para referencia</li>
+                <li><strong>Múltiples pestañas:</strong> Trabaja con varios archivos simultáneamente</li>
+                <li><strong>Detección de cambios:</strong> Asterisco (*) indica archivos modificados no guardados</li>
+                <li><strong>Historial ilimitado:</strong> Deshacer/Rehacer sin límites</li>
+            </ul>
+        </section>
+
+        <section id="busqueda">
+            <h2>🔍 Búsqueda de Texto</h2>
+
+            <h3>Buscar en Archivo Actual</h3>
+            <ul>
+                <li>Presiona <span class="keyboard-shortcut">Ctrl+F</span> o haz clic en el botón de búsqueda 🔍</li>
+                <li>Se abre un panel de búsqueda en la parte superior del editor</li>
+                <li>Escribe el término a buscar</li>
+                <li>Navega entre resultados con los botones Anterior/Siguiente</li>
+                <li>Opción de reemplazo de texto disponible</li>
+            </ul>
+
+            <h3>Buscar en Todo el Proyecto</h3>
+            <ul>
+                <li>Presiona <span class="keyboard-shortcut">Ctrl+H</span> o usa el botón 🔍+ en la barra de herramientas</li>
+                <li>Busca en todos los archivos del proyecto</li>
+                <li>Los resultados muestran archivo, línea y contexto</li>
+                <li>Haz doble clic en un resultado para abrir el archivo en esa ubicación</li>
+            </ul>
+
+            <div class="tip">
+                <strong>💡 Consejo:</strong> Usa la búsqueda en proyecto para encontrar definiciones de funciones, referencias a variables o identificar dónde se usa una función específica.
+            </div>
+        </section>
+
+        <section id="compilacion">
+            <h2>🔨 Compilación y Ejecución</h2>
+
+            <h3>Compilar el Proyecto</h3>
+            <ol>
+                <li>Asegúrate de tener un proyecto abierto con archivos .c</li>
+                <li>Haz clic en el botón <strong>Compilar</strong> 🔨 o usa el menú <em>Compilación → Compilar</em></li>
+                <li>La salida de compilación aparece en la consola inferior</li>
+                <li>Los errores y warnings se muestran con detalles de línea y archivo</li>
+            </ol>
+
+            <h3>Ejecutar el Programa</h3>
+            <ol>
+                <li>Después de compilar exitosamente, haz clic en <strong>Ejecutar</strong> ▶️</li>
+                <li>El programa se ejecuta y la salida aparece en la consola</li>
+                <li>La entrada interactiva también está disponible en la consola</li>
+            </ol>
+
+            <h3>Configurar el Compilador</h3>
+            <p>El editor soporta diferentes compiladores C:</p>
+            <ul>
+                <li><strong>GCC:</strong> Compilador GNU para C/C++</li>
+                <li><strong>MinGW:</strong> GCC para Windows</li>
+                <li><strong>GBDK:</strong> Game Boy Development Kit</li>
+            </ul>
+            <p>Configura la ruta del compilador en <em>Configuración → Compilador</em></p>
+
+            <div class="note">
+                <strong>📌 Nota:</strong> Asegúrate de que el compilador esté en el PATH del sistema o configura la ruta completa en las preferencias.
+            </div>
+        </section>
+
+        <section id="terminal">
+            <h2>💻 Terminal y Consola</h2>
+
+            <h3>Consola de Salida</h3>
+            <p>Muestra:</p>
+            <ul>
+                <li>Salida del compilador (gcc, make, etc.)</li>
+                <li>Mensajes de error y warnings</li>
+                <li>Salida del programa (stdout)</li>
+                <li>Entrada interactiva (stdin)</li>
+            </ul>
+
+            <h3>Consola de Depuración</h3>
+            <p>Registra:</p>
+            <ul>
+                <li>Mensajes de log del sistema</li>
+                <li>Información de depuración del IDE</li>
+                <li>Errores internos y diagnósticos</li>
+            </ul>
+
+            <h3>Limpiar la Consola</h3>
+            <p>Usa el botón de limpiar en el panel de consola para borrar la salida anterior y tener una vista limpia.</p>
+        </section>
+
+        <section id="configuracion">
+            <h2>⚙️ Configuración y Personalización</h2>
+
+            <h3>Configuración de Idioma</h3>
+            <ol>
+                <li>Abre <em>Configuración → Preferencias</em> o haz clic en el botón ⚙️</li>
+                <li>Ve a la pestaña <strong>Idioma</strong></li>
+                <li>Selecciona entre Español o Inglés</li>
+                <li>Haz clic en <strong>Guardar</strong></li>
+                <li>La interfaz se actualiza automáticamente</li>
+            </ol>
+
+            <h3>Configuración del Compilador</h3>
+            <ol>
+                <li>Abre las preferencias (⚙️)</li>
+                <li>Ve a la pestaña <strong>Compilador</strong></li>
+                <li>Especifica la ruta completa al ejecutable del compilador</li>
+                <li>Ejemplo: <code>C:\MinGW\bin\gcc.exe</code> o <code>/usr/bin/gcc</code></li>
+                <li>Guarda los cambios</li>
+            </ol>
+
+            <h3>Temas Visuales</h3>
+            <p>El editor incluye dos temas:</p>
+            <ul>
+                <li><strong>Tema Claro:</strong> Fondo blanco, ideal para ambientes iluminados</li>
+                <li><strong>Tema Oscuro:</strong> Fondo oscuro, reduce fatiga visual en ambientes con poca luz</li>
+            </ul>
+            <p>Alterna entre temas usando el botón 🌓 en la barra de herramientas.</p>
+
+            <h3>Archivo de Configuración</h3>
+            <p>Las preferencias se guardan en: <code>~/.retroeditor.properties</code></p>
+            <p>Puedes editar manualmente este archivo si es necesario.</p>
+        </section>
+
+        <section id="atajos">
+            <h2>⌨️ Atajos de Teclado</h2>
+
+            <table>
+                <tr>
+                    <th>Atajo</th>
+                    <th>Acción</th>
+                </tr>
+                <tr>
+                    <td><span class="keyboard-shortcut">Ctrl+N</span></td>
+                    <td>Nuevo archivo</td>
+                </tr>
+                <tr>
+                    <td><span class="keyboard-shortcut">Ctrl+O</span></td>
+                    <td>Abrir archivo</td>
+                </tr>
+                <tr>
+                    <td><span class="keyboard-shortcut">Ctrl+S</span></td>
+                    <td>Guardar archivo</td>
+                </tr>
+                <tr>
+                    <td><span class="keyboard-shortcut">Ctrl+W</span></td>
+                    <td>Cerrar archivo actual</td>
+                </tr>
+                <tr>
+                    <td><span class="keyboard-shortcut">Ctrl+Z</span></td>
+                    <td>Deshacer</td>
+                </tr>
+                <tr>
+                    <td><span class="keyboard-shortcut">Ctrl+Y</span></td>
+                    <td>Rehacer</td>
+                </tr>
+                <tr>
+                    <td><span class="keyboard-shortcut">Ctrl+X</span></td>
+                    <td>Cortar</td>
+                </tr>
+                <tr>
+                    <td><span class="keyboard-shortcut">Ctrl+C</span></td>
+                    <td>Copiar</td>
+                </tr>
+                <tr>
+                    <td><span class="keyboard-shortcut">Ctrl+V</span></td>
+                    <td>Pegar</td>
+                </tr>
+                <tr>
+                    <td><span class="keyboard-shortcut">Ctrl+A</span></td>
+                    <td>Seleccionar todo</td>
+                </tr>
+                <tr>
+                    <td><span class="keyboard-shortcut">Ctrl+F</span></td>
+                    <td>Buscar en archivo actual</td>
+                </tr>
+                <tr>
+                    <td><span class="keyboard-shortcut">Ctrl+H</span></td>
+                    <td>Buscar en proyecto completo</td>
+                </tr>
+                <tr>
+                    <td><span class="keyboard-shortcut">F5</span></td>
+                    <td>Compilar proyecto</td>
+                </tr>
+                <tr>
+                    <td><span class="keyboard-shortcut">F6</span></td>
+                    <td>Ejecutar programa</td>
+                </tr>
+            </table>
+        </section>
+
+        <section id="faq">
+            <h2>❓ Preguntas Frecuentes (FAQ)</h2>
+
+            <h3>¿Cómo cambio el compilador que usa el editor?</h3>
+            <p>Ve a <em>Configuración → Preferencias → Compilador</em> e introduce la ruta completa al ejecutable de tu compilador preferido.</p>
+
+            <h3>¿Puedo usar el editor para C++ además de C?</h3>
+            <p>Sí, el resaltado de sintaxis soporta tanto C como C++. Asegúrate de configurar el compilador apropiado (g++ para C++).</p>
+
+            <h3>¿Dónde se guardan mis configuraciones?</h3>
+            <p>En el archivo <code>.retroeditor.properties</code> en tu directorio home (~/ en Linux/Mac, %USERPROFILE% en Windows).</p>
+
+            <h3>No veo la salida de mi programa en la consola</h3>
+            <p>Asegúrate de que el programa se ha compilado sin errores. Verifica también que estés mirando la pestaña correcta (Consola vs Depurador).</p>
+
+            <h3>¿Cómo puedo depurar mi código?</h3>
+            <p>Actualmente el editor muestra la salida de compilación. Para depuración interactiva, puedes usar printf() en tu código o usar herramientas externas como gdb.</p>
+
+            <h3>¿El editor soporta plugins?</h3>
+            <p>El editor tiene una arquitectura de plugins. Puedes colocar archivos JAR de plugins en la carpeta <code>plugins/</code> junto al ejecutable.</p>
+
+            <h3>¿Cómo contribuyo al proyecto?</h3>
+            <p>Este es un proyecto de código abierto. Puedes revisar el código fuente, reportar bugs o contribuir con mejoras a través del repositorio del proyecto.</p>
+
+            <h3>¿Qué versión de Java necesito?</h3>
+            <p>Java 17 o superior es necesario para ejecutar el editor desde código fuente. La versión empaquetada incluye su propio runtime.</p>
+        </section>
+
+        <section id="about">
+            <h2>ℹ️ Acerca de</h2>
+            <p><strong>Samaru C Retro Editor</strong> versión 1.0</p>
+            <p>Un IDE moderno para desarrollo en C con enfoque en proyectos retro y Game Boy.</p>
+
+            <h3>Tecnologías utilizadas:</h3>
+            <ul>
+                <li><strong>JavaFX 17:</strong> Framework de interfaz de usuario</li>
+                <li><strong>RichTextFX:</strong> Editor de texto con resaltado de sintaxis</li>
+                <li><strong>Ikonli FontAwesome 5:</strong> Iconos de interfaz</li>
+                <li><strong>SQLite JDBC:</strong> Persistencia de datos</li>
+                <li><strong>Maven:</strong> Gestión de dependencias y construcción</li>
+            </ul>
+
+            <h3>Requisitos del Sistema:</h3>
+            <ul>
+                <li>Java 17+</li>
+                <li>4 GB RAM mínimo (8 GB recomendado)</li>
+                <li>200 MB espacio en disco</li>
+                <li>Compilador C (GCC, MinGW, GBDK, etc.)</li>
+            </ul>
+        </section>
+
+        <footer>
+            <p><strong>Desarrollado por Andres Gimenez © 2025</strong></p>
+            <p>Para soporte, reportes de bugs o sugerencias, contacta al desarrollador.</p>
+            <p style="margin-top: 1em; font-size: 0.8em;">Manual versión 2.0 - Actualizado 2026</p>
+        </footer>
+    </div>
 </body>
 </html>

@@ -1,4 +1,8 @@
 /* Simple C syntax highlighting for RichTextFX */
+.code-area .preprocessor {
+    -fx-fill: #007700;
+    -fx-font-weight: bold;
+}
 .code-area .keyword {
     -fx-fill: #0000ff;
     -fx-font-weight: bold;
@@ -10,3 +14,35 @@
 .code-area .string {
     -fx-fill: #b22222;
 }
+
+/* Marca visual de error/warning por linea (RichTextFX puede aplicar clase al paragraph-box o paragraph-text) */
+.code-area .paragraph-box.compile-error-line,
+.code-area .paragraph-text.compile-error-line {
+    -fx-background-color: #ffe8e6;
+    -fx-border-color: transparent transparent #ff3b30 transparent;
+    -fx-border-width: 0 0 2 0;
+}
+
+.code-area .paragraph-box.compile-warning-line,
+.code-area .paragraph-text.compile-warning-line {
+    -fx-background-color: #fffbe6;
+    -fx-border-color: transparent transparent #e6ac00 transparent;
+    -fx-border-width: 0 0 2 0;
+}
+
+/* Marca en el gutter (junto al numero de linea) */
+.code-area .diag-gutter-marker {
+    -fx-font-size: 9px;
+    -fx-min-width: 8px;
+    -fx-pref-width: 8px;
+    -fx-alignment: center;
+}
+
+.code-area .diag-gutter-marker-error {
+    -fx-text-fill: #ff3b30;
+}
+
+.code-area .diag-gutter-marker-warning {
+    -fx-text-fill: #f1c40f;
+}
+

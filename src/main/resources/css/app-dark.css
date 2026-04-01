@@ -38,3 +38,83 @@
 .button .font-icon {
     -fx-font-size: 20px;
 }
+
+.styled-text-area {
+    -fx-font-family: "Source Code Pro", monospace;
+}
+
+.styled-text-area .console-line-error {
+    -fx-fill: #fca5a5;
+}
+
+.styled-text-area .console-line-warning {
+    -fx-fill: #fde68a;
+}
+
+.footer-box {
+    -fx-padding: 6;
+    -fx-alignment: center-right;
+    -fx-background-color: #0f1721;
+    -fx-border-color: #1f2937;
+    -fx-border-width: 1 0 0 0;
+}
+
+.footer-label {
+    -fx-text-fill: #e6eef8;
+    -fx-font-size: 12px;
+}
+
+.compile-status-label {
+    -fx-padding: 3 10 3 10;
+    -fx-background-radius: 12px;
+    -fx-font-weight: bold;
+}
+
+.compile-status-idle {
+    -fx-text-fill: #86efac;
+    -fx-background-color: #14532d;
+}
+
+.compile-status-running {
+    -fx-text-fill: #fde68a;
+    -fx-background-color: #78350f;
+}
+
+.compile-status-error {
+    -fx-text-fill: #fecaca;
+    -fx-background-color: #7f1d1d;
+}
+
+.compile-status-warning {
+    -fx-text-fill: #fde68a;
+    -fx-background-color: #7c2d12;
+}
+
+.compile-progress {
+    -fx-progress-color: #fbbf24;
+}
+.compile-progress .percentage {
+    -fx-fill: transparent;
+}
+.compile-progress .indicator {
+    -fx-background-color: transparent;
+}
+
+.diag-legend-text {
+    -fx-font-size: 11px;
+    -fx-text-fill: #cbd5e1;
+}
+
+.diag-legend-dot {
+    -fx-font-size: 10px;
+    -fx-padding: 0 2 0 4;
+}
+
+.diag-legend-dot-error {
+    -fx-text-fill: #ff6b6b;
+}
+
+.diag-legend-dot-warning {
+    -fx-text-fill: #facc15;
+}
+
