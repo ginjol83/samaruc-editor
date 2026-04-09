@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$AppName = 'Samaruc',
-    [string]$InputDir = 'release-input',
+    [string]$InputDir = 'release/input',
     [string]$MainJar = 'samaruc-1.0-SNAPSHOT.jar',
     [string]$ReleaseDir = 'release',
     [string]$LibsDir = 'libs',
@@ -11,7 +11,8 @@ param(
     [ValidateSet('none', 'exe', 'msi', 'both')]
     [string]$InstallerType = 'none',
     [switch]$SkipMvn,
-    [switch]$SkipJPackage
+    [switch]$SkipJPackage,
+    [switch]$KeepTarget
 )
 
 Set-StrictMode -Version Latest
@@ -151,7 +152,7 @@ if (-not $SkipMvn) {
 
     New-Item -ItemType Directory -Force -Path $inputDirAbs | Out-Null
     Copy-Item -LiteralPath $generatedJar -Destination $mainJarAbs -Force
-    Write-Host "[build-release] Copiando JAR a release-input: $MainJar"
+    Write-Host "[build-release] Copiando JAR a ${InputDir}: $MainJar"
 }
 
 # ── PASO 2: validaciones ──────────────────────────────────────────────────────
@@ -213,7 +214,12 @@ if (-not $SkipJPackage -and $InstallerType -ne 'none') {
 # ── PASO 6: limpieza legacy ───────────────────────────────────────────────────
 Remove-DirectoryIfExists -PathToRemove (Join-Path $scriptRoot 'jp-out')
 Remove-DirectoryIfExists -PathToRemove (Join-Path $scriptRoot 'release-fixed')
+Remove-DirectoryIfExists -PathToRemove (Join-Path $scriptRoot 'release-input')
 Remove-DirectoryIfExists -PathToRemove (Join-Path $releaseDirAbs 'RetroEditor')
+
+if (-not $KeepTarget) {
+    Remove-DirectoryIfExists -PathToRemove (Join-Path $scriptRoot 'target')
+}
 
 if ($InstallerType -ne 'none') {
     $exeFound = @(Get-ChildItem -Path $releaseDirAbs -Filter "$AppName*.exe" -ErrorAction SilentlyContinue)

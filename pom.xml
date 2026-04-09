@@ -51,6 +51,14 @@
             <artifactId>richtextfx</artifactId>
             <version>0.11.6</version>
         </dependency>
+        <!-- JSpeccy integrado como librería local -->
+        <dependency>
+            <groupId>local</groupId>
+            <artifactId>jspeccy</artifactId>
+            <version>1.0</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/JSpeccy.jar</systemPath>
+        </dependency>
         <!-- JavaFX Web for WebView -->
         <dependency>
             <groupId>org.openjfx</groupId>

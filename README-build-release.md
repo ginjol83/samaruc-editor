@@ -6,11 +6,11 @@ Este documento explica como usar el script `build-release.ps1` para compilar, em
 
 El script automatiza este flujo completo:
 
-1. Compila el proyecto con Maven (`mvn -q -DskipTests package`) y copia el JAR resultante a `release-input/`.
+1. Compila el proyecto con Maven (`mvn -q -DskipTests package`) y copia el JAR resultante a `release/input/`.
 2. Ejecuta `jpackage` para crear `release/Samaruc` con el icono personalizado.
 3. Copia `libs`, `samples` y `plugins` a `release/Samaruc/`.
 4. Opcionalmente genera instalador Windows (`.exe` y/o `.msi`) a partir de ese `app-image`.
-5. Elimina salidas legacy (`jp-out`, `release-fixed`) para dejar un unico resultado final.
+5. Elimina salidas legacy (`jp-out`, `release-fixed`, `release-input`) y, por defecto, tambien `target/` para dejar un unico resultado final en `release/`.
 
 Asi se genera el ejecutable `Samaruc.exe` completo con un solo comando, sin pasos manuales intermedios.
 
@@ -26,12 +26,12 @@ Asi se genera el ejecutable `Samaruc.exe` completo con un solo comando, sin paso
   - `samples/`
   - `plugins/`
 
-> No es necesario tener el JAR en `release-input/` de antemano: el script lo genera y copia automaticamente.
+> No es necesario tener el JAR en `release/input/` de antemano: el script lo genera y copia automaticamente.
 
 ## Parametros
 
 - `AppName`: `Samaruc`
-- `InputDir`: `release-input`
+- `InputDir`: `release/input`
 - `MainJar`: `samaruc-1.0-SNAPSHOT.jar`
 - `ReleaseDir`: `release`
 - `LibsDir`: `libs`
@@ -39,8 +39,9 @@ Asi se genera el ejecutable `Samaruc.exe` completo con un solo comando, sin paso
 - `PluginsDir`: `plugins`
 - `IconPath`: `jp-temp/icons/RetroEditor.ico` (obligatorio, falla si no existe)
 - `InstallerType`: `none | exe | msi | both` (por defecto: `none`)
-- `SkipMvn` (switch): omite la compilacion Maven (usa el JAR ya existente en `release-input/`).
+- `SkipMvn` (switch): omite la compilacion Maven (usa el JAR ya existente en `release/input/`).
 - `SkipJPackage` (switch): omite `jpackage` y solo recopia dependencias en `release/<AppName>`.
+- `KeepTarget` (switch): evita borrar `target/` al final del proceso.
 
 ## Uso rapido
 
@@ -76,12 +77,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build-release.ps1 -Install
 
 ## Flujo interno
 
-1. **Maven**: `mvn -q -DskipTests package` → copia `target/samaruc-1.0-SNAPSHOT.jar` a `release-input/`.
+1. **Maven**: `mvn -q -DskipTests package` → copia `target/samaruc-1.0-SNAPSHOT.jar` a `release/input/`.
 2. **Validaciones**: verifica JAR, icono, libs, samples y plugins.
 3. **jpackage app-image**: genera `release/Samaruc` con el icono especificado.
 4. **Copias**: libs, samples y plugins se copian a `release/Samaruc/`.
 5. **Instalador opcional**: si `InstallerType` no es `none`, ejecuta `jpackage --type exe/msi --app-image release/Samaruc`.
-6. **Limpieza**: elimina `jp-out`, `release-fixed` y cualquier carpeta legacy `release/RetroEditor`.
+6. **Limpieza**: elimina `jp-out`, `release-fixed`, `release-input`, cualquier carpeta legacy `release/RetroEditor` y (por defecto) `target/`.
 
 ## Troubleshooting
 

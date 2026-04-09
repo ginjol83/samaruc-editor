@@ -28,42 +28,33 @@ public class EmulatorLauncher {
     }
 
     /**
-     * Lanza JSpeccy con la ROM especificada y transmite su salida a un área de texto JavaFX.
-     * @param jspeccyPath Ruta al ejecutable o JAR de JSpeccy
+     * Lanza JSpeccy usando el classpath de la propia aplicación (sin configuración XML externa).
      * @param romFile Archivo ROM a cargar en el emulador.
      * @param console Área de texto JavaFX donde se transmitirá la salida del emulador (puede ser null).
      * @param extraArgs Argumentos adicionales para pasar a JSpeccy (puede ser null).
      * @return Resultado del lanzamiento que incluye el proceso.
      * @throws IOException Si ocurre un error al iniciar el emulador.
      */
-    public static LaunchResult launchJSpeccy(File jspeccyPath, File romFile, StyleClassedTextArea console, List<String> extraArgs) throws IOException {
-        if (jspeccyPath == null || !jspeccyPath.exists()) throw new IOException("Ruta de JSpeccy no válida: " + jspeccyPath);
-        if (romFile == null     || !romFile.exists())     throw new IOException("ROM no encontrada: " + romFile);
+    public static LaunchResult launchJSpeccy(File romFile, StyleClassedTextArea console, List<String> extraArgs) throws IOException {
+        if (romFile == null || !romFile.exists()) throw new IOException("ROM no encontrada: " + romFile);
+
+        String appClasspath = System.getProperty("java.class.path", "");
+        if (appClasspath == null || appClasspath.isBlank()) {
+            throw new IOException("Classpath de la aplicación vacío. No se puede iniciar JSpeccy integrado.");
+        }
 
         List<String> cmd = new ArrayList<>();
-        String nameLower = jspeccyPath.getName().toLowerCase();
-        
-        if (nameLower.endsWith(".jar")) {
-            cmd.add("java");
-            // JSpeccy depende de JAXB (javax.*) y en Java moderno no viene en el JRE.
-            // Lo lanzamos con classpath explícito para reutilizar dependencias ya presentes en la app.
-            cmd.add("-cp");
-            cmd.add(buildJspeccyClasspath(jspeccyPath));
-            cmd.add(JSPECCY_MAIN_CLASS);
-            cmd.add(romFile.getAbsolutePath());
-        } else {
-            cmd.add(jspeccyPath.getAbsolutePath());
-            cmd.add(romFile.getAbsolutePath());
-        }
+        cmd.add("java");
+        cmd.add("-cp");
+        cmd.add(appClasspath);
+        cmd.add(JSPECCY_MAIN_CLASS);
+        cmd.add(romFile.getAbsolutePath());
 
         if (extraArgs != null) cmd.addAll(extraArgs);
 
         ProcessBuilder pb = new ProcessBuilder(cmd);
         pb.redirectErrorStream(true);
-        // Establecer el directorio de trabajo al directorio del JAR de JSpeccy para que
-        // encuentre JSpeccy.xml (configuración de escala, etc.) en esa misma carpeta.
-        pb.directory(jspeccyPath.getParentFile());
-        Process proc      = pb.start();
+        Process proc = pb.start();
 
         // Salida del emulador en un hilo separado
         ExecutorService es = Executors.newSingleThreadExecutor(r -> {
@@ -92,15 +83,6 @@ public class EmulatorLauncher {
         return new LaunchResult(proc);
     }
 
-    private static String buildJspeccyClasspath(File jspeccyJar) {
-        String appClasspath = System.getProperty("java.class.path", "");
-
-        if (appClasspath == null || appClasspath.isBlank()) {
-            return jspeccyJar.getAbsolutePath();
-        }
-
-        return jspeccyJar.getAbsolutePath() + File.pathSeparator + appClasspath;
-    }
 
     /**
      * Lanza Emulicious con la ROM especificada y transmite su salida a un área de texto JavaFX.

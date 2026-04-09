@@ -406,26 +406,9 @@ public class BuildController {
             return;
         }
 
-        File jspeccyFile = resolveJspeccyFile();
-
-        if (jspeccyFile == null) {
-            Alert alert = new Alert(AlertType.ERROR);
-
-            alert.setTitle("Error al ejecutar emulador Spectrum");
-            alert.setHeaderText("No se encontró JSpeccy integrado");
-            alert.setContentText("Verifica que exista el archivo libs/JSpeccy.jar en la instalación de la aplicación.");
-            alert.showAndWait();
-
-            terminalController.appendConsoleOutput(
-                "ERROR: No se encontró libs/JSpeccy.jar para lanzar el emulador Spectrum.",
-                consoleOutputArea
-            );
-            return;
-        }
-
         try {
             UserActionMonitor.emulatorLaunched("JSpeccy", spectrumArtifact.getName());
-            EmulatorLauncher.launchJSpeccy(jspeccyFile, spectrumArtifact, consoleOutputArea, null);
+            EmulatorLauncher.launchJSpeccy(spectrumArtifact, consoleOutputArea, null);
             UserActionMonitor.emulatorRunning("JSpeccy");
             handoffFocusToEmulator(ownerStage, consoleOutputArea);
             terminalController.appendConsoleOutput(
@@ -434,6 +417,11 @@ public class BuildController {
             );
         } catch (Exception ex) {
             UserActionMonitor.executionError("JSpeccy: " + ex.getMessage());
+            Alert alert = new Alert(AlertType.ERROR);
+            alert.setTitle("Error al ejecutar emulador Spectrum");
+            alert.setHeaderText("No se pudo iniciar JSpeccy integrado");
+            alert.setContentText("Revisa que JSpeccy esté disponible en el classpath de la aplicación.");
+            alert.showAndWait();
             terminalController.appendConsoleOutput("Error al lanzar JSpeccy: " + ex.getMessage(), consoleOutputArea);
         }
     }
@@ -446,10 +434,6 @@ public class BuildController {
         return COMPILER_Z88DK.equalsIgnoreCase(compiler) || LEGACY_SPECTRUM.equalsIgnoreCase(compiler);
     }
 
-    private File resolveJspeccyFile() {
-        File bundled = new File(System.getProperty("user.dir"), "libs/JSpeccy.jar");
-        return bundled.exists() ? bundled : null;
-    }
 
     private File resolveBundledJar(String prefix) {
         File libsDir = new File(System.getProperty("user.dir"), "libs");
