@@ -2,17 +2,25 @@ package com.retroeditor.controller.config;
 
 import java.awt.Desktop;
 import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.stream.Collectors;
 
 import com.retroeditor.model.ConfigModel;
+import com.retroeditor.model.PluginMarketplaceItem;
 import com.retroeditor.plugin.PluginInfo;
 import com.retroeditor.plugin.PluginManager;
+import com.retroeditor.service.ConfigRepository;
+import com.retroeditor.service.AppLogger;
+import com.retroeditor.service.PluginApplicationService;
+import com.retroeditor.service.PluginMarketplaceService;
+import com.retroeditor.service.PropertiesConfigRepository;
 import com.retroeditor.service.UserActionMonitor;
 
 import javafx.application.Platform;
@@ -20,6 +28,7 @@ import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -27,87 +36,142 @@ import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Alert;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 public class ConfigController {
     private static final String COMPILER_GBDK      = "GBDK";
     private static final String COMPILER_Z88DK     = "z88dk";
+    private static final String COMPILER_MAKEFILE  = "Makefile";
+    private static final String LEGACY_DISPLAY_Z88DK = "Z88DK";
     private static final String LEGACY_SPECTRUM    = "Spectrum";
+    private static final String Z88DK_PROFILE_SPECTRUM = "spectrum";
+    private static final String Z88DK_PROFILE_CPC = "cpc";
     private static final String EMULATOR_EMULICIOUS = "Emulicious";
     private static final String EMULATOR_JSPECCY   = "JSpeccy";
+    private static final String EMULATOR_CPCBOX_WEB = "CPCBoxWeb";
 
     @FXML private TabPane          tabPaneConfig;
     @FXML private TabPane          tabPaneCompilerOptions;
     @FXML private TextField        txtGbdkBin;
     @FXML private TextField        txtCompilador;
     @FXML private TextField        txtSpectrumBin;
+    @FXML private TextField        txtCpcBin;
     @FXML private TextField        txtGbdkDefines;
     @FXML private TextField        txtGbdkIncludes;
     @FXML private TextField        txtGbdkExtraArgs;
-    @FXML private TextField        txtZ88dkTarget;
-    @FXML private CheckBox         chkZ88dkCreateApp;
-    @FXML private TextField        txtZ88dkDefines;
-    @FXML private TextField        txtZ88dkIncludes;
-    @FXML private TextField        txtZ88dkExtraArgs;
-    @FXML private ComboBox<String> comboZ88dkClib;
-    @FXML private CheckBox         chkZ88dkCrtOrgCode;
+    @FXML private TextField        txtZ88dkSpectrumTarget;
+    @FXML private CheckBox         chkZ88dkSpectrumCreateApp;
+    @FXML private TextField        txtZ88dkSpectrumDefines;
+    @FXML private TextField        txtZ88dkSpectrumIncludes;
+    @FXML private TextField        txtZ88dkSpectrumExtraArgs;
+    @FXML private ComboBox<String> comboZ88dkSpectrumClib;
+    @FXML private CheckBox         chkZ88dkSpectrumCrtOrgCode;
+    @FXML private TextField        txtZ88dkCpcTarget;
+    @FXML private CheckBox         chkZ88dkCpcCreateApp;
+    @FXML private TextField        txtZ88dkCpcDefines;
+    @FXML private TextField        txtZ88dkCpcIncludes;
+    @FXML private TextField        txtZ88dkCpcExtraArgs;
+    @FXML private ComboBox<String> comboZ88dkCpcClib;
+    @FXML private CheckBox         chkZ88dkCpcCrtOrgCode;
     @FXML private ComboBox<String> comboGbdkOptLevel;
     @FXML private CheckBox         chkGbdkOptSpeed;
     @FXML private CheckBox         chkGbdkOptSize;
+    @FXML private CheckBox         chkProjectDetectAutoApply;
+    @FXML private TextField        txtProjectDetectThreshold;
+    @FXML private TextField        txtMakeExecutable;
+    @FXML private TextField        txtMakeBuildTarget;
+    @FXML private TextField        txtMakeRunTarget;
+    @FXML private TextField        txtMakeExtraArgs;
     @FXML private Tab              tabIdioma;
     @FXML private Tab              tabCompilador;
     @FXML private Tab              tabCompilerGbdk;
-    @FXML private Tab              tabCompilerZ88dk;
+    @FXML private Tab              tabCompilerZ88dkSpectrum;
+    @FXML private Tab              tabCompilerZ88dkCpc;
+    @FXML private Tab              tabCompilerMakefile;
     @FXML private Tab              tabPlugins;
     @FXML private Label            lblError;
     @FXML private Label            lblIdioma;
+    @FXML private Label            lblReadmeLanguage;
     @FXML private Label            lblCompilador;
     @FXML private Label            lblGbdkBin;
     @FXML private Label            lblGbdkOpts;
     @FXML private Label            lblGbdkOptLevel;
-    @FXML private Label            lblZ88dkBin;
-    @FXML private Label            lblZ88dkOpts;
-    @FXML private Label            lblZ88dkClib;
+    @FXML private Label            lblZ88dkSpectrumBin;
+    @FXML private Label            lblZ88dkSpectrumOpts;
+    @FXML private Label            lblZ88dkSpectrumClib;
     @FXML private Label            lblGbdkDefines;
     @FXML private Label            lblGbdkIncludes;
     @FXML private Label            lblGbdkExtraArgs;
-    @FXML private Label            lblZ88dkTarget;
-    @FXML private Label            lblZ88dkDefines;
-    @FXML private Label            lblZ88dkIncludes;
-    @FXML private Label            lblZ88dkExtraArgs;
+    @FXML private Label            lblZ88dkSpectrumTarget;
+    @FXML private Label            lblZ88dkSpectrumDefines;
+    @FXML private Label            lblZ88dkSpectrumIncludes;
+    @FXML private Label            lblZ88dkSpectrumExtraArgs;
+    @FXML private Label            lblZ88dkCpcBin;
+    @FXML private Label            lblZ88dkCpcOpts;
+    @FXML private Label            lblZ88dkCpcClib;
+    @FXML private Label            lblZ88dkCpcTarget;
+    @FXML private Label            lblZ88dkCpcDefines;
+    @FXML private Label            lblZ88dkCpcIncludes;
+    @FXML private Label            lblZ88dkCpcExtraArgs;
+    @FXML private Label            lblProjectDetectThreshold;
+    @FXML private Label            lblMakeExecutable;
+    @FXML private Label            lblMakeBuildTarget;
+    @FXML private Label            lblMakeRunTarget;
+    @FXML private Label            lblMakeExtraArgs;
     @FXML private Label            lblTituloConfig;
     @FXML private Button           btnGuardarIdioma;
     @FXML private Button           btnCerrarConfig;
     @FXML private Button           btnGuardarCompilador;
+    @FXML private Button           btnSaveMakeOpts;
     @FXML private ComboBox<String> comboIdioma;
+    @FXML private ComboBox<String> comboReadmeLanguage;
     @FXML private ComboBox<String> comboCompilador;
 
     @FXML private Button           btnSeleccionarGbdkBin;
     @FXML private Button           btnGuardarGbdkBin;
     @FXML private Button           btnSeleccionarSpectrumBin;
     @FXML private Button           btnGuardarSpectrumBin;
+    @FXML private Button           btnSeleccionarCpcBin;
+    @FXML private Button           btnGuardarCpcBin;
 
     @FXML private javafx.scene.control.ListView<String> lstPlugins;
     @FXML private javafx.scene.control.Button btnInstallPlugin;
     @FXML private javafx.scene.control.Button btnEnable;
     @FXML private javafx.scene.control.Button btnDisable;
+    @FXML private javafx.scene.control.Button btnRemovePlugin;
     @FXML private javafx.scene.control.Button btnOpenFolder;
     @FXML private javafx.scene.control.Button btnRefreshPlugins;
     @FXML private javafx.scene.control.Label lblPluginInfo;
     @FXML private Label lblPluginsInstalled;
     @FXML private ProgressIndicator progressPluginsReload;
+    @FXML private Label lblMarketplace;
+    @FXML private Label lblMarketplaceUrl;
+    @FXML private TextField txtMarketplaceUrl;
+    @FXML private Button btnSaveMarketplaceUrl;
+    @FXML private javafx.scene.control.ListView<String> lstMarketplacePlugins;
+    @FXML private javafx.scene.control.Button btnMarketplaceRefresh;
+    @FXML private javafx.scene.control.Button btnMarketplaceInstall;
+    @FXML private javafx.scene.control.Label lblMarketplaceInfo;
+    @FXML private ProgressIndicator progressMarketplace;
 
     private Runnable onCloseCallback;
     private Runnable onLanguageChanged;
     private boolean syncingCompilerUi = false;
+    private final Map<String, String> readmeLanguageCodeByLabel = new HashMap<>();
 
     private ConfigModel configModel = new ConfigModel();
+    private ConfigRepository configRepository = new PropertiesConfigRepository();
+    private PluginApplicationService pluginApplicationService = new PluginApplicationService();
+    private PluginMarketplaceService pluginMarketplaceService = new PluginMarketplaceService();
 
     private final File        configFile  = new File(System.getProperty("user.home"), ".retroeditor.properties");
     private final File        pluginsDir  = new File(System.getProperty("user.dir"), "plugins");
     private List<PluginInfo>  discoveredPlugins = Collections.emptyList();
+    private List<PluginMarketplaceItem> marketplacePlugins = Collections.emptyList();
     private boolean pluginsReloading = false;
+    private boolean marketplaceLoading = false;
 
     /**
      * Obtener el gestor de plugins de la aplicación.
@@ -127,6 +191,70 @@ public class ConfigController {
         if (configModel != null) this.configModel = configModel;
     }
 
+    public void setConfigRepository(ConfigRepository configRepository) {
+        if (configRepository != null) this.configRepository = configRepository;
+    }
+
+    public void setPluginApplicationService(PluginApplicationService pluginApplicationService) {
+        if (pluginApplicationService != null) this.pluginApplicationService = pluginApplicationService;
+    }
+
+    public void setPluginMarketplaceService(PluginMarketplaceService pluginMarketplaceService) {
+        if (pluginMarketplaceService != null) this.pluginMarketplaceService = pluginMarketplaceService;
+    }
+
+    private void loadConfigFromDisk() {
+        java.util.Properties loaded = configRepository.load(configFile);
+        configModel.applyProperties(loaded);
+        persistNormalizedLegacyConfigIfNeeded(loaded);
+    }
+
+    private void persistNormalizedLegacyConfigIfNeeded(java.util.Properties loadedProps) {
+        if (loadedProps == null || loadedProps.isEmpty()) return;
+
+        String compilerRaw = loadedProps.getProperty("compilador_seleccionado", "").trim();
+        String profileRaw = loadedProps.getProperty("z88dk_profile", "").trim();
+        String emulatorRaw = loadedProps.getProperty("emulador_seleccionado", "").trim();
+
+        boolean legacyCompiler = "Spectrum".equalsIgnoreCase(compilerRaw)
+            || "Z88DK".equalsIgnoreCase(compilerRaw)
+            || compilerRaw.toLowerCase(Locale.ROOT).contains("z88dk (");
+
+        boolean invalidProfile = !profileRaw.isEmpty()
+            && !Z88DK_PROFILE_SPECTRUM.equalsIgnoreCase(profileRaw)
+            && !Z88DK_PROFILE_CPC.equalsIgnoreCase(profileRaw);
+
+        String normalizedCompiler = configModel.getConfigProperty("compilador_seleccionado", COMPILER_GBDK);
+        String normalizedProfile = configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM);
+        String expectedEmulator = getEmulatorForCompiler(normalizedCompiler, normalizedProfile);
+        boolean emulatorMismatch = !emulatorRaw.isEmpty() && !expectedEmulator.equalsIgnoreCase(emulatorRaw);
+
+        List<String> migrationCauses = new ArrayList<>();
+        if (legacyCompiler) {
+            migrationCauses.add(tr("config.migration.legacy.cause.compiler", "compilador legacy detectado"));
+        }
+        if (invalidProfile) {
+            migrationCauses.add(tr("config.migration.legacy.cause.profile", "perfil z88dk invalido"));
+        }
+        if (emulatorMismatch) {
+            migrationCauses.add(tr("config.migration.legacy.cause.emulator", "emulador no alineado con el perfil"));
+        }
+
+        if (legacyCompiler || invalidProfile || emulatorMismatch) {
+            persistConfig();
+            String detail = String.join(", ", migrationCauses);
+            AppLogger.logMonitor(
+                "CONFIG",
+                tr("config.migration.legacy.normalized.detail", "Se normalizo automaticamente una configuracion legacy de compilador. Causas:")
+                    + " " + detail
+            );
+        }
+    }
+
+    private void persistConfig() {
+        configRepository.save(configFile, configModel.toProperties());
+    }
+
     /**
      * Recargar los campos de la interfaz de usuario desde el modelo de configuración actual.
      * Puede ser llamado después de setConfigModel(...) para refrescar el diálogo.
@@ -138,13 +266,11 @@ public class ConfigController {
         if (txtSpectrumBin != null) {
             txtSpectrumBin.setText(configModel.getConfigProperty("spectrum_bin", ""));
         }
-
-        if (comboIdioma != null) {
-            comboIdioma.getItems().clear();
-            comboIdioma.getItems().addAll("Español", "English");
-            String lang = configModel.getConfigProperty("idioma", "es");
-            comboIdioma.getSelectionModel().select(lang.equals("en") ? "English" : "Español");
+        if (txtCpcBin != null) {
+            txtCpcBin.setText(configModel.getConfigProperty("cpc_bin", configModel.getConfigProperty("spectrum_bin", "")));
         }
+
+        loadLanguageSelectionsFromConfig();
 
         if (txtGbdkBin != null) {
             txtGbdkBin.setText(configModel.getConfigProperty("gbdk_bin", ""));
@@ -152,6 +278,11 @@ public class ConfigController {
 
         loadZ88dkFlagsFromConfig();
         loadGbdkOptsFromConfig();
+        loadMakeOptsFromConfig();
+        loadProjectDetectionPrefsFromConfig();
+        if (txtMarketplaceUrl != null) {
+            txtMarketplaceUrl.setText(configModel.getConfigProperty("marketplace_catalog_url", PluginMarketplaceService.DEFAULT_MARKETPLACE_URL));
+        }
 
         refreshTexts(
             tabIdioma,
@@ -182,7 +313,7 @@ public class ConfigController {
      */
     @FXML
     public void initialize() {
-        configModel.getDefaultLanguage(configFile);
+        loadConfigFromDisk();
 
         if (lblError != null) {
             lblError.setText("");
@@ -194,10 +325,11 @@ public class ConfigController {
         if (txtSpectrumBin != null) {
             txtSpectrumBin.setText(configModel.getConfigProperty("spectrum_bin", ""));
         }
+        if (txtCpcBin != null) {
+            txtCpcBin.setText(configModel.getConfigProperty("cpc_bin", configModel.getConfigProperty("spectrum_bin", "")));
+        }
 
-        comboIdioma.getItems().addAll("Español", "English");
-        String lang = configModel.getConfigProperty("idioma", "es");
-        comboIdioma.getSelectionModel().select(lang.equals("en") ? "English" : "Español");
+        loadLanguageSelectionsFromConfig();
 
         if (txtGbdkBin != null) {
             txtGbdkBin.setText(configModel.getConfigProperty("gbdk_bin", ""));
@@ -205,18 +337,29 @@ public class ConfigController {
 
         loadZ88dkFlagsFromConfig();
         loadGbdkOptsFromConfig();
+        loadMakeOptsFromConfig();
+        loadProjectDetectionPrefsFromConfig();
+        if (txtMarketplaceUrl != null) {
+            txtMarketplaceUrl.setText(configModel.getConfigProperty("marketplace_catalog_url", PluginMarketplaceService.DEFAULT_MARKETPLACE_URL));
+        }
 
         // Si no existe, crear carpeta de plugins
-        try { if (!pluginsDir.exists()) pluginsDir.mkdirs(); } catch (Exception ignored) {}
+        try { pluginApplicationService.ensurePluginsDir(pluginsDir); } catch (Exception ignored) {}
 
         // Configurar lista de plugins
         if (lstPlugins != null) {
             lstPlugins.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> onPluginSelected(newV));
         }
 
+        if (lstMarketplacePlugins != null) {
+            lstMarketplacePlugins.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> onMarketplaceSelected());
+        }
+
         updatePluginButtons(null);
+        updateMarketplaceButtons(null);
 
         refreshPluginsList();
+        refreshMarketplaceList();
 
         refreshTexts(
             tabIdioma,
@@ -242,7 +385,7 @@ public class ConfigController {
 
         PluginManager pm = getPluginManager();
 
-        discoveredPlugins = pm != null ? pm.discoverPlugins() : Collections.emptyList();
+        discoveredPlugins = pluginApplicationService.discoverPlugins(pm);
 
         List<String> display = discoveredPlugins.stream().map(i -> String.format("%s %s", i.jarName, i.enabled ? "(habilitado)" : "(deshabilitado)"))
             .collect(Collectors.toList());
@@ -299,7 +442,7 @@ public class ConfigController {
             PluginManager pm = getPluginManager();
 
             try {
-                if (pm != null) pm.reloadPlugins();
+                pluginApplicationService.reloadPlugins(pm);
                 refreshPluginsList();
             } finally {
                 setPluginsReloading(false);
@@ -314,6 +457,7 @@ public class ConfigController {
         PluginInfo selected = getSelectedPluginInfo();
         if (btnEnable != null) btnEnable.setDisable(reloading || selected == null || selected.enabled);
         if (btnDisable != null) btnDisable.setDisable(reloading || selected == null || !selected.enabled);
+        if (btnRemovePlugin != null) btnRemovePlugin.setDisable(reloading || selected == null);
         if (btnInstallPlugin != null) btnInstallPlugin.setDisable(reloading);
         if (progressPluginsReload != null) {
             progressPluginsReload.setVisible(reloading);
@@ -354,7 +498,7 @@ public class ConfigController {
     public void onOpenPluginsFolder(ActionEvent event) {
 
         try {
-            if (!pluginsDir.exists()) pluginsDir.mkdirs();
+            pluginApplicationService.ensurePluginsDir(pluginsDir);
 
             Desktop.getDesktop().open(pluginsDir);
 
@@ -377,10 +521,7 @@ public class ConfigController {
 
         if (selected != null) {
             try {
-                if (!pluginsDir.exists()) pluginsDir.mkdirs();
-
-                File dest = new File(pluginsDir, selected.getName());
-                Files.copy(selected.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                pluginApplicationService.installPluginJar(selected, pluginsDir);
                 UserActionMonitor.pluginInstalled(selected.getName());
 
                 refreshPluginsList();
@@ -407,12 +548,9 @@ public class ConfigController {
         PluginManager pm = getPluginManager();
         String jarName = pi.jarName;
 
-        if (pm != null) pm.setJarEnabled(jarName, true);
+        pluginApplicationService.setPluginEnabledAndReload(pm, jarName, true);
 
         UserActionMonitor.pluginEnabled(jarName);
-
-        // Persiste el estado habilitado y recarga los plugins para que el cambio surta efecto inmediatamente
-        if (pm != null) pm.reloadPlugins();
 
         refreshPluginsList();
         selectJarInList(jarName);
@@ -435,15 +573,44 @@ public class ConfigController {
         String jarName = pi.jarName;
         PluginManager pm = getPluginManager();
 
-        if (pm != null) pm.setJarEnabled(jarName, false);
+        pluginApplicationService.setPluginEnabledAndReload(pm, jarName, false);
 
         UserActionMonitor.pluginDisabled(jarName);
 
-        // Persiste el estado deshabilitado y recarga los plugins para que el cambio surta efecto inmediatamente
-        if (pm != null) pm.reloadPlugins();
 
         refreshPluginsList();
         selectJarInList(jarName);
+    }
+
+    @FXML
+    public void onRemovePlugin(ActionEvent event) {
+        PluginInfo pi = getSelectedPluginInfo();
+        if (pi == null || pluginsReloading) return;
+
+        if (!confirmPluginRemoval(pi.jarName)) {
+            return;
+        }
+
+        PluginManager pm = getPluginManager();
+        if (pm != null) {
+            pm.setJarEnabled(pi.jarName, false);
+        }
+
+        boolean deleted = pluginApplicationService.deletePluginJar(pluginsDir, pi.jarName);
+        if (!deleted) {
+            if (lblPluginInfo != null) {
+                lblPluginInfo.setText(tr("config.plugins.remove.error", "No se pudo eliminar el plugin seleccionado."));
+            }
+            return;
+        }
+
+        pluginApplicationService.reloadPlugins(pm);
+        UserActionMonitor.pluginDisabled(pi.jarName);
+
+        refreshPluginsList();
+        if (lblPluginInfo != null) {
+            lblPluginInfo.setText(tr("config.plugins.remove.ok", "Plugin eliminado correctamente."));
+        }
     }
 
     private PluginInfo getSelectedPluginInfo() {
@@ -461,17 +628,37 @@ public class ConfigController {
         if (pluginsReloading) {
             btnEnable.setDisable(true);
             btnDisable.setDisable(true);
+            if (btnRemovePlugin != null) btnRemovePlugin.setDisable(true);
             return;
         }
 
         if (info == null) {
             btnEnable.setDisable(true);
             btnDisable.setDisable(true);
+            if (btnRemovePlugin != null) btnRemovePlugin.setDisable(true);
             return;
         }
 
         btnEnable.setDisable(info.enabled);
         btnDisable.setDisable(!info.enabled);
+        if (btnRemovePlugin != null) btnRemovePlugin.setDisable(false);
+    }
+
+    private boolean confirmPluginRemoval(String jarName) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle(tr("config.plugins.remove.confirm.title", "Confirmar eliminacion"));
+        alert.setHeaderText(tr("config.plugins.remove.confirm.header", "Vas a eliminar un plugin instalado."));
+        alert.setContentText(
+            tr("config.plugins.remove.confirm.body", "Plugin") + ": " + safe(jarName, "-") + "\n"
+                + tr("config.plugins.remove.confirm.warning", "Esta accion no se puede deshacer.")
+        );
+
+        if (btnRemovePlugin != null && btnRemovePlugin.getScene() != null) {
+            alert.initOwner(btnRemovePlugin.getScene().getWindow());
+        }
+
+        Optional<ButtonType> result = alert.showAndWait();
+        return result.isPresent() && result.get() == ButtonType.OK;
     }
 
     private void selectJarInList(String jarName) {
@@ -486,6 +673,192 @@ public class ConfigController {
         }
     }
 
+    @FXML
+    public void onRefreshMarketplace(ActionEvent event) {
+        refreshMarketplaceList();
+    }
+
+    @FXML
+    public void onSaveMarketplaceUrl(ActionEvent event) {
+        String current = txtMarketplaceUrl != null ? txtMarketplaceUrl.getText() : "";
+        String normalized = current != null && !current.isBlank()
+            ? current.trim()
+            : PluginMarketplaceService.DEFAULT_MARKETPLACE_URL;
+
+        configModel.setConfigProperty("marketplace_catalog_url", normalized);
+        persistConfig();
+
+        if (txtMarketplaceUrl != null) {
+            txtMarketplaceUrl.setText(normalized);
+        }
+
+        if (lblMarketplaceInfo != null) {
+            lblMarketplaceInfo.setText(tr("config.plugins.marketplace.url.saved", "URL del marketplace guardada."));
+        }
+    }
+
+    private void refreshMarketplaceList() {
+        if (marketplaceLoading) return;
+
+        setMarketplaceLoading(true);
+
+        new Thread(() -> {
+            try {
+                String marketplaceUrl = configModel.getConfigProperty("marketplace_catalog_url", PluginMarketplaceService.DEFAULT_MARKETPLACE_URL);
+                List<PluginMarketplaceItem> items = pluginMarketplaceService.fetchCatalog(marketplaceUrl);
+                Platform.runLater(() -> applyMarketplaceItems(items));
+            } catch (Exception ex) {
+                Platform.runLater(() -> {
+                    marketplacePlugins = Collections.emptyList();
+                    if (lstMarketplacePlugins != null) lstMarketplacePlugins.getItems().clear();
+                    if (lblMarketplaceInfo != null) {
+                        lblMarketplaceInfo.setText(tr("config.plugins.marketplace.error", "No se pudo cargar el marketplace.") + "\n" + ex.getMessage());
+                    }
+                    updateMarketplaceButtons(null);
+                    setMarketplaceLoading(false);
+                });
+            }
+        }, "marketplace-refresh-thread").start();
+    }
+
+    private void applyMarketplaceItems(List<PluginMarketplaceItem> items) {
+        marketplacePlugins = items != null ? new ArrayList<>(items) : Collections.emptyList();
+
+        if (lstMarketplacePlugins != null) {
+            List<String> display = marketplacePlugins.stream().map(PluginMarketplaceItem::displayLine).collect(Collectors.toList());
+            lstMarketplacePlugins.getItems().setAll(display);
+        }
+
+        if (lblMarketplaceInfo != null) {
+            lblMarketplaceInfo.setText(marketplacePlugins.isEmpty()
+                ? tr("config.plugins.marketplace.empty", "No hay plugins publicados en el marketplace.")
+                : tr("config.plugins.marketplace.select", "Selecciona un plugin del marketplace para ver detalles."));
+        }
+
+        if (lstMarketplacePlugins != null && !lstMarketplacePlugins.getItems().isEmpty()) {
+            lstMarketplacePlugins.getSelectionModel().selectFirst();
+            onMarketplaceSelected();
+        } else {
+            updateMarketplaceButtons(null);
+        }
+
+        setMarketplaceLoading(false);
+    }
+
+    private void onMarketplaceSelected() {
+        PluginMarketplaceItem item = getSelectedMarketplaceItem();
+        updateMarketplaceButtons(item);
+
+        if (lblMarketplaceInfo == null) return;
+        if (item == null) {
+            lblMarketplaceInfo.setText(tr("config.plugins.marketplace.select", "Selecciona un plugin del marketplace para ver detalles."));
+            return;
+        }
+
+        String verified = item.verified()
+            ? tr("config.plugins.marketplace.verifiedYes", "Si")
+            : tr("config.plugins.marketplace.verifiedNo", "No");
+
+        lblMarketplaceInfo.setText(
+            tr("config.plugins.marketplace.info.name", "Nombre") + ": " + safe(item.name(), item.id()) + "\n"
+                + tr("config.plugins.marketplace.info.version", "Version") + ": " + safe(item.version(), "-") + "\n"
+                + tr("config.plugins.marketplace.info.author", "Autor") + ": " + safe(item.author(), "-") + "\n"
+                + tr("config.plugins.marketplace.info.category", "Categoria") + ": " + safe(item.category(), "-") + "\n"
+                + tr("config.plugins.marketplace.info.size", "Tamano") + ": " + safe(item.fileSize(), "-") + "\n"
+                + tr("config.plugins.marketplace.info.verified", "Verificado") + ": " + verified + "\n"
+                + tr("config.plugins.marketplace.info.description", "Descripcion") + ": " + safe(item.description(), "-")
+        );
+    }
+
+    @FXML
+    public void onInstallMarketplacePlugin(ActionEvent event) {
+        PluginMarketplaceItem item = getSelectedMarketplaceItem();
+        if (item == null || marketplaceLoading) return;
+
+        if (!confirmMarketplaceInstall(item)) {
+            if (lblMarketplaceInfo != null) {
+                lblMarketplaceInfo.setText(tr("config.plugins.marketplace.install.cancelled", "Instalacion cancelada por el usuario."));
+            }
+            return;
+        }
+
+        setMarketplaceLoading(true);
+        if (lblMarketplaceInfo != null) {
+            lblMarketplaceInfo.setText(tr("config.plugins.marketplace.installing", "Descargando e instalando plugin...") + "\n" + safe(item.name(), item.id()));
+        }
+
+        new Thread(() -> {
+            try {
+                PluginMarketplaceService.DownloadedPlugin downloaded = pluginMarketplaceService.downloadPlugin(item);
+                File installed = pluginApplicationService.installPluginJar(downloaded.tempFile(), pluginsDir, downloaded.suggestedFileName());
+                pluginApplicationService.reloadPlugins(getPluginManager());
+                UserActionMonitor.pluginInstalled(installed.getName());
+
+                Platform.runLater(() -> {
+                    refreshPluginsList();
+                    if (lblMarketplaceInfo != null) {
+                        lblMarketplaceInfo.setText(tr("config.plugins.marketplace.install.ok", "Plugin instalado correctamente.") + "\n" + installed.getName());
+                    }
+                    setMarketplaceLoading(false);
+                });
+            } catch (Exception ex) {
+                Platform.runLater(() -> {
+                    if (lblMarketplaceInfo != null) {
+                        lblMarketplaceInfo.setText(tr("config.plugins.marketplace.install.error", "No se pudo instalar el plugin.") + "\n" + ex.getMessage());
+                    }
+                    setMarketplaceLoading(false);
+                });
+            }
+        }, "marketplace-install-thread").start();
+    }
+
+
+    private PluginMarketplaceItem getSelectedMarketplaceItem() {
+        if (lstMarketplacePlugins == null) return null;
+
+        int idx = lstMarketplacePlugins.getSelectionModel().getSelectedIndex();
+        if (idx < 0 || idx >= marketplacePlugins.size()) return null;
+
+        return marketplacePlugins.get(idx);
+    }
+
+    private void updateMarketplaceButtons(PluginMarketplaceItem item) {
+        boolean disableInstall = marketplaceLoading || item == null;
+        if (btnMarketplaceInstall != null) btnMarketplaceInstall.setDisable(disableInstall);
+        if (btnMarketplaceRefresh != null) btnMarketplaceRefresh.setDisable(marketplaceLoading);
+    }
+
+    private void setMarketplaceLoading(boolean loading) {
+        marketplaceLoading = loading;
+        updateMarketplaceButtons(getSelectedMarketplaceItem());
+        if (progressMarketplace != null) {
+            progressMarketplace.setVisible(loading);
+            progressMarketplace.setManaged(loading);
+        }
+    }
+
+    private String safe(String value, String fallback) {
+        return value != null && !value.isBlank() ? value : fallback;
+    }
+
+    private boolean confirmMarketplaceInstall(PluginMarketplaceItem item) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle(tr("config.plugins.marketplace.confirm.title", "Confirmar instalacion"));
+        alert.setHeaderText(tr("config.plugins.marketplace.confirm.header", "Vas a instalar un plugin desde el marketplace."));
+        alert.setContentText(
+            tr("config.plugins.marketplace.confirm.body", "Plugin") + ": " + safe(item.name(), item.id()) + "\n"
+            + tr("config.plugins.marketplace.confirm.version", "Version") + ": " + safe(item.version(), "-") + "\n"
+            + tr("config.plugins.marketplace.confirm.url", "URL") + ": " + safe(item.downloadUrl(), "-")
+        );
+
+        if (btnMarketplaceInstall != null && btnMarketplaceInstall.getScene() != null) {
+            alert.initOwner(btnMarketplaceInstall.getScene().getWindow());
+        }
+
+        Optional<ButtonType> result = alert.showAndWait();
+        return result.isPresent() && result.get() == ButtonType.OK;
+    }
+
     /**
      * Guardar ruta de bin de GBDK
      * @param event
@@ -495,7 +868,7 @@ public class ConfigController {
         if (txtGbdkBin != null) {
             String path = txtGbdkBin.getText();
             configModel.setConfigProperty("gbdk_bin", path);
-            configModel.saveConfig(configFile);
+            persistConfig();
             UserActionMonitor.compilerPathUpdated("GBDK", path);
         }
     }
@@ -525,9 +898,12 @@ public class ConfigController {
     @FXML
     private void onSaveCompilador(ActionEvent event) {
         // Validaciones
-        String selectedCompiler = comboCompilador   != null ? normalizeCompiler(comboCompilador.getSelectionModel().getSelectedItem()) : null;
+        String selectedCompilerLabel = comboCompilador != null ? comboCompilador.getSelectionModel().getSelectedItem() : null;
+        String selectedCompiler = normalizeCompiler(selectedCompilerLabel);
         String gbdkPath         = txtGbdkBin        != null ? txtGbdkBin.getText().trim()        : "";
         String spectrumPath     = txtSpectrumBin    != null ? txtSpectrumBin.getText().trim()    : "";
+        String cpcPath          = txtCpcBin         != null ? txtCpcBin.getText().trim()         : "";
+        String z88dkProfile     = resolveZ88dkProfileFromSelection(selectedCompilerLabel, getSelectedZ88dkProfile());
 
         if (selectedCompiler == null || selectedCompiler.isEmpty()) {
             showError("Debe seleccionar un compilador.");
@@ -539,25 +915,35 @@ public class ConfigController {
             return;
         }
 
-        if (COMPILER_Z88DK.equals(selectedCompiler) && (spectrumPath.isEmpty() || !(new File(spectrumPath).exists()))) {
-            showError("Debe especificar una ruta válida para el bin de z88dk.");
+        if (COMPILER_Z88DK.equals(selectedCompiler)) {
+            String requiredPath = Z88DK_PROFILE_CPC.equals(z88dkProfile) ? cpcPath : spectrumPath;
+            if (requiredPath.isEmpty() || !(new File(requiredPath).exists())) {
+                showError("Debe especificar una ruta valida para el bin de Z88DK del perfil activo.");
+                return;
+            }
+        }
+
+        if (COMPILER_Z88DK.equals(selectedCompiler) && !validateZ88dkTargets()) {
             return;
         }
 
-        if (COMPILER_Z88DK.equals(selectedCompiler) && !validateZ88dkTarget()) {
+        if (!persistMakeOpts(false)) {
             return;
         }
 
         // Guardar configuración si las validaciones pasan
         if (txtCompilador != null) {
-            configModel.onSaveCompilador(configFile, txtCompilador.getText());
+            configModel.setCompilador(txtCompilador.getText());
         }
 
-        saveCompilerSelection(selectedCompiler, true);
+        saveCompilerSelection(selectedCompiler, z88dkProfile, true);
         if (!persistZ88dkFlags(true)) {
             return;
         }
         persistGbdkOpts(true);
+        if (!persistProjectDetectionPrefs(true)) {
+            return;
+        }
         UserActionMonitor.compilerChanged(selectedCompiler);
 
         showError(""); // Limpiar error
@@ -565,61 +951,168 @@ public class ConfigController {
 
     private void configureCompilerCombo() {
         if (comboCompilador != null) {
-            comboCompilador.getItems().setAll(COMPILER_GBDK, COMPILER_Z88DK);
+            comboCompilador.getItems().setAll(
+                COMPILER_GBDK,
+                getZ88dkSpectrumDisplayLabel(),
+                getZ88dkCpcDisplayLabel(),
+                COMPILER_MAKEFILE
+            );
             comboCompilador.setOnAction(this::onSaveCompilador);
         }
 
         if (tabPaneCompilerOptions != null) {
             tabPaneCompilerOptions.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
                 if (syncingCompilerUi || newTab == null) return;
-                String selectedCompiler = newTab == tabCompilerZ88dk ? COMPILER_Z88DK : COMPILER_GBDK;
-                saveCompilerSelection(selectedCompiler, true);
+                String selectedCompiler;
+                String profile = getSelectedZ88dkProfile();
+
+                if (newTab == tabCompilerZ88dkSpectrum) {
+                    selectedCompiler = COMPILER_Z88DK;
+                    profile = Z88DK_PROFILE_SPECTRUM;
+                } else if (newTab == tabCompilerZ88dkCpc) {
+                    selectedCompiler = COMPILER_Z88DK;
+                    profile = Z88DK_PROFILE_CPC;
+                } else if (newTab == tabCompilerMakefile) {
+                    selectedCompiler = COMPILER_MAKEFILE;
+                } else {
+                    selectedCompiler = COMPILER_GBDK;
+                }
+
+                saveCompilerSelection(selectedCompiler, profile, true);
             });
         }
     }
 
     private void applyCompilerSelectionFromModel() {
         String compiler = normalizeCompiler(configModel.getConfigProperty("compilador_seleccionado", COMPILER_GBDK));
-        saveCompilerSelection(compiler, true);
+        String profile = normalizeZ88dkProfile(configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM));
+        saveCompilerSelection(compiler, profile, true);
     }
 
-    private void saveCompilerSelection(String compiler, boolean persist) {
+    private void saveCompilerSelection(String compiler, String z88dkProfile, boolean persist) {
         String normalizedCompiler = normalizeCompiler(compiler);
-        String normalizedEmulator = getEmulatorForCompiler(normalizedCompiler);
+        String normalizedProfile = normalizeZ88dkProfile(z88dkProfile);
+        String normalizedEmulator = getEmulatorForCompiler(normalizedCompiler, normalizedProfile);
 
         syncingCompilerUi = true;
         try {
             if (tabPaneCompilerOptions != null) {
-                if (COMPILER_Z88DK.equalsIgnoreCase(normalizedCompiler) && tabCompilerZ88dk != null) {
-                    tabPaneCompilerOptions.getSelectionModel().select(tabCompilerZ88dk);
+                if (COMPILER_Z88DK.equalsIgnoreCase(normalizedCompiler) && tabCompilerZ88dkSpectrum != null && tabCompilerZ88dkCpc != null) {
+                    tabPaneCompilerOptions.getSelectionModel().select(
+                        Z88DK_PROFILE_CPC.equals(normalizedProfile) ? tabCompilerZ88dkCpc : tabCompilerZ88dkSpectrum
+                    );
+                } else if (COMPILER_MAKEFILE.equalsIgnoreCase(normalizedCompiler) && tabCompilerMakefile != null) {
+                    tabPaneCompilerOptions.getSelectionModel().select(tabCompilerMakefile);
                 } else if (tabCompilerGbdk != null) {
                     tabPaneCompilerOptions.getSelectionModel().select(tabCompilerGbdk);
                 }
             }
 
             if (comboCompilador != null) {
-                comboCompilador.getSelectionModel().select(normalizedCompiler);
+                comboCompilador.getSelectionModel().select(toCompilerDisplayLabel(normalizedCompiler, normalizedProfile));
             }
         } finally {
             syncingCompilerUi = false;
         }
 
         configModel.setConfigProperty("compilador_seleccionado", normalizedCompiler);
+        configModel.setConfigProperty("z88dk_profile", normalizedProfile);
         configModel.setConfigProperty("emulador_seleccionado", normalizedEmulator);
 
         if (persist) {
-            configModel.saveConfig(configFile);
+            persistConfig();
         }
     }
 
-    private String getEmulatorForCompiler(String compiler) {
-        return COMPILER_Z88DK.equalsIgnoreCase(normalizeCompiler(compiler)) ? EMULATOR_JSPECCY : EMULATOR_EMULICIOUS;
+    private String getEmulatorForCompiler(String compiler, String z88dkProfile) {
+        if (COMPILER_Z88DK.equalsIgnoreCase(normalizeCompiler(compiler))) {
+            return Z88DK_PROFILE_CPC.equals(normalizeZ88dkProfile(z88dkProfile)) ? EMULATOR_CPCBOX_WEB : EMULATOR_JSPECCY;
+        }
+        return EMULATOR_EMULICIOUS;
+    }
+
+    private String getSelectedZ88dkProfile() {
+        if (tabPaneCompilerOptions == null) {
+            return normalizeZ88dkProfile(configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM));
+        }
+
+        Tab selected = tabPaneCompilerOptions.getSelectionModel().getSelectedItem();
+        if (selected == tabCompilerZ88dkCpc) return Z88DK_PROFILE_CPC;
+        if (selected == tabCompilerZ88dkSpectrum) return Z88DK_PROFILE_SPECTRUM;
+        return normalizeZ88dkProfile(configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM));
+    }
+
+    private String normalizeZ88dkProfile(String profile) {
+        return Z88DK_PROFILE_CPC.equalsIgnoreCase(profile) ? Z88DK_PROFILE_CPC : Z88DK_PROFILE_SPECTRUM;
     }
 
     private String normalizeCompiler(String compiler) {
-        return compiler != null && (COMPILER_Z88DK.equalsIgnoreCase(compiler) || LEGACY_SPECTRUM.equalsIgnoreCase(compiler))
-            ? COMPILER_Z88DK
-            : COMPILER_GBDK;
+        if (compiler == null) return COMPILER_GBDK;
+
+        String normalized = compiler.trim();
+
+        if (COMPILER_MAKEFILE.equalsIgnoreCase(normalized)) {
+            return COMPILER_MAKEFILE;
+        }
+
+        if (COMPILER_Z88DK.equalsIgnoreCase(normalized)
+            || LEGACY_DISPLAY_Z88DK.equalsIgnoreCase(normalized)
+            || LEGACY_SPECTRUM.equalsIgnoreCase(normalized)
+            || normalized.equalsIgnoreCase(getZ88dkSpectrumDisplayLabel())
+            || normalized.equalsIgnoreCase(getZ88dkCpcDisplayLabel())
+            || normalized.toLowerCase(Locale.ROOT).contains("z88dk")) {
+            return COMPILER_Z88DK;
+        }
+
+        return COMPILER_GBDK;
+    }
+
+    private String toCompilerDisplayLabel(String normalizedCompiler, String z88dkProfile) {
+        if (COMPILER_Z88DK.equalsIgnoreCase(normalizedCompiler)) {
+            return Z88DK_PROFILE_CPC.equals(normalizeZ88dkProfile(z88dkProfile))
+                ? getZ88dkCpcDisplayLabel()
+                : getZ88dkSpectrumDisplayLabel();
+        }
+        if (COMPILER_MAKEFILE.equalsIgnoreCase(normalizedCompiler)) return COMPILER_MAKEFILE;
+        return COMPILER_GBDK;
+    }
+
+    private String resolveZ88dkProfileFromSelection(String compilerLabel, String fallbackProfile) {
+        if (compilerLabel == null) return normalizeZ88dkProfile(fallbackProfile);
+
+        if (compilerLabel.equalsIgnoreCase(getZ88dkCpcDisplayLabel())) return Z88DK_PROFILE_CPC;
+        if (compilerLabel.equalsIgnoreCase(getZ88dkSpectrumDisplayLabel())) return Z88DK_PROFILE_SPECTRUM;
+
+        return normalizeZ88dkProfile(fallbackProfile);
+    }
+
+    private String getZ88dkSpectrumDisplayLabel() {
+        ResourceBundle bundle = getCurrentBundle();
+        return bundle.containsKey("config.compiler.option.z88dk.spectrum")
+            ? bundle.getString("config.compiler.option.z88dk.spectrum")
+            : "Z88DK (Spectrum)";
+    }
+
+    private String getZ88dkCpcDisplayLabel() {
+        ResourceBundle bundle = getCurrentBundle();
+        return bundle.containsKey("config.compiler.option.z88dk.cpc")
+            ? bundle.getString("config.compiler.option.z88dk.cpc")
+            : "Z88DK (CPC)";
+    }
+
+    private void refreshCompilerComboItems() {
+        if (comboCompilador == null) return;
+
+        String compiler = normalizeCompiler(configModel.getConfigProperty("compilador_seleccionado", COMPILER_GBDK));
+        String profile = normalizeZ88dkProfile(configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM));
+
+        comboCompilador.getItems().setAll(
+            COMPILER_GBDK,
+            getZ88dkSpectrumDisplayLabel(),
+            getZ88dkCpcDisplayLabel(),
+            COMPILER_MAKEFILE
+        );
+        comboCompilador.getSelectionModel().select(toCompilerDisplayLabel(compiler, profile));
     }
 
     /**
@@ -641,8 +1134,18 @@ public class ConfigController {
         if (txtSpectrumBin != null) {
             String path = txtSpectrumBin.getText();
             configModel.setConfigProperty("spectrum_bin", path);
-            configModel.saveConfig(configFile);
-            UserActionMonitor.compilerPathUpdated("z88dk", path);
+            persistConfig();
+            UserActionMonitor.compilerPathUpdated("Z88DK-Spectrum", path);
+        }
+    }
+
+    @FXML
+    public void onSaveCpcBin(ActionEvent event) {
+        if (txtCpcBin != null) {
+            String path = txtCpcBin.getText();
+            configModel.setConfigProperty("cpc_bin", path);
+            persistConfig();
+            UserActionMonitor.compilerPathUpdated("Z88DK-CPC", path);
         }
     }
 
@@ -656,6 +1159,20 @@ public class ConfigController {
     @FXML
     public void onSaveGbdkOpts(ActionEvent event) {
         persistGbdkOpts(true);
+    }
+
+    @FXML
+    public void onSaveMakeOpts(ActionEvent event) {
+        if (persistMakeOpts(true)) {
+            showError("");
+        }
+    }
+
+    @FXML
+    public void onSaveProjectDetectionPrefs(ActionEvent event) {
+        if (persistProjectDetectionPrefs(true)) {
+            showError("");
+        }
     }
 
     private void loadGbdkOptsFromConfig() {
@@ -694,64 +1211,215 @@ public class ConfigController {
         configModel.setConfigProperty("gbdk_includes", txtGbdkIncludes != null ? txtGbdkIncludes.getText().trim() : "");
         configModel.setConfigProperty("gbdk_extra_args", txtGbdkExtraArgs != null ? txtGbdkExtraArgs.getText().trim() : "");
 
-        if (persist) configModel.saveConfig(configFile);
+        if (persist) persistConfig();
     }
 
     private void loadZ88dkFlagsFromConfig() {
-        if (comboZ88dkClib != null) {
-            comboZ88dkClib.getItems().setAll(ConfigModel.getSupportedZ88dkClibOptions());
+        if (comboZ88dkSpectrumClib != null) {
+            comboZ88dkSpectrumClib.getItems().setAll(ConfigModel.getSupportedZ88dkClibOptions());
             String selected = configModel.getConfigProperty("z88dk_clib_option", ConfigModel.Z88DK_CLIB_NEW);
-            comboZ88dkClib.getSelectionModel().select(selected);
+            comboZ88dkSpectrumClib.getSelectionModel().select(selected);
         }
 
-        if (chkZ88dkCrtOrgCode != null) {
-            chkZ88dkCrtOrgCode.setSelected(Boolean.parseBoolean(configModel.getConfigProperty("z88dk_use_pragma_crt_org_code_32768", "true")));
+        if (comboZ88dkCpcClib != null) {
+            comboZ88dkCpcClib.getItems().setAll(ConfigModel.getSupportedZ88dkClibOptions());
+            String selected = configModel.getConfigProperty("z88dk_cpc_clib_option", ConfigModel.Z88DK_CLIB_NEW);
+            comboZ88dkCpcClib.getSelectionModel().select(selected);
         }
-        if (txtZ88dkTarget != null) {
-            txtZ88dkTarget.setText(configModel.getConfigProperty("z88dk_target", "+zx"));
+
+        if (chkZ88dkSpectrumCrtOrgCode != null) {
+            chkZ88dkSpectrumCrtOrgCode.setSelected(Boolean.parseBoolean(configModel.getConfigProperty("z88dk_use_pragma_crt_org_code_32768", "true")));
         }
-        if (chkZ88dkCreateApp != null) {
-            chkZ88dkCreateApp.setSelected(Boolean.parseBoolean(configModel.getConfigProperty("z88dk_create_app", "true")));
+        if (txtZ88dkSpectrumTarget != null) {
+            txtZ88dkSpectrumTarget.setText(configModel.getConfigProperty("z88dk_target", "+zx"));
         }
-        if (txtZ88dkDefines != null) {
-            txtZ88dkDefines.setText(configModel.getConfigProperty("z88dk_defines", ""));
+        if (chkZ88dkSpectrumCreateApp != null) {
+            chkZ88dkSpectrumCreateApp.setSelected(Boolean.parseBoolean(configModel.getConfigProperty("z88dk_create_app", "true")));
         }
-        if (txtZ88dkIncludes != null) {
-            txtZ88dkIncludes.setText(configModel.getConfigProperty("z88dk_includes", ""));
+        if (txtZ88dkSpectrumDefines != null) {
+            txtZ88dkSpectrumDefines.setText(configModel.getConfigProperty("z88dk_defines", ""));
         }
-        if (txtZ88dkExtraArgs != null) {
-            txtZ88dkExtraArgs.setText(configModel.getConfigProperty("z88dk_extra_args", ""));
+        if (txtZ88dkSpectrumIncludes != null) {
+            txtZ88dkSpectrumIncludes.setText(configModel.getConfigProperty("z88dk_includes", ""));
+        }
+        if (txtZ88dkSpectrumExtraArgs != null) {
+            txtZ88dkSpectrumExtraArgs.setText(configModel.getConfigProperty("z88dk_extra_args", ""));
+        }
+
+        if (chkZ88dkCpcCrtOrgCode != null) {
+            chkZ88dkCpcCrtOrgCode.setSelected(Boolean.parseBoolean(configModel.getConfigProperty("z88dk_cpc_use_pragma_crt_org_code_32768", "false")));
+        }
+        if (txtZ88dkCpcTarget != null) {
+            txtZ88dkCpcTarget.setText(configModel.getConfigProperty("z88dk_cpc_target", "+cpc"));
+        }
+        if (chkZ88dkCpcCreateApp != null) {
+            chkZ88dkCpcCreateApp.setSelected(Boolean.parseBoolean(configModel.getConfigProperty("z88dk_cpc_create_app", "true")));
+        }
+        if (txtZ88dkCpcDefines != null) {
+            txtZ88dkCpcDefines.setText(configModel.getConfigProperty("z88dk_cpc_defines", ""));
+        }
+        if (txtZ88dkCpcIncludes != null) {
+            txtZ88dkCpcIncludes.setText(configModel.getConfigProperty("z88dk_cpc_includes", ""));
+        }
+        if (txtZ88dkCpcExtraArgs != null) {
+            txtZ88dkCpcExtraArgs.setText(configModel.getConfigProperty("z88dk_cpc_extra_args", ""));
         }
     }
 
-    private boolean persistZ88dkFlags(boolean persist) {
-        if (!validateZ88dkTarget()) {
+    private void loadMakeOptsFromConfig() {
+        if (txtMakeExecutable != null) {
+            txtMakeExecutable.setText(configModel.getConfigProperty("make_executable", ""));
+        }
+        if (txtMakeBuildTarget != null) {
+            txtMakeBuildTarget.setText(configModel.getConfigProperty("make_build_target", ""));
+        }
+        if (txtMakeRunTarget != null) {
+            txtMakeRunTarget.setText(configModel.getConfigProperty("make_run_target", "run"));
+        }
+        if (txtMakeExtraArgs != null) {
+            txtMakeExtraArgs.setText(configModel.getConfigProperty("make_extra_args", ""));
+        }
+    }
+
+    private boolean persistMakeOpts(boolean persist) {
+        String makeExecutable = sanitizeMakeField(txtMakeExecutable != null ? txtMakeExecutable.getText() : "", true);
+        String makeBuildTarget = sanitizeMakeField(txtMakeBuildTarget != null ? txtMakeBuildTarget.getText() : "", true);
+        String makeRunTarget = sanitizeMakeField(txtMakeRunTarget != null ? txtMakeRunTarget.getText() : "run", false);
+        String makeExtraArgs = sanitizeMakeField(txtMakeExtraArgs != null ? txtMakeExtraArgs.getText() : "", true);
+
+        if (makeExecutable == null || makeBuildTarget == null || makeRunTarget == null || makeExtraArgs == null) {
+            showError(tr("config.compiler.make.invalid", "Las opciones de Makefile no pueden contener saltos de linea."));
             return false;
         }
 
-        String clibOption = comboZ88dkClib != null ? comboZ88dkClib.getValue() : ConfigModel.Z88DK_CLIB_NEW;
-        String useCrtOrg = chkZ88dkCrtOrgCode != null ? Boolean.toString(chkZ88dkCrtOrgCode.isSelected()) : "true";
+        configModel.setConfigProperty("make_executable", makeExecutable);
+        configModel.setConfigProperty("make_build_target", makeBuildTarget);
+        configModel.setConfigProperty("make_run_target", makeRunTarget);
+        configModel.setConfigProperty("make_extra_args", makeExtraArgs);
 
-        configModel.setConfigProperty("z88dk_clib_option", clibOption != null ? clibOption : ConfigModel.Z88DK_CLIB_NEW);
-        configModel.setConfigProperty("z88dk_use_pragma_crt_org_code_32768", useCrtOrg);
-        configModel.setConfigProperty("z88dk_target", txtZ88dkTarget != null ? txtZ88dkTarget.getText().trim() : "+zx");
-        configModel.setConfigProperty("z88dk_create_app", chkZ88dkCreateApp != null ? Boolean.toString(chkZ88dkCreateApp.isSelected()) : "true");
-        configModel.setConfigProperty("z88dk_defines", txtZ88dkDefines != null ? txtZ88dkDefines.getText().trim() : "");
-        configModel.setConfigProperty("z88dk_includes", txtZ88dkIncludes != null ? txtZ88dkIncludes.getText().trim() : "");
-        configModel.setConfigProperty("z88dk_extra_args", txtZ88dkExtraArgs != null ? txtZ88dkExtraArgs.getText().trim() : "");
+        if (txtMakeExecutable != null) txtMakeExecutable.setText(makeExecutable);
+        if (txtMakeBuildTarget != null) txtMakeBuildTarget.setText(makeBuildTarget);
+        if (txtMakeRunTarget != null) txtMakeRunTarget.setText(makeRunTarget);
+        if (txtMakeExtraArgs != null) txtMakeExtraArgs.setText(makeExtraArgs);
 
         if (persist) {
-            configModel.saveConfig(configFile);
+            persistConfig();
         }
 
         return true;
     }
 
-    private boolean validateZ88dkTarget() {
-        String target = txtZ88dkTarget != null ? txtZ88dkTarget.getText().trim() : "";
+    private String sanitizeMakeField(String value, boolean allowEmpty) {
+        String normalized = value != null ? value.trim() : "";
 
-        if (target.isEmpty() || !target.startsWith("+")) {
-            showError(tr("config.compiler.z88dk.target.invalid", "El target de z88dk debe empezar por '+' (ejemplo: +zx)."));
+        if (normalized.contains("\n") || normalized.contains("\r")) {
+            return null;
+        }
+
+        if (!allowEmpty && normalized.isEmpty()) {
+            return "run";
+        }
+
+        return normalized;
+    }
+
+    private void loadProjectDetectionPrefsFromConfig() {
+        if (chkProjectDetectAutoApply != null) {
+            chkProjectDetectAutoApply.setSelected(Boolean.parseBoolean(configModel.getConfigProperty("project_detect_auto_apply", "true")));
+        }
+        if (txtProjectDetectThreshold != null) {
+            String threshold = configModel.getConfigProperty("project_detect_auto_apply_threshold", "75");
+            txtProjectDetectThreshold.setText(threshold);
+        }
+        updateProjectDetectionControlsState();
+    }
+
+    private boolean persistProjectDetectionPrefs(boolean persist) {
+        boolean autoApply = chkProjectDetectAutoApply != null && chkProjectDetectAutoApply.isSelected();
+        String thresholdRaw = txtProjectDetectThreshold != null ? txtProjectDetectThreshold.getText().trim() : "75";
+
+        int threshold;
+        try {
+            threshold = Integer.parseInt(thresholdRaw);
+        } catch (Exception ex) {
+            showError(tr("config.projectDetection.threshold.invalid", "El umbral debe ser un numero entre 0 y 100."));
+            return false;
+        }
+
+        if (threshold < 0 || threshold > 100) {
+            showError(tr("config.projectDetection.threshold.invalid", "El umbral debe ser un numero entre 0 y 100."));
+            return false;
+        }
+
+        configModel.setConfigProperty("project_detect_auto_apply", Boolean.toString(autoApply));
+        configModel.setConfigProperty("project_detect_auto_apply_threshold", Integer.toString(threshold));
+
+        if (txtProjectDetectThreshold != null) {
+            txtProjectDetectThreshold.setText(Integer.toString(threshold));
+        }
+
+        updateProjectDetectionControlsState();
+
+        if (persist) {
+            persistConfig();
+        }
+
+        return true;
+    }
+
+    private void updateProjectDetectionControlsState() {
+        boolean enabled = chkProjectDetectAutoApply == null || chkProjectDetectAutoApply.isSelected();
+        if (txtProjectDetectThreshold != null) {
+            txtProjectDetectThreshold.setDisable(!enabled);
+        }
+        if (lblProjectDetectThreshold != null) {
+            lblProjectDetectThreshold.setDisable(!enabled);
+        }
+    }
+
+    private boolean persistZ88dkFlags(boolean persist) {
+        if (!validateZ88dkTargets()) {
+            return false;
+        }
+
+        String spectrumClibOption = comboZ88dkSpectrumClib != null ? comboZ88dkSpectrumClib.getValue() : ConfigModel.Z88DK_CLIB_NEW;
+        String spectrumUseCrtOrg = chkZ88dkSpectrumCrtOrgCode != null ? Boolean.toString(chkZ88dkSpectrumCrtOrgCode.isSelected()) : "true";
+        String cpcClibOption = comboZ88dkCpcClib != null ? comboZ88dkCpcClib.getValue() : ConfigModel.Z88DK_CLIB_NEW;
+        String cpcUseCrtOrg = chkZ88dkCpcCrtOrgCode != null ? Boolean.toString(chkZ88dkCpcCrtOrgCode.isSelected()) : "false";
+
+        configModel.setConfigProperty("z88dk_clib_option", spectrumClibOption != null ? spectrumClibOption : ConfigModel.Z88DK_CLIB_NEW);
+        configModel.setConfigProperty("z88dk_use_pragma_crt_org_code_32768", spectrumUseCrtOrg);
+        configModel.setConfigProperty("z88dk_target", txtZ88dkSpectrumTarget != null ? txtZ88dkSpectrumTarget.getText().trim() : "+zx");
+        configModel.setConfigProperty("z88dk_create_app", chkZ88dkSpectrumCreateApp != null ? Boolean.toString(chkZ88dkSpectrumCreateApp.isSelected()) : "true");
+        configModel.setConfigProperty("z88dk_defines", txtZ88dkSpectrumDefines != null ? txtZ88dkSpectrumDefines.getText().trim() : "");
+        configModel.setConfigProperty("z88dk_includes", txtZ88dkSpectrumIncludes != null ? txtZ88dkSpectrumIncludes.getText().trim() : "");
+        configModel.setConfigProperty("z88dk_extra_args", txtZ88dkSpectrumExtraArgs != null ? txtZ88dkSpectrumExtraArgs.getText().trim() : "");
+
+        configModel.setConfigProperty("z88dk_cpc_clib_option", cpcClibOption != null ? cpcClibOption : ConfigModel.Z88DK_CLIB_NEW);
+        configModel.setConfigProperty("z88dk_cpc_use_pragma_crt_org_code_32768", cpcUseCrtOrg);
+        configModel.setConfigProperty("z88dk_cpc_target", txtZ88dkCpcTarget != null ? txtZ88dkCpcTarget.getText().trim() : "+cpc");
+        configModel.setConfigProperty("z88dk_cpc_create_app", chkZ88dkCpcCreateApp != null ? Boolean.toString(chkZ88dkCpcCreateApp.isSelected()) : "true");
+        configModel.setConfigProperty("z88dk_cpc_defines", txtZ88dkCpcDefines != null ? txtZ88dkCpcDefines.getText().trim() : "");
+        configModel.setConfigProperty("z88dk_cpc_includes", txtZ88dkCpcIncludes != null ? txtZ88dkCpcIncludes.getText().trim() : "");
+        configModel.setConfigProperty("z88dk_cpc_extra_args", txtZ88dkCpcExtraArgs != null ? txtZ88dkCpcExtraArgs.getText().trim() : "");
+
+        if (persist) {
+            persistConfig();
+        }
+
+        return true;
+    }
+
+    private boolean validateZ88dkTargets() {
+        String spectrumTarget = txtZ88dkSpectrumTarget != null ? txtZ88dkSpectrumTarget.getText().trim() : "";
+        if (spectrumTarget.isEmpty() || !spectrumTarget.startsWith("+")) {
+            showError(tr("config.compiler.z88dk.target.invalid", "El target de Z88DK debe empezar por '+' (ejemplo: +zx)."));
+            return false;
+        }
+
+        String cpcTarget = txtZ88dkCpcTarget != null ? txtZ88dkCpcTarget.getText().trim() : "";
+        if (cpcTarget.isEmpty() || !cpcTarget.startsWith("+")) {
+            showError(tr("config.compiler.z88dk.target.invalid", "El target de Z88DK debe empezar por '+' (ejemplo: +zx)."));
             return false;
         }
 
@@ -766,13 +1434,27 @@ public class ConfigController {
     public void onSeleccionarSpectrumBin(ActionEvent event) {
         javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
 
-        chooser.setTitle("Seleccionar carpeta bin de Spectrum");
+        chooser.setTitle("Seleccionar carpeta bin de Z88DK");
 
         File selectedDir = chooser.showDialog(txtSpectrumBin.getScene().getWindow());
 
         if (selectedDir != null) {
             txtSpectrumBin.setText(selectedDir.getAbsolutePath());
-            UserActionMonitor.compilerPathUpdated("z88dk", selectedDir.getAbsolutePath());
+            UserActionMonitor.compilerPathUpdated("Z88DK-Spectrum", selectedDir.getAbsolutePath());
+        }
+    }
+
+    @FXML
+    public void onSeleccionarCpcBin(ActionEvent event) {
+        javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
+
+        chooser.setTitle("Seleccionar carpeta bin de Z88DK (CPC)");
+
+        File selectedDir = chooser.showDialog(txtCpcBin.getScene().getWindow());
+
+        if (selectedDir != null) {
+            txtCpcBin.setText(selectedDir.getAbsolutePath());
+            UserActionMonitor.compilerPathUpdated("Z88DK-CPC", selectedDir.getAbsolutePath());
         }
     }
 
@@ -795,10 +1477,14 @@ public class ConfigController {
     @FXML
     public void onSaveLanguage(ActionEvent event) {
         String selected = comboIdioma.getSelectionModel().getSelectedItem();
+        String selectedReadmeLanguage = comboReadmeLanguage != null
+            ? comboReadmeLanguage.getSelectionModel().getSelectedItem()
+            : "English";
 
         // Actualizar modelo y persistir
         configModel.changeLanguage(selected);
-        configModel.saveConfig(configFile);
+        configModel.setConfigProperty("project_readme_language", toReadmeLanguageCode(selectedReadmeLanguage));
+        persistConfig();
         UserActionMonitor.languageChanged(selected);
 
         // Refrescar textos locales en el diálogo
@@ -844,9 +1530,12 @@ public class ConfigController {
 
         if (tabIdioma            != null) tabIdioma            .setText(bundle.getString("label.languageTab"));
         if (lblIdioma            != null) lblIdioma            .setText(bundle.getString("label.language"));
+        if (lblReadmeLanguage    != null) lblReadmeLanguage    .setText(bundle.getString("config.readmeLanguage"));
         if (tabCompilador        != null) tabCompilador        .setText(bundle.getString("label.compilerTab"));
         if (tabCompilerGbdk      != null) tabCompilerGbdk      .setText(bundle.getString("label.compiler.gbdkTab"));
-        if (tabCompilerZ88dk     != null) tabCompilerZ88dk     .setText(bundle.getString("label.compiler.z88dkTab"));
+        if (tabCompilerZ88dkSpectrum != null) tabCompilerZ88dkSpectrum.setText(bundle.getString("label.compiler.z88dkSpectrumTab"));
+        if (tabCompilerZ88dkCpc  != null) tabCompilerZ88dkCpc  .setText(bundle.getString("label.compiler.z88dkCpcTab"));
+        if (tabCompilerMakefile  != null) tabCompilerMakefile  .setText(bundle.getString("label.compiler.make.tab"));
         if (tabPlugins           != null) tabPlugins           .setText(bundle.getString("config.plugins.tab"));
         if (lblPluginsInstalled  != null) lblPluginsInstalled  .setText(bundle.getString("config.plugins.installed"));
         if (lblCompilador        != null) lblCompilador        .setText(bundle.getString("label.compiler"));
@@ -856,24 +1545,100 @@ public class ConfigController {
         if (lblGbdkDefines       != null) lblGbdkDefines       .setText(bundle.getString("label.compiler.gbdk.defines"));
         if (lblGbdkIncludes      != null) lblGbdkIncludes      .setText(bundle.getString("label.compiler.gbdk.includes"));
         if (lblGbdkExtraArgs     != null) lblGbdkExtraArgs     .setText(bundle.getString("label.compiler.gbdk.extra"));
-        if (lblZ88dkBin          != null) lblZ88dkBin          .setText(bundle.getString("label.compiler.z88dk.bin"));
-        if (lblZ88dkOpts         != null) lblZ88dkOpts         .setText(bundle.getString("label.compiler.z88dk.opts"));
-        if (lblZ88dkClib         != null) lblZ88dkClib         .setText(bundle.getString("label.compiler.z88dk.clib"));
-        if (lblZ88dkTarget       != null) lblZ88dkTarget       .setText(bundle.getString("label.compiler.z88dk.target"));
-        if (chkZ88dkCreateApp    != null) chkZ88dkCreateApp    .setText(bundle.getString("label.compiler.z88dk.createApp"));
-        if (lblZ88dkDefines      != null) lblZ88dkDefines      .setText(bundle.getString("label.compiler.z88dk.defines"));
-        if (lblZ88dkIncludes     != null) lblZ88dkIncludes     .setText(bundle.getString("label.compiler.z88dk.includes"));
-        if (lblZ88dkExtraArgs    != null) lblZ88dkExtraArgs    .setText(bundle.getString("label.compiler.z88dk.extra"));
+        if (lblZ88dkSpectrumBin      != null) lblZ88dkSpectrumBin      .setText(bundle.getString("label.compiler.z88dk.spectrum.bin"));
+        if (lblZ88dkSpectrumOpts     != null) lblZ88dkSpectrumOpts     .setText(bundle.getString("label.compiler.z88dk.spectrum.opts"));
+        if (lblZ88dkSpectrumClib     != null) lblZ88dkSpectrumClib     .setText(bundle.getString("label.compiler.z88dk.clib"));
+        if (lblZ88dkSpectrumTarget   != null) lblZ88dkSpectrumTarget   .setText(bundle.getString("label.compiler.z88dk.target"));
+        if (chkZ88dkSpectrumCreateApp!= null) chkZ88dkSpectrumCreateApp.setText(bundle.getString("label.compiler.z88dk.createApp"));
+        if (lblZ88dkSpectrumDefines  != null) lblZ88dkSpectrumDefines  .setText(bundle.getString("label.compiler.z88dk.defines"));
+        if (lblZ88dkSpectrumIncludes != null) lblZ88dkSpectrumIncludes .setText(bundle.getString("label.compiler.z88dk.includes"));
+        if (lblZ88dkSpectrumExtraArgs!= null) lblZ88dkSpectrumExtraArgs.setText(bundle.getString("label.compiler.z88dk.extra"));
+        if (lblZ88dkCpcBin           != null) lblZ88dkCpcBin           .setText(bundle.getString("label.compiler.z88dk.cpc.bin"));
+        if (lblZ88dkCpcOpts          != null) lblZ88dkCpcOpts          .setText(bundle.getString("label.compiler.z88dk.cpc.opts"));
+        if (lblZ88dkCpcClib          != null) lblZ88dkCpcClib          .setText(bundle.getString("label.compiler.z88dk.clib"));
+        if (lblZ88dkCpcTarget        != null) lblZ88dkCpcTarget        .setText(bundle.getString("label.compiler.z88dk.target"));
+        if (chkZ88dkCpcCreateApp     != null) chkZ88dkCpcCreateApp     .setText(bundle.getString("label.compiler.z88dk.createApp"));
+        if (lblZ88dkCpcDefines       != null) lblZ88dkCpcDefines       .setText(bundle.getString("label.compiler.z88dk.defines"));
+        if (lblZ88dkCpcIncludes      != null) lblZ88dkCpcIncludes      .setText(bundle.getString("label.compiler.z88dk.includes"));
+        if (lblZ88dkCpcExtraArgs     != null) lblZ88dkCpcExtraArgs     .setText(bundle.getString("label.compiler.z88dk.extra"));
+        if (lblMakeExecutable    != null) lblMakeExecutable    .setText(bundle.getString("label.compiler.make.executable"));
+        if (lblMakeBuildTarget   != null) lblMakeBuildTarget   .setText(bundle.getString("label.compiler.make.buildTarget"));
+        if (lblMakeRunTarget     != null) lblMakeRunTarget     .setText(bundle.getString("label.compiler.make.runTarget"));
+        if (lblMakeExtraArgs     != null) lblMakeExtraArgs     .setText(bundle.getString("label.compiler.make.extra"));
+        if (chkProjectDetectAutoApply != null) chkProjectDetectAutoApply.setText(bundle.getString("config.projectDetection.autoApply"));
+        if (lblProjectDetectThreshold != null) lblProjectDetectThreshold.setText(bundle.getString("config.projectDetection.threshold"));
         if (btnCerrarConfig      != null) btnCerrarConfig      .setText(bundle.getString("button.close"));
         if (lblTituloConfig      != null) lblTituloConfig      .setText(bundle.getString("label.configTitle"));
         if (btnGuardarIdioma     != null) btnGuardarIdioma     .setText(bundle.getString("button.saveLanguage"));
         if (btnGuardarCompilador != null) btnGuardarCompilador .setText(bundle.getString("button.saveConfig"));
+        if (btnSaveMakeOpts      != null) btnSaveMakeOpts      .setText(bundle.getString("button.saveMake"));
         if (btnGuardarGbdkBin    != null) btnGuardarGbdkBin    .setText(bundle.getString("button.saveGbdk"));
         if (btnGuardarSpectrumBin!= null) btnGuardarSpectrumBin.setText(bundle.getString("button.saveZ88dk"));
+        if (btnGuardarCpcBin     != null) btnGuardarCpcBin     .setText(bundle.getString("button.saveZ88dk"));
         if (btnInstallPlugin     != null) btnInstallPlugin     .setText(bundle.getString("config.plugins.install"));
         if (btnEnable            != null) btnEnable            .setText(bundle.getString("config.plugins.enable"));
         if (btnDisable           != null) btnDisable           .setText(bundle.getString("config.plugins.disable"));
+        if (btnRemovePlugin      != null) btnRemovePlugin      .setText(bundle.getString("config.plugins.remove"));
         if (btnOpenFolder        != null) btnOpenFolder        .setText(bundle.getString("config.plugins.openFolder"));
         if (btnRefreshPlugins    != null) btnRefreshPlugins    .setText(bundle.getString("config.plugins.refresh"));
+        if (lblMarketplace       != null) lblMarketplace       .setText(bundle.getString("config.plugins.marketplace.title"));
+        if (lblMarketplaceUrl    != null) lblMarketplaceUrl    .setText(bundle.getString("config.plugins.marketplace.url"));
+        if (btnSaveMarketplaceUrl!= null) btnSaveMarketplaceUrl.setText(bundle.getString("config.plugins.marketplace.url.save"));
+        if (btnMarketplaceRefresh!= null) btnMarketplaceRefresh.setText(bundle.getString("config.plugins.marketplace.refresh"));
+        if (btnMarketplaceInstall!= null) btnMarketplaceInstall.setText(bundle.getString("config.plugins.marketplace.install"));
+
+        if (lblMarketplaceInfo != null && !marketplaceLoading) {
+            if (getSelectedMarketplaceItem() != null) {
+                onMarketplaceSelected();
+            } else {
+                lblMarketplaceInfo.setText(bundle.getString("config.plugins.marketplace.select"));
+            }
+        }
+
+        loadLanguageSelectionsFromConfig();
+        refreshCompilerComboItems();
+    }
+
+    private void loadLanguageSelectionsFromConfig() {
+        if (comboIdioma != null) {
+            comboIdioma.getItems().clear();
+            comboIdioma.getItems().addAll("Español", "English");
+            String lang = configModel.getConfigProperty("idioma", "es");
+            comboIdioma.getSelectionModel().select("en".equalsIgnoreCase(lang) ? "English" : "Español");
+        }
+
+        if (comboReadmeLanguage != null) {
+            ResourceBundle bundle = getCurrentBundle();
+            String readmeEsLabel = bundle.containsKey("config.readmeLanguage.option.es")
+                ? bundle.getString("config.readmeLanguage.option.es")
+                : "Español";
+            String readmeEnLabel = bundle.containsKey("config.readmeLanguage.option.en")
+                ? bundle.getString("config.readmeLanguage.option.en")
+                : "English";
+
+            comboReadmeLanguage.getItems().clear();
+            comboReadmeLanguage.getItems().addAll(readmeEsLabel, readmeEnLabel);
+            readmeLanguageCodeByLabel.clear();
+            readmeLanguageCodeByLabel.put(readmeEsLabel, "es");
+            readmeLanguageCodeByLabel.put(readmeEnLabel, "en");
+
+            String readmeLang = configModel.getConfigProperty("project_readme_language", "en");
+            comboReadmeLanguage.getSelectionModel().select("es".equalsIgnoreCase(readmeLang) ? readmeEsLabel : readmeEnLabel);
+        }
+    }
+
+    private String toReadmeLanguageCode(String displayValue) {
+        if (displayValue == null || displayValue.isBlank()) return "en";
+
+        String mapped = readmeLanguageCodeByLabel.get(displayValue);
+        if (mapped != null) return mapped;
+
+        return displayValue.equalsIgnoreCase("español") || displayValue.equalsIgnoreCase("spanish") ? "es" : "en";
+    }
+
+    private ResourceBundle getCurrentBundle() {
+        String lang = configModel.getConfigProperty("idioma", "es");
+        Locale locale = Locale.forLanguageTag(lang);
+        return ResourceBundle.getBundle("i18n.MessagesBundle", locale);
     }
 }

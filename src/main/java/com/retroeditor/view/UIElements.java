@@ -38,12 +38,15 @@ public class UIElements {
 
     // ===== Elementos de menú =====
     public MenuItem menuItemFind;
+    public MenuItem menuItemNuevoProyecto;
+    public MenuItem menuItemAbrirProyecto;
     public MenuItem menuItemNuevo;
     public MenuItem menuItemAbrir;
     public MenuItem menuItemSalir;
     public MenuItem menuItemCerrar;
     public MenuItem menuItemConfig;
     public MenuItem menuItemGuardar;
+    public MenuItem menuItemGuardarTodo;
     public MenuItem menuItemCompilar;
     public MenuItem menuItemEjecutar;
     public MenuItem menuItemFindProject;

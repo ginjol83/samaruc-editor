@@ -12,11 +12,11 @@ public class MainApp extends Application {
     private com.retroeditor.controller.MainController mainController;
 
     /**
-     * Inicia la aplicación.
+     * Metodo de inicialización de la aplicación.
      */
     @Override
     public void start(Stage primaryStage) throws Exception {
-        System.out.println("Iniciando MainApp.start()");
+        System.out.println("Iniciando IDE SamaruC...");
         
         try {
             FXMLLoader  loader  = new FXMLLoader(getClass().getResource("/views/MainView.fxml"));
@@ -25,7 +25,7 @@ public class MainApp extends Application {
 
             System.out.println("FXML cargado correctamente");
 
-            primaryStage.setTitle("Samaruc");
+            primaryStage.setTitle("SamaruC");
             primaryStage.setScene(scene);
             primaryStage.setMaximized(true);
 
@@ -67,10 +67,16 @@ public class MainApp extends Application {
         }
     }
 
+    /**
+     * Punto de entrada de la aplicación.
+     */
     public static void main(String[] args) {
         launch(args);
     }
 
+    /**
+     * Método de parada de la aplicación, se llama al cerrar la ventana.
+     */
     @Override
     public void stop() {
         if (mainController != null) {

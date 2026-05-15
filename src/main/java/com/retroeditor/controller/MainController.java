@@ -13,27 +13,36 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.ResourceBundle;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import javafx.event.ActionEvent;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 import com.retroeditor.controller.build.BuildController;
-import com.retroeditor.controller.config.ConfigController;
+import com.retroeditor.controller.config.ConfigDialogCoordinator;
 import com.retroeditor.controller.editor.EditOptionsController;
 import com.retroeditor.controller.editor.FileOptionsController;
 import com.retroeditor.controller.help.HelpController;
 import com.retroeditor.controller.projectExplorer.ProjectExplorerController;
+import com.retroeditor.controller.search.FileOpenPort;
+import com.retroeditor.controller.search.ProjectContextPort;
 import com.retroeditor.controller.search.SearchController;
 import com.retroeditor.controller.terminal.TerminalController;
 import com.retroeditor.model.ConfigModel;
 import com.retroeditor.model.EditorModel;
 import com.retroeditor.service.AppLogger;
+import com.retroeditor.service.CompilationDiagnosticParserService;
+import com.retroeditor.service.ConfigRepository;
+import com.retroeditor.service.PluginApplicationService;
+import com.retroeditor.service.PropertiesConfigRepository;
+import com.retroeditor.service.ProjectPlatformDetectionService;
+import com.retroeditor.service.ProjectSearchService;
+import com.retroeditor.service.TextSearchService;
 import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.service.syntax.SyntaxHighlighter;
+import com.retroeditor.util.CompilationDiagnosticsUiHelper;
 import com.retroeditor.util.FXUtils;
 import com.retroeditor.view.UIElements;
 
@@ -44,6 +53,7 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
@@ -55,17 +65,18 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.AnchorPane;
-import javafx.scene.layout.HBox;
-import javafx.geometry.Pos;
-import javafx.scene.Node;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.StyleClassedTextArea;
-import org.fxmisc.richtext.LineNumberFactory;
 import javafx.stage.Stage;
-import java.util.function.IntFunction;
 
-public class MainController {
+public class MainController implements ProjectContextPort, FileOpenPort {
+    private static final Set<String> NON_TEXT_EXTENSIONS = Set.of(
+        "tap", "tzx", "z80", "sna", "gb", "gbc", "rom", "bin", "cdt", "wav", "dsk", "edsk", "class", "jar", "png", "jpg", "jpeg", "gif", "ico", "exe", "dll"
+    );
+
     private final File userConfigFile = new File(System.getProperty("user.home"), ".retroeditor.properties");
 
     private FXUtils fxUtils = new FXUtils();
@@ -76,6 +87,14 @@ public class MainController {
     private final FileOptionsController fileOptionsController = new FileOptionsController();
     private final TerminalController terminalController = new TerminalController();
     private final BuildController buildController = new BuildController();
+    private final ConfigDialogCoordinator configDialogCoordinator = new ConfigDialogCoordinator();
+    private final CompilationDiagnosticParserService compilationDiagnosticParserService = new CompilationDiagnosticParserService();
+    private final CompilationDiagnosticsUiHelper compilationDiagnosticsUiHelper = new CompilationDiagnosticsUiHelper();
+    private final ConfigRepository configRepository = new PropertiesConfigRepository();
+    private final PluginApplicationService pluginApplicationService = new PluginApplicationService();
+    private final ProjectPlatformDetectionService projectPlatformDetectionService = new ProjectPlatformDetectionService();
+    private final ProjectSearchService projectSearchService = new ProjectSearchService();
+    private final TextSearchService textSearchService = new TextSearchService();
 
     private int newFileCounter = 1;
 
@@ -95,6 +114,7 @@ public class MainController {
     @FXML private Menu menuArchivo;
     @FXML private Menu menuEdicion;
     @FXML private Menu menuCompilacion;
+    @FXML private Menu menuAyuda;
     @FXML private ToolBar toolBar;
     @FXML private TabPane tabPane;
     @FXML private AnchorPane searchDock;
@@ -120,6 +140,12 @@ public class MainController {
     @FXML private MenuItem menuItemGoToLine;
     @FXML private MenuItem menuItemFind;
     @FXML private MenuItem menuItemFindProject;
+    @FXML private MenuItem menuItemManual;
+    @FXML private MenuItem menuItemPluginManual;
+    @FXML private MenuItem menuItemLicenses;
+    @FXML private MenuItem menuItemCreditos;
+    @FXML private MenuItem menuItemNuevoProyecto;
+    @FXML private MenuItem menuItemAbrirProyecto;
     @FXML private MenuItem menuItemNuevo;
     @FXML private MenuItem menuItemAbrir;
     @FXML private MenuItem menuItemSalir;
@@ -128,6 +154,7 @@ public class MainController {
     @FXML private MenuItem menuItemCortar;
     @FXML private MenuItem menuItemCopiar;
     @FXML private MenuItem menuItemGuardar;
+    @FXML private MenuItem menuItemGuardarTodo;
     @FXML private MenuItem menuItemRehacer;
     @FXML private MenuItem menuItemCompilar;
     @FXML private MenuItem menuItemEjecutar;
@@ -138,6 +165,7 @@ public class MainController {
     @FXML private StyleClassedTextArea consoleOutputArea;
     @FXML private StyleClassedTextArea debuggerOutputArea;
     @FXML private Button btnClearConsole;
+    @FXML private Button btnCopyConsole;
     @FXML private Button btnClearMonitor;
     @FXML private Label lblConsoleDotError;
     @FXML private Label lblConsoleDotWarning;
@@ -171,7 +199,10 @@ public class MainController {
         elements.menuEdicion = menuEdicion;
         elements.menuItemNuevo = menuItemNuevo;
         elements.menuItemAbrir = menuItemAbrir;
+        elements.menuItemNuevoProyecto = menuItemNuevoProyecto;
+        elements.menuItemAbrirProyecto = menuItemAbrirProyecto;
         elements.menuItemGuardar = menuItemGuardar;
+        elements.menuItemGuardarTodo = menuItemGuardarTodo;
         elements.menuItemGuardarComo = menuItemGuardarComo;
         elements.menuItemCerrar = menuItemCerrar;
         elements.menuItemConfig = menuItemConfig;
@@ -188,24 +219,16 @@ public class MainController {
 
     private static final String HOME_TAB_ID = "home-tab";
     private static final String HOME_LINK_HOOKED = "home-link-hooked";
-    private static final Pattern CONSOLE_FILE_LINE_PATTERN = Pattern.compile("([A-Za-z]:[^:\\r\\n]*?\\.[A-Za-z0-9_]+|[^\\s:]+\\.[A-Za-z0-9_]+):(\\d+)(?::\\d+)?");
-    private static final Pattern COMPILER_FILE_LINE_DIAGNOSTIC_PATTERN = Pattern.compile("(?i)([A-Za-z]:[^:\\r\\n]*|[^:\\r\\n]+\\.[A-Za-z0-9_]+):(\\d+)(?::\\d+)?\\s*:");
-    private static final Pattern Z88DK_PREFIXED_FILE_LINE_DIAGNOSTIC_PATTERN = Pattern.compile("(?i)(?:sccz80|sdcc|zsdcc|zcc)\\s*:\\s*(['\"]?[^'\"\\r\\n]+?\\.[A-Za-z0-9_]+['\"]?)\\s+(?:L|line)\\s*[:=]?\\s*(\\d+)\\b.*?\\b(error|warning)\\b");
-    private static final Pattern Z88DK_FILE_LINE_DIAGNOSTIC_PATTERN = Pattern.compile("(?i)(['\"]?[^'\"\\r\\n]+?\\.[A-Za-z0-9_]+['\"]?)\\s+(?:L|line)\\s*[:=]?\\s*(\\d+)\\b.*?\\b(error|warning)\\b");
-    private static final Pattern COMPILER_AT_LINE_DIAGNOSTIC_PATTERN = Pattern.compile("(?i)\\bat\\s+(\\d+)\\s*:\\s*(error|warning)");
-    private static final Pattern COMPILATION_EXIT_CODE_PATTERN = Pattern.compile("(?i)(?:c[oó]digo\\s+de\\s+salida|exit\\s+code)\\s*:\\s*(-?\\d+)");
-    private static final Pattern DIAGNOSTIC_ERROR_PATTERN = Pattern.compile("(?i)\\b(?:fatal\\s+)?error\\b");
-    private static final Pattern DIAGNOSTIC_WARNING_PATTERN = Pattern.compile("(?i)\\bwarning\\b");
-    private static final String STYLE_COMPILE_ERROR_LINE = "compile-error-line";
-    private static final String STYLE_COMPILE_WARNING_LINE = "compile-warning-line";
-
     private final Map<File, CompileLineDiagnostics> compileDiagnosticsByFile = new HashMap<>();
     private volatile boolean lastCompilationHasErrors = false;
     private volatile boolean lastCompilationHasWarnings = false;
 
     private static final KeyCombination ACCEL_NEW          = new KeyCodeCombination(KeyCode.N, KeyCombination.CONTROL_DOWN);
     private static final KeyCombination ACCEL_OPEN         = new KeyCodeCombination(KeyCode.O, KeyCombination.CONTROL_DOWN);
+    private static final KeyCombination ACCEL_NEW_PROJECT  = new KeyCodeCombination(KeyCode.N, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN);
+    private static final KeyCombination ACCEL_OPEN_PROJECT = new KeyCodeCombination(KeyCode.O, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN);
     private static final KeyCombination ACCEL_SAVE         = new KeyCodeCombination(KeyCode.S, KeyCombination.CONTROL_DOWN);
+    private static final KeyCombination ACCEL_SAVE_ALL     = new KeyCodeCombination(KeyCode.S, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN);
     private static final KeyCombination ACCEL_CLOSE        = new KeyCodeCombination(KeyCode.W, KeyCombination.CONTROL_DOWN);
     private static final KeyCombination ACCEL_UNDO         = new KeyCodeCombination(KeyCode.Z, KeyCombination.CONTROL_DOWN);
     private static final KeyCombination ACCEL_REDO         = new KeyCodeCombination(KeyCode.Y, KeyCombination.CONTROL_DOWN);
@@ -222,23 +245,25 @@ public class MainController {
     @FXML
     public void initialize() {
         // Cargar configuración del usuario (incluye gbdk_bin)
-        configModel.getDefaultLanguage(userConfigFile);
+        configModel.applyProperties(configRepository.load(userConfigFile));
+
         // Leer idioma desde configModel (ya cargado por getDefaultLanguage)
-        String lang = configModel.getConfigProperty("idioma", "es");
-        Locale locale = java.util.Locale.forLanguageTag(lang);
-        bundle = ResourceBundle.getBundle("i18n.MessagesBundle", locale);
+        String lang     = configModel.getConfigProperty("idioma", "es");
+        Locale locale   = java.util.Locale.forLanguageTag(lang);
+        bundle          = ResourceBundle.getBundle("i18n.MessagesBundle", locale);
+
         AppLogger.setBundle(bundle);
 
         // Inicializar modelo, resaltador y vista
-        editorModel = new EditorModel();
-        syntaxHighlighter = new SyntaxHighlighter();
-        fxUtils = new FXUtils();
+        editorModel         = new EditorModel();
+        syntaxHighlighter   = new SyntaxHighlighter();
+        fxUtils             = new FXUtils();
 
-        // Listen for language changes on the shared config model so UI updates whenever idioma changes
+        // Configurar listener para cambios de idioma en la configuración
         configModel.idiomaProperty().addListener((obs, oldV, newV) -> {
             try {
                 Locale newLocale = java.util.Locale.forLanguageTag(newV != null ? newV : "es");
-                bundle = ResourceBundle.getBundle("i18n.MessagesBundle", newLocale);
+                bundle           = ResourceBundle.getBundle("i18n.MessagesBundle", newLocale);
                 AppLogger.setBundle(bundle);
                 Platform.runLater(() -> {
                     fxUtils.refreshLanguage(getUIElements(), bundle);
@@ -279,7 +304,7 @@ public class MainController {
                 // Crear el SearchController con el Stage ya disponible como owner
                 try {
                     Stage owner = (Stage) scene.getWindow();
-                    searchController = new SearchController(owner, tabPane, tabFileMap, editorModel, this, fxUtils);
+                    searchController = new SearchController(owner, tabPane, tabFileMap, editorModel, this, this, projectSearchService, textSearchService, fxUtils);
                 } catch (Exception ex) {
                     ex.printStackTrace();
                 }
@@ -396,6 +421,9 @@ public class MainController {
         if (menuArchivo != null) menuArchivo.setText(bundle.getString("menu.file"));
         if (menuCompilacion != null) menuCompilacion.setText(bundle.getString("menu.project"));
         if (menuEdicion != null) menuEdicion.setText(bundle.getString("menu.edit"));
+        if (menuAyuda != null) menuAyuda.setText(bundle.getString("menu.help"));
+        if (menuItemNuevoProyecto != null) menuItemNuevoProyecto.setText(bundle.getString("button.newProject"));
+        if (menuItemAbrirProyecto != null) menuItemAbrirProyecto.setText(bundle.getString("button.openProject"));
         if (menuItemNuevo != null) menuItemNuevo.setText(bundle.getString("button.new"));
         if (menuItemAbrir != null) menuItemAbrir.setText(bundle.getString("button.open"));
         if (menuItemGuardar != null) menuItemGuardar.setText(bundle.getString("button.save"));
@@ -413,6 +441,10 @@ public class MainController {
         if (menuItemGoToLine != null) menuItemGoToLine.setText(bundle.getString("menu.goto.line"));
         if (menuItemFind != null) menuItemFind.setText(bundle.getString("menu.find.file"));
         if (menuItemFindProject != null) menuItemFindProject.setText(bundle.getString("menu.find.project"));
+        if (menuItemManual != null) menuItemManual.setText(bundle.getString("menu.help.manual"));
+        if (menuItemPluginManual != null) menuItemPluginManual.setText(bundle.getString("menu.help.pluginsManual"));
+        if (menuItemLicenses != null) menuItemLicenses.setText(bundle.getString("menu.help.licenses"));
+        if (menuItemCreditos != null) menuItemCreditos.setText(bundle.getString("menu.help.credits"));
         applyDiagnosticLegendI18n();
 
         applyMenuAccelerators();
@@ -471,7 +503,15 @@ public class MainController {
         lastCompilationHasWarnings = false;
         updateCompileStatusUI();
         clearCompileDiagnostics();
-        buildController.onCompilar(event, consoleOutputArea, tabPane, tabFileMap, configModel, this::onCompilerOutputLine);
+        buildController.onCompilar(
+            event,
+            consoleOutputArea,
+            tabPane,
+            tabFileMap,
+            configModel,
+            currentProjectDir,
+            this::onCompilerOutputLine
+        );
     }
 
     @FXML
@@ -481,16 +521,41 @@ public class MainController {
 
     @FXML
     private void onEjecutar(ActionEvent event) {
-        buildController.onEjecutar(event, consoleOutputArea, tabPane, tabFileMap, configModel, getStage());
+        buildController.onEjecutar(
+            event,
+            consoleOutputArea,
+            tabPane,
+            tabFileMap,
+            configModel,
+            currentProjectDir,
+            getStage()
+        );
     }
 
     @FXML
     private void onNuevoProyecto(ActionEvent event) {
         File creado = fxUtils.createNewProject(getStage(), bundle);
         if (creado != null) {
+            if (fxUtils.wasLastCreatedProjectGameBoyTemplate()) {
+                configModel.applyGameBoyProfile();
+                configRepository.save(userConfigFile, configModel.toProperties());
+            } else if (fxUtils.wasLastCreatedProjectSpectrumTemplate()) {
+                configModel.applySpectrumProfile();
+                configRepository.save(userConfigFile, configModel.toProperties());
+            }
+
             UserActionMonitor.projectCreated(creado.getAbsolutePath());
             setProyectoActual(creado);
+
+            File defaultMainFile = new File(creado, "src/main.c");
+            if (defaultMainFile.isFile()) {
+                openFileFromExplorer(defaultMainFile);
+            }
         } else {
+            if (fxUtils.wasLastProjectCreationCancelled()) {
+                UserActionMonitor.errorOccurred("PROJECT_CREATE", "Dialogo de proyecto cancelado");
+                return;
+            }
             UserActionMonitor.errorOccurred("PROJECT_CREATE", "No se pudo crear la carpeta del proyecto");
             Alert alert = new Alert(Alert.AlertType.ERROR);
             alert.setTitle(bundle.getString("alert.project.create.title"));
@@ -506,8 +571,74 @@ public class MainController {
         if (carpeta != null) {
             UserActionMonitor.projectOpened(carpeta.getAbsolutePath());
             setProyectoActual(carpeta);
+            maybeApplyDetectedProfileForOpenedProject(carpeta);
         } else {
             UserActionMonitor.errorOccurred("PROJECT_OPEN", "Diálogo de proyecto cancelado");
+        }
+    }
+
+    private void maybeApplyDetectedProfileForOpenedProject(File projectDir) {
+        ProjectPlatformDetectionService.DetectionResult detected = projectPlatformDetectionService.detectProjectPlatform(projectDir);
+        if (detected == null || detected.getPlatform() == ProjectPlatformDetectionService.Platform.UNKNOWN) return;
+
+        boolean profileAlreadyMatches =
+            (detected.getPlatform() == ProjectPlatformDetectionService.Platform.GAMEBOY && isCurrentProfileGameBoy())
+                || (detected.getPlatform() == ProjectPlatformDetectionService.Platform.SPECTRUM && isCurrentProfileSpectrum());
+
+        if (profileAlreadyMatches) return;
+
+        String detectedProfileName = detected.getPlatform() == ProjectPlatformDetectionService.Platform.GAMEBOY
+            ? msg("dialog.project.detected.profile.gameboy", "Game Boy (GBDK)")
+            : msg("dialog.project.detected.profile.spectrum", "ZX Spectrum (z88dk)");
+
+        String confidenceText = Integer.toString(detected.getConfidence());
+        String evidence = detected.getEvidence() != null ? detected.getEvidence() : "";
+
+        ButtonType applyButton = new ButtonType(msg("dialog.project.detected.action.apply", "Aplicar perfil"), javafx.scene.control.ButtonBar.ButtonData.YES);
+        ButtonType keepButton = new ButtonType(msg("dialog.project.detected.action.keep", "Mantener actual"), javafx.scene.control.ButtonBar.ButtonData.NO);
+        ButtonType cancelButton = new ButtonType(msg("dialog.project.detected.action.cancel", "Cancelar"), javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION,
+            msg("dialog.project.detected.content", "Se ha detectado una plataforma para este proyecto. ¿Quieres aplicar su perfil de compilación?")
+                + "\n\n"
+                + msg("dialog.project.detected.content.profile", "Perfil detectado:") + " " + detectedProfileName
+                + "\n"
+                + msg("dialog.project.detected.content.confidence", "Confianza:") + " " + confidenceText + "%"
+                + (evidence.isBlank() ? "" : "\n" + msg("dialog.project.detected.content.evidence", "Evidencias:") + " " + evidence),
+            applyButton,
+            keepButton,
+            cancelButton
+        );
+
+        alert.setTitle(msg("dialog.project.detected.title", "Perfil detectado"));
+        alert.setHeaderText(msg("dialog.project.detected.header", "El proyecto abierto parece ser de otra plataforma"));
+
+        Optional<ButtonType> selected = alert.showAndWait();
+        if (!selected.isPresent() || selected.get() != applyButton) return;
+
+        if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.GAMEBOY) {
+            configModel.applyGameBoyProfile();
+        } else {
+            configModel.applySpectrumProfile();
+        }
+        configRepository.save(userConfigFile, configModel.toProperties());
+    }
+
+    private boolean isCurrentProfileGameBoy() {
+        return "GBDK".equalsIgnoreCase(configModel.getConfigProperty("compilador_seleccionado", "GBDK"));
+    }
+
+    private boolean isCurrentProfileSpectrum() {
+        String compiler = configModel.getConfigProperty("compilador_seleccionado", "GBDK");
+        return "z88dk".equalsIgnoreCase(compiler) || "Spectrum".equalsIgnoreCase(compiler);
+    }
+
+    private String msg(String key, String fallback) {
+        if (bundle == null) return fallback;
+        try {
+            return bundle.getString(key);
+        } catch (Exception ignored) {
+            return fallback;
         }
     }
 
@@ -523,6 +654,14 @@ public class MainController {
         try { if (carpeta != null) fileOptionsController.setDefaultSaveDirectory(carpeta); } catch (Exception ex) { ex.printStackTrace(); }
     }
 
+    public boolean isSupportedRomFile(File file) {
+        return buildController.isSupportedRomFile(file);
+    }
+
+    public void runRomFromProjectExplorer(File romFile) {
+        buildController.runRomFile(romFile, consoleOutputArea, getStage());
+    }
+
     public void openFileFromExplorer(File file) {
         if (file == null || !file.isFile()) {
             UserActionMonitor.errorOccurred("FILE_OPEN", "Intento de abrir archivo inválido o nulo");
@@ -536,22 +675,124 @@ public class MainController {
                 return; 
             }
         }
-        try {
-            editorModel.openFile(file);
-            String content = editorModel.getFileContent(file);
-            Tab tab = fxUtils.addTab(file.getName(), content, syntaxHighlighter, tabPane);
-            tabFileMap.put(tab, file);
-            applyDiagnosticsForTab(tab);
 
-            // Limpieza cuando el usuario cierra el tab con la X integrada
-            tab.setOnClosed(e -> {
-                tabFileMap.remove(tab);
-                editorModel.closeFile(file);
-            });
-        } catch (IOException e) { 
-            UserActionMonitor.errorOccurred("FILE_OPEN_EXPLORER", e.getMessage());
-            e.printStackTrace(); 
+        OpenChoice openChoice = shouldAskOpenMode(file) ? askHowToOpenFile(file) : OpenChoice.EDITOR_TEXT;
+        if (openChoice == OpenChoice.CANCEL) return;
+        if (openChoice == OpenChoice.SYSTEM_DEFAULT) {
+            openFileWithSystem(file);
+            return;
         }
+
+        try {
+            openFileInEditorTab(file, openChoice == OpenChoice.EDITOR_FORCE_TEXT);
+        } catch (IOException e) {
+            if (openChoice != OpenChoice.EDITOR_FORCE_TEXT && shouldOfferForceTextOpen(e)) {
+                OpenChoice retryChoice = askHowToOpenFile(file);
+                if (retryChoice == OpenChoice.SYSTEM_DEFAULT) {
+                    openFileWithSystem(file);
+                    return;
+                }
+                if (retryChoice == OpenChoice.EDITOR_FORCE_TEXT) {
+                    try {
+                        openFileInEditorTab(file, true);
+                        return;
+                    } catch (IOException retryError) {
+                        showOpenFileError(file, retryError);
+                        return;
+                    }
+                }
+                return;
+            }
+            showOpenFileError(file, e);
+        }
+    }
+
+    private void openFileInEditorTab(File file, boolean forceSingleByteText) throws IOException {
+        if (forceSingleByteText) {
+            editorModel.openFileAsSingleByteText(file);
+        } else {
+            editorModel.openFile(file);
+        }
+
+        String content = editorModel.getFileContent(file);
+        Tab tab = fxUtils.addTab(file.getName(), content, syntaxHighlighter, tabPane);
+        tabFileMap.put(tab, file);
+        applyDiagnosticsForTab(tab);
+
+        // Limpieza cuando el usuario cierra el tab con la X integrada
+        tab.setOnClosed(e -> {
+            tabFileMap.remove(tab);
+            editorModel.closeFile(file);
+        });
+    }
+
+    private boolean shouldAskOpenMode(File file) {
+        String ext = getExtension(file.getName());
+        return ext != null && NON_TEXT_EXTENSIONS.contains(ext.toLowerCase(Locale.ROOT));
+    }
+
+    private boolean shouldOfferForceTextOpen(IOException e) {
+        if (e == null || e.getMessage() == null) return false;
+        String message = e.getMessage().toLowerCase(Locale.ROOT);
+        return message.contains("binario") || message.contains("decodificar") || message.contains("malformed");
+    }
+
+    private OpenChoice askHowToOpenFile(File file) {
+        ButtonType openAsTextButton = new ButtonType("Abrir como texto");
+        ButtonType openWithSystemButton = new ButtonType("Abrir con aplicación del sistema");
+        ButtonType cancelButton = ButtonType.CANCEL;
+
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Abrir archivo");
+        alert.setHeaderText("Selecciona cómo abrir: " + file.getName());
+        alert.setContentText("Este archivo puede no ser de texto. ¿Cómo quieres abrirlo?");
+        alert.getButtonTypes().setAll(openAsTextButton, openWithSystemButton, cancelButton);
+
+        Optional<ButtonType> result = alert.showAndWait();
+        if (result.isPresent() && result.get() == openAsTextButton) {
+            return OpenChoice.EDITOR_FORCE_TEXT;
+        }
+        if (result.isPresent() && result.get() == openWithSystemButton) {
+            return OpenChoice.SYSTEM_DEFAULT;
+        }
+        return OpenChoice.CANCEL;
+    }
+
+    private void openFileWithSystem(File file) {
+        try {
+            if (!Desktop.isDesktopSupported()) {
+                throw new IOException("Desktop no soportado en este sistema.");
+            }
+            Desktop.getDesktop().open(file);
+        } catch (IOException ex) {
+            showOpenFileError(file, ex);
+        }
+    }
+
+    private void showOpenFileError(File file, Exception e) {
+        String message = e != null && e.getMessage() != null ? e.getMessage() : "Error desconocido al abrir el archivo.";
+        UserActionMonitor.errorOccurred("FILE_OPEN_EXPLORER", message);
+        if (e != null) e.printStackTrace();
+
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Error al abrir archivo");
+        alert.setHeaderText(file != null ? file.getName() : "Archivo no disponible");
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
+    private String getExtension(String fileName) {
+        if (fileName == null) return null;
+        int idx = fileName.lastIndexOf('.');
+        if (idx < 0 || idx == fileName.length() - 1) return null;
+        return fileName.substring(idx + 1);
+    }
+
+    private enum OpenChoice {
+        EDITOR_TEXT,
+        EDITOR_FORCE_TEXT,
+        SYSTEM_DEFAULT,
+        CANCEL
     }
 
     /**
@@ -597,7 +838,7 @@ public class MainController {
     private void onCompilerOutputLine(File sourceFile, String outputLine) {
         if (outputLine == null || outputLine.isBlank()) return;
 
-        Integer exitCode = parseCompilationExitCode(outputLine);
+        Integer exitCode = compilationDiagnosticParserService.parseCompilationExitCode(outputLine);
         if (exitCode != null && exitCode.intValue() != 0) {
             Platform.runLater(() -> {
                 lastCompilationHasErrors = true;
@@ -605,17 +846,18 @@ public class MainController {
             });
         }
 
-        FileLineLocation location = parseCompilerDiagnosticLocation(sourceFile, outputLine);
-        if (location == null || location.line <= 0) return;
+        CompilationDiagnosticParserService.DiagnosticLocation location =
+            compilationDiagnosticParserService.parseCompilerDiagnosticLocation(sourceFile, outputLine, this::resolveConsoleFileReference);
+        if (location == null || location.getLine() <= 0) return;
 
         Platform.runLater(() -> {
-            File key = toFileKey(location.file);
+            File key = toFileKey(location.getFile());
             CompileLineDiagnostics diagnostics = compileDiagnosticsByFile.computeIfAbsent(key, k -> new CompileLineDiagnostics());
-            if (location.warning) {
-                diagnostics.warnings.add(location.line);
+            if (location.isWarning()) {
+                diagnostics.warnings.add(location.getLine());
                 lastCompilationHasWarnings = true;
             } else {
-                diagnostics.errors.add(location.line);
+                diagnostics.errors.add(location.getLine());
                 lastCompilationHasErrors = true;
             }
 
@@ -631,103 +873,6 @@ public class MainController {
         });
     }
 
-    private FileLineLocation parseCompilerDiagnosticLocation(File sourceFile, String outputLine) {
-        Matcher withFile = COMPILER_FILE_LINE_DIAGNOSTIC_PATTERN.matcher(outputLine);
-        while (withFile.find()) {
-            Boolean warning = resolveWarningSeverity(outputLine);
-            if (warning == null) continue;
-
-            String rawPath = sanitizeConsolePath(withFile.group(1));
-            int lineNumber;
-            try {
-                lineNumber = Integer.parseInt(withFile.group(2));
-            } catch (NumberFormatException ex) {
-                continue;
-            }
-
-            File resolved = resolveConsoleFileReference(rawPath);
-            if (resolved != null) {
-                return new FileLineLocation(resolved, lineNumber, warning.booleanValue());
-            }
-        }
-
-        FileLineLocation z88dkLocation = parseZ88dkDiagnosticLocation(outputLine);
-        if (z88dkLocation != null) {
-            return z88dkLocation;
-        }
-
-        Matcher atLine = COMPILER_AT_LINE_DIAGNOSTIC_PATTERN.matcher(outputLine);
-        if (atLine.find()) {
-            String severity = atLine.group(2);
-            boolean warning = "warning".equalsIgnoreCase(severity);
-            if (!warning && !"error".equalsIgnoreCase(severity)) return null;
-
-            int lineNumber;
-            try {
-                lineNumber = Integer.parseInt(atLine.group(1));
-            } catch (NumberFormatException ex) {
-                return null;
-            }
-
-            if (sourceFile != null) {
-                return new FileLineLocation(sourceFile, lineNumber, warning);
-            }
-        }
-
-        return null;
-    }
-
-    private FileLineLocation parseZ88dkDiagnosticLocation(String outputLine) {
-        if (outputLine == null || outputLine.isBlank()) return null;
-
-        FileLineLocation prefixed = parsePatternBasedDiagnostic(outputLine, Z88DK_PREFIXED_FILE_LINE_DIAGNOSTIC_PATTERN);
-        if (prefixed != null) return prefixed;
-
-        return parsePatternBasedDiagnostic(outputLine, Z88DK_FILE_LINE_DIAGNOSTIC_PATTERN);
-    }
-
-    private FileLineLocation parsePatternBasedDiagnostic(String outputLine, Pattern pattern) {
-        Matcher matcher = pattern.matcher(outputLine);
-        while (matcher.find()) {
-            String severity = matcher.group(3);
-            boolean warning = "warning".equalsIgnoreCase(severity);
-            if (!warning && !"error".equalsIgnoreCase(severity)) continue;
-
-            String rawPath = sanitizeConsolePath(matcher.group(1));
-            int lineNumber;
-            try {
-                lineNumber = Integer.parseInt(matcher.group(2));
-            } catch (NumberFormatException ex) {
-                continue;
-            }
-
-            File resolved = resolveConsoleFileReference(rawPath);
-            if (resolved != null) {
-                return new FileLineLocation(resolved, lineNumber, warning);
-            }
-        }
-
-        return null;
-    }
-
-    private Integer parseCompilationExitCode(String outputLine) {
-        Matcher matcher = COMPILATION_EXIT_CODE_PATTERN.matcher(outputLine);
-        if (!matcher.find()) return null;
-
-        try {
-            return Integer.parseInt(matcher.group(1));
-        } catch (NumberFormatException ex) {
-            return null;
-        }
-    }
-
-    private Boolean resolveWarningSeverity(String outputLine) {
-        if (outputLine == null || outputLine.isBlank()) return null;
-        if (DIAGNOSTIC_ERROR_PATTERN.matcher(outputLine).find()) return Boolean.FALSE;
-        if (DIAGNOSTIC_WARNING_PATTERN.matcher(outputLine).find()) return Boolean.TRUE;
-        return null;
-    }
-
     private void clearCompileDiagnostics() {
         compileDiagnosticsByFile.clear();
         for (Tab tab : tabPane.getTabs()) {
@@ -739,11 +884,7 @@ public class MainController {
         CodeArea codeArea = getCodeAreaFromTab(tab);
         if (codeArea == null) return;
 
-        int paragraphs = codeArea.getParagraphs().size();
-        for (int i = 0; i < paragraphs; i++) {
-            codeArea.setParagraphStyle(i, java.util.Collections.emptyList());
-        }
-        applyDiagnosticGutter(codeArea, java.util.Collections.emptySet(), java.util.Collections.emptySet());
+        compilationDiagnosticsUiHelper.clear(codeArea);
     }
 
     private void applyDiagnosticsForTab(Tab tab) {
@@ -757,54 +898,14 @@ public class MainController {
 
         CompileLineDiagnostics diagnostics = compileDiagnosticsByFile.get(toFileKey(mappedFile));
         if (diagnostics == null) {
-            applyDiagnosticGutter(codeArea, java.util.Collections.emptySet(), java.util.Collections.emptySet());
+            compilationDiagnosticsUiHelper.apply(codeArea, java.util.Collections.emptySet(), java.util.Collections.emptySet());
             return;
         }
 
         Set<Integer> errorLines = diagnostics.errors;
         Set<Integer> warningLines = diagnostics.warnings;
 
-        int maxParagraphs = codeArea.getParagraphs().size();
-        for (Integer line : warningLines) {
-            if (line == null) continue;
-            int paragraphIndex = line - 1;
-            if (paragraphIndex < 0 || paragraphIndex >= maxParagraphs) continue;
-            codeArea.setParagraphStyle(paragraphIndex, java.util.Collections.singleton(STYLE_COMPILE_WARNING_LINE));
-        }
-        for (Integer line : errorLines) {
-            if (line == null) continue;
-            int paragraphIndex = line - 1;
-            if (paragraphIndex < 0 || paragraphIndex >= maxParagraphs) continue;
-            codeArea.setParagraphStyle(paragraphIndex, java.util.Collections.singleton(STYLE_COMPILE_ERROR_LINE));
-        }
-
-        applyDiagnosticGutter(codeArea, errorLines, warningLines);
-    }
-
-    private void applyDiagnosticGutter(CodeArea codeArea, Set<Integer> errorLines, Set<Integer> warningLines) {
-        final Set<Integer> safeErrors = (errorLines != null) ? new HashSet<>(errorLines) : java.util.Collections.emptySet();
-        final Set<Integer> safeWarnings = (warningLines != null) ? new HashSet<>(warningLines) : java.util.Collections.emptySet();
-
-        IntFunction<Node> lineNumbers = LineNumberFactory.get(codeArea);
-        codeArea.setParagraphGraphicFactory(paragraphIndex -> {
-            Node lineNumberNode = lineNumbers.apply(paragraphIndex);
-            int line = paragraphIndex + 1;
-
-            Label marker = new Label(" ");
-            marker.getStyleClass().add("diag-gutter-marker");
-
-            if (safeErrors.contains(line)) {
-                marker.setText("●");
-                marker.getStyleClass().add("diag-gutter-marker-error");
-            } else if (safeWarnings.contains(line)) {
-                marker.setText("●");
-                marker.getStyleClass().add("diag-gutter-marker-warning");
-            }
-
-            HBox gutter = new HBox(4, marker, lineNumberNode);
-            gutter.setAlignment(Pos.CENTER_RIGHT);
-            return gutter;
-        });
+        compilationDiagnosticsUiHelper.apply(codeArea, errorLines, warningLines);
     }
 
     private CodeArea getCodeAreaFromTab(Tab tab) {
@@ -817,24 +918,18 @@ public class MainController {
         return file == null ? null : file.getAbsoluteFile();
     }
 
-    @FXML private Stage configStage = null;
-    private boolean isConfigDialogOpen = false;
-
     @FXML
     public void onOpenConfig(ActionEvent event) {
-        UserActionMonitor.configDialogOpened();
         if (event != null) event.consume();
-        if (isConfigDialogOpen || isRefreshingLanguage) {
-            if (configStage != null && configStage.isShowing()) configStage.toFront();
-            return;
-        }
-        try {
-            FXMLLoader loader = new FXMLLoader(getClass().getResource("/views/ConfigView.fxml"));
-            Parent root = loader.load();
-            ConfigController configController = loader.getController();
-            configController.setConfigModel(configModel);
-            configController.reloadFromModel();
-            configController.setOnLanguageChanged(() -> {
+        if (isRefreshingLanguage) return;
+
+        configDialogCoordinator.open(
+            getStage(),
+            configModel,
+            configRepository,
+            pluginApplicationService,
+            bundle,
+            () -> {
                 String langCode = configModel.getConfigProperty("idioma", "es");
                 Locale newLocale = java.util.Locale.forLanguageTag(langCode);
                 bundle = ResourceBundle.getBundle("i18n.MessagesBundle", newLocale);
@@ -843,33 +938,20 @@ public class MainController {
                     fxUtils.refreshLanguage(getUIElements(), bundle);
                     applyBundleToUI();
                 });
-            });
-            configController.setOnCloseCallback(() -> { 
-                UserActionMonitor.configDialogClosed();
-                configStage = null; 
-                isConfigDialogOpen = false; 
-            });
-            configStage = new Stage();
-            configStage.setTitle(bundle.getString("label.configTitle"));
-            configStage.setScene(new javafx.scene.Scene(root));
-            configStage.initOwner(getStage());
-            configStage.setOnHidden(e -> { 
-                UserActionMonitor.configDialogClosed();
-                configStage = null; 
-                isConfigDialogOpen = false; 
-            });
-            isConfigDialogOpen = true;
-            configStage.show();
-        } catch (Exception e) {
-            UserActionMonitor.errorOccurred("CONFIG_OPEN", e.getMessage());
-            System.err.println("[ERROR] No se pudo abrir la configuración:");
-            e.printStackTrace();
-            Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.setTitle(bundle.getString("alert.config.open.title"));
-            alert.setHeaderText(bundle.getString("alert.config.open.header"));
-            alert.setContentText(e.getMessage());
-            alert.showAndWait();
-        }
+            },
+            UserActionMonitor::configDialogOpened,
+            UserActionMonitor::configDialogClosed,
+            e -> {
+                UserActionMonitor.errorOccurred("CONFIG_OPEN", e.getMessage());
+                System.err.println("[ERROR] No se pudo abrir la configuración:");
+                e.printStackTrace();
+                Alert alert = new Alert(Alert.AlertType.ERROR);
+                alert.setTitle(bundle.getString("alert.config.open.title"));
+                alert.setHeaderText(bundle.getString("alert.config.open.header"));
+                alert.setContentText(e.getMessage());
+                alert.showAndWait();
+            }
+        );
     }
 
     /**
@@ -921,6 +1003,17 @@ public class MainController {
     }
 
     @FXML
+    private void onCopyConsole(ActionEvent event) {
+        if (consoleOutputArea == null) {
+            return;
+        }
+
+        ClipboardContent content = new ClipboardContent();
+        content.putString(consoleOutputArea.getText() != null ? consoleOutputArea.getText() : "");
+        Clipboard.getSystemClipboard().setContent(content);
+    }
+
+    @FXML
     private void onOpenFile(ActionEvent event)   { fileOptionsController.onOpenFile(event, tabPane, tabFileMap, editorModel, syntaxHighlighter); }
 
     @FXML
@@ -929,6 +1022,65 @@ public class MainController {
         if (saved && projectExplorerController != null) {
             projectExplorerController.refreshTree();
         }
+    }
+
+    @FXML
+    private void onSaveAllFiles(ActionEvent event) {
+        if (tabPane == null || tabPane.getTabs().isEmpty()) {
+            return;
+        }
+
+        Tab originalTab = tabPane.getSelectionModel().getSelectedItem();
+        boolean savedAny = false;
+
+        try {
+            List<Tab> tabsToSave = new ArrayList<>();
+            for (Tab tab : tabPane.getTabs()) {
+                if (tabFileMap.containsKey(tab)) {
+                    tabsToSave.add(tab);
+                }
+            }
+
+            for (Tab tab : tabsToSave) {
+                tabPane.getSelectionModel().select(tab);
+                boolean saved = fileOptionsController.onSaveFile(event, tabPane, tabFileMap, editorModel);
+                if (!saved) {
+                    break;
+                }
+                savedAny = true;
+            }
+        } finally {
+            if (originalTab != null && tabPane.getTabs().contains(originalTab)) {
+                tabPane.getSelectionModel().select(originalTab);
+            }
+        }
+
+        if (savedAny && projectExplorerController != null) {
+            projectExplorerController.refreshTree();
+        }
+    }
+
+    @FXML
+    private void onOpenCpcWebTest(ActionEvent event) {
+        File cpcIndex = new File(System.getProperty("user.dir"), "libs/cpcbox-main/cpcbox-main/index.html");
+
+        if (!cpcIndex.isFile()) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("CPC Web");
+            alert.setHeaderText("No se encontró el emulador CPC web");
+            alert.setContentText("Ruta esperada: " + cpcIndex.getAbsolutePath());
+            alert.showAndWait();
+            return;
+        }
+
+        javafx.scene.web.WebView webView = new javafx.scene.web.WebView();
+        webView.getEngine().load(cpcIndex.toURI().toString());
+
+        Stage stage = new Stage();
+        stage.setTitle("CPC Web Test");
+        stage.initOwner(getStage());
+        stage.setScene(new Scene(webView, 1280, 900));
+        stage.show();
     }
 
     @FXML
@@ -964,6 +1116,12 @@ public class MainController {
     private void onOpenManual()                               { helpController.onOpenManual(); }
 
     @FXML
+    private void onOpenPluginManual()                         { helpController.onOpenPluginManual(); }
+
+    @FXML
+    private void onOpenLicenses()                             { helpController.onOpenThirdPartyLicenses(); }
+
+    @FXML
     private void onShowCredits()                              { helpController.onShowCredits(); }
 
     private void navigateToFileLineFromConsole() {
@@ -995,41 +1153,10 @@ public class MainController {
     private FileLineLocation parseConsoleFileLine(String lineText) {
         if (lineText == null || lineText.isEmpty()) return null;
 
-        FileLineLocation z88dkLocation = parseZ88dkDiagnosticLocation(lineText);
-        if (z88dkLocation != null) {
-            return new FileLineLocation(z88dkLocation.file, z88dkLocation.line);
-        }
-
-        Matcher matcher = CONSOLE_FILE_LINE_PATTERN.matcher(lineText);
-        while (matcher.find()) {
-            String rawPath = sanitizeConsolePath(matcher.group(1));
-            int lineNumber;
-            try {
-                lineNumber = Integer.parseInt(matcher.group(2));
-            } catch (Exception ex) {
-                continue;
-            }
-
-            File resolved = resolveConsoleFileReference(rawPath);
-            if (resolved != null && resolved.isFile()) {
-                return new FileLineLocation(resolved, lineNumber);
-            }
-        }
-
-        return null;
-    }
-
-    private String sanitizeConsolePath(String rawPath) {
-        if (rawPath == null) return "";
-
-        String cleaned = rawPath.trim();
-        while (!cleaned.isEmpty() && "'\"([{".indexOf(cleaned.charAt(0)) >= 0) {
-            cleaned = cleaned.substring(1);
-        }
-        while (!cleaned.isEmpty() && "'\")]},;".indexOf(cleaned.charAt(cleaned.length() - 1)) >= 0) {
-            cleaned = cleaned.substring(0, cleaned.length() - 1);
-        }
-        return cleaned;
+        CompilationDiagnosticParserService.DiagnosticLocation location =
+            compilationDiagnosticParserService.parseConsoleFileLine(lineText, this::resolveConsoleFileReference);
+        if (location == null) return null;
+        return new FileLineLocation(location.getFile(), location.getLine());
     }
 
     private File resolveConsoleFileReference(String rawPath) {
@@ -1105,6 +1232,9 @@ public class MainController {
         if (menuArchivo         != null) menuArchivo.setText(bundle.getString("menu.file"));
         if (menuCompilacion     != null) menuCompilacion.setText(bundle.getString("menu.project"));
         if (menuEdicion         != null) menuEdicion.setText(bundle.getString("menu.edit"));
+        if (menuAyuda           != null) menuAyuda.setText(bundle.getString("menu.help"));
+        if (menuItemNuevoProyecto != null) menuItemNuevoProyecto.setText(bundle.getString("button.newProject"));
+        if (menuItemAbrirProyecto != null) menuItemAbrirProyecto.setText(bundle.getString("button.openProject"));
         if (menuItemNuevo       != null) menuItemNuevo.setText(bundle.getString("button.new"));
         if (menuItemAbrir       != null) menuItemAbrir.setText(bundle.getString("button.open"));
         if (menuItemGuardar     != null) menuItemGuardar.setText(bundle.getString("button.save"));
@@ -1122,6 +1252,10 @@ public class MainController {
         if (menuItemGoToLine    != null) menuItemGoToLine.setText(bundle.getString("menu.goto.line"));
         if (menuItemFind        != null) menuItemFind.setText(bundle.getString("menu.find.file"));
         if (menuItemFindProject != null) menuItemFindProject.setText(bundle.getString("menu.find.project"));
+        if (menuItemManual      != null) menuItemManual.setText(bundle.getString("menu.help.manual"));
+        if (menuItemPluginManual != null) menuItemPluginManual.setText(bundle.getString("menu.help.pluginsManual"));
+        if (menuItemLicenses    != null) menuItemLicenses.setText(bundle.getString("menu.help.licenses"));
+        if (menuItemCreditos    != null) menuItemCreditos.setText(bundle.getString("menu.help.credits"));
         applyDiagnosticLegendI18n();
         applyMenuAccelerators();
         applyShortcutTooltips();
@@ -1192,6 +1326,8 @@ public class MainController {
             "home.welcomeTitle",
             "home.welcomeText",
             "home.shortcutsTitle",
+            "home.shortcut.newProject",
+            "home.shortcut.openProject",
             "home.shortcut.findFile",
             "home.shortcut.findProject",
             "home.pluginsTitle",
@@ -1315,7 +1451,10 @@ public class MainController {
 
         scene.getAccelerators().put(ACCEL_NEW, () -> onNewTab(null));
         scene.getAccelerators().put(ACCEL_OPEN, () -> onOpenFile(null));
+        scene.getAccelerators().put(ACCEL_NEW_PROJECT, () -> onNuevoProyecto(null));
+        scene.getAccelerators().put(ACCEL_OPEN_PROJECT, () -> onAbrirProyecto(null));
         scene.getAccelerators().put(ACCEL_SAVE, () -> onSaveFile(null));
+        scene.getAccelerators().put(ACCEL_SAVE_ALL, () -> onSaveAllFiles(null));
         scene.getAccelerators().put(ACCEL_CLOSE, () -> onCloseFile(null));
 
         scene.getAccelerators().put(ACCEL_UNDO, () -> onUndo(null));
@@ -1334,9 +1473,12 @@ public class MainController {
     }
 
     private void applyMenuAccelerators() {
+        if (menuItemNuevoProyecto != null) menuItemNuevoProyecto.setAccelerator(ACCEL_NEW_PROJECT);
+        if (menuItemAbrirProyecto != null) menuItemAbrirProyecto.setAccelerator(ACCEL_OPEN_PROJECT);
         if (menuItemNuevo       != null) menuItemNuevo.setAccelerator(ACCEL_NEW);
         if (menuItemAbrir       != null) menuItemAbrir.setAccelerator(ACCEL_OPEN);
         if (menuItemGuardar     != null) menuItemGuardar.setAccelerator(ACCEL_SAVE);
+        if (menuItemGuardarTodo != null) menuItemGuardarTodo.setAccelerator(ACCEL_SAVE_ALL);
         if (menuItemCerrar      != null) menuItemCerrar.setAccelerator(ACCEL_CLOSE);
         if (menuItemDeshacer    != null) menuItemDeshacer.setAccelerator(ACCEL_UNDO);
         if (menuItemRehacer     != null) menuItemRehacer.setAccelerator(ACCEL_REDO);
@@ -1353,6 +1495,8 @@ public class MainController {
     private void applyShortcutTooltips() {
         if (bundle == null) return;
 
+        if (btnNuevoProyecto != null) btnNuevoProyecto.setTooltip(new Tooltip(bundle.getString("button.newProject") + " (Ctrl+Shift+N)"));
+        if (btnAbrirProyecto != null) btnAbrirProyecto.setTooltip(new Tooltip(bundle.getString("button.openProject") + " (Ctrl+Shift+O)"));
         if (btnNuevo       != null) btnNuevo.setTooltip(new Tooltip(bundle.getString("button.new") + " (Ctrl+N)"));
         if (btnSave        != null) btnSave.setTooltip(new Tooltip(bundle.getString("button.save") + " (Ctrl+S)"));
         if (btnClose       != null) btnClose.setTooltip(new Tooltip(bundle.getString("button.close") + " (Ctrl+W)"));

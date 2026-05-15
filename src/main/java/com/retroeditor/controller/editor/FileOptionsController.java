@@ -59,6 +59,7 @@ public class FileOptionsController {
             } catch (IOException e) {
                 UserActionMonitor.errorOccurred("FILE_OPEN", e.getMessage());
                 e.printStackTrace();
+                return;
             }
 
             String content = editorModel.getFileContent(file);
@@ -93,6 +94,7 @@ public class FileOptionsController {
         if (file != null && codeArea != null) {
             try {
                 editorModel.saveFile(file, codeArea.getText());
+                fxUtils.markTabSaved(tab, file.getName(), codeArea.getText());
                 return true;
             } catch (IOException e) {
                 e.printStackTrace();
@@ -136,7 +138,7 @@ public class FileOptionsController {
             UserActionMonitor.fileSaveAsDialogShown(file.getName());
             try {
                 editorModel.saveFile(file, codeArea.getText());
-                tab.setText(file.getName());
+                fxUtils.markTabSaved(tab, file.getName(), codeArea.getText());
                 tabFileMap.put(tab, file);
                 return true;
             } catch (IOException e) {

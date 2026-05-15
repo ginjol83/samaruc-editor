@@ -1,0 +1,7 @@
+Ikonli
+License: Apache License 2.0
+Source: https://github.com/kordamp/ikonli
+
+This component is distributed under Apache License 2.0.
+See full text in Apache-2.0.txt in this same folder.
+

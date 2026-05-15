@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Licencias de terceros - Samaruc</title>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; margin: 20px; line-height: 1.45; color: #222; }
+    h1 { margin-top: 0; }
+    h2 { margin-top: 24px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+    .card { background: #fafafa; border: 1px solid #e1e1e1; border-radius: 6px; padding: 12px; margin-top: 8px; }
+    .license { font-weight: bold; }
+    .note { color: #666; font-size: 0.95em; }
+    a { color: #0b5fff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: #f2f2f2; padding: 1px 4px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Licencias de componentes de terceros</h1>
+  <p>Esta aplicacion integra o usa herramientas externas. A continuacion tienes un resumen de licencias, enlaces oficiales y copia local de textos legales cuando aplica.</p>
+  <p class="note">Los textos locales se incluyen en <code>resources/licenses/</code> para consulta offline durante uso y distribucion.</p>
+
+  <h2>GBDK-2020</h2>
+  <div class="card">
+    <p><span class="license">Licencia:</span> ISC (proyecto GBDK-2020).</p>
+    <p><span class="license">Texto local:</span> <a href="licenses/GBDK-ISC.txt">GBDK-ISC.txt</a></p>
+    <p><span class="license">Web / codigo:</span> <a href="https://github.com/gbdk-2020/gbdk-2020">https://github.com/gbdk-2020/gbdk-2020</a></p>
+    <p><span class="license">Notas:</span> Toolchain para compilacion de Game Boy y otras plataformas.</p>
+  </div>
+
+  <h2>Z88DK</h2>
+  <div class="card">
+    <p><span class="license">Licencia:</span> mezcla de licencias libres segun componentes (incluye BSD-like y otras; ver detalles en el repo).</p>
+    <p><span class="license">Texto local:</span> <a href="licenses/Z88DK-NOTICE.txt">Z88DK-NOTICE.txt</a></p>
+    <p><span class="license">Web / codigo:</span> <a href="https://github.com/z88dk/z88dk">https://github.com/z88dk/z88dk</a></p>
+    <p><span class="license">Notas:</span> Toolchain para ZX Spectrum y otros sistemas Z80.</p>
+  </div>
+
+  <h2>Emulicious</h2>
+  <div class="card">
+    <p><span class="license">Licencia:</span> software propietario/distribucion segun autor.</p>
+    <p><span class="license">Texto local:</span> <a href="licenses/Emulicious-NOTICE.txt">Emulicious-NOTICE.txt</a></p>
+    <p><span class="license">Web oficial:</span> <a href="https://emulicious.net/">https://emulicious.net/</a></p>
+    <p><span class="license">Notas:</span> Emulador de Game Boy usado para ejecutar ROMs generadas.</p>
+  </div>
+
+  <h2>JSpeccy</h2>
+  <div class="card">
+    <p><span class="license">Licencia:</span> GPL-3.0 (ver proyecto oficial).</p>
+    <p><span class="license">Texto local:</span> <a href="licenses/JSpeccy-GPL-3.0-NOTICE.txt">JSpeccy-GPL-3.0-NOTICE.txt</a></p>
+    <p><span class="license">Web / codigo:</span> <a href="https://github.com/jsanchezv/JSpeccy">https://github.com/jsanchezv/JSpeccy</a></p>
+    <p><span class="license">Notas:</span> Emulador Java de ZX Spectrum.</p>
+  </div>
+
+  <h2>RichTextFX</h2>
+  <div class="card">
+    <p><span class="license">Licencia:</span> BSD 2-Clause.</p>
+    <p><span class="license">Texto local:</span> <a href="licenses/RichTextFX-BSD-2-Clause.txt">RichTextFX-BSD-2-Clause.txt</a></p>
+    <p><span class="license">Web / codigo:</span> <a href="https://github.com/FXMisc/RichTextFX">https://github.com/FXMisc/RichTextFX</a></p>
+    <p><span class="license">Notas:</span> Base del editor de texto enriquecido y resaltado.</p>
+  </div>
+
+  <h2>Ikonli</h2>
+  <div class="card">
+    <p><span class="license">Licencia:</span> Apache License 2.0.</p>
+    <p><span class="license">Texto local:</span> <a href="licenses/Ikonli-Apache-2.0.txt">Ikonli-Apache-2.0.txt</a></p>
+    <p><span class="license">Web / codigo:</span> <a href="https://github.com/kordamp/ikonli">https://github.com/kordamp/ikonli</a></p>
+    <p><span class="license">Notas:</span> Iconografia para toolbar y acciones.</p>
+  </div>
+
+  <h2>JavaFX</h2>
+  <div class="card">
+    <p><span class="license">Licencia:</span> GPL-2.0 with Classpath Exception.</p>
+    <p><span class="license">Texto local:</span> <a href="licenses/JavaFX-GPL-2.0-Classpath-NOTICE.txt">JavaFX-GPL-2.0-Classpath-NOTICE.txt</a></p>
+    <p><span class="license">Web oficial:</span> <a href="https://openjfx.io/">https://openjfx.io/</a></p>
+  </div>
+
+  <h2>Apache Maven y plugins</h2>
+  <div class="card">
+    <p><span class="license">Licencia:</span> Apache License 2.0.</p>
+    <p><span class="license">Texto local:</span> <a href="licenses/Apache-2.0.txt">Apache-2.0.txt</a></p>
+    <p><span class="license">Web oficial:</span> <a href="https://maven.apache.org/">https://maven.apache.org/</a></p>
+  </div>
+
+  <h2>Dependencias adicionales de runtime (JAXB)</h2>
+  <div class="card">
+    <p><span class="license">javax.xml.bind:jaxb-api</span> - CDDL/GPLv2+CE (segun artefacto).</p>
+    <p><span class="license">org.glassfish.jaxb:jaxb-runtime</span> - EPL 2.0 / EDL 1.0 (segun artefacto).</p>
+    <p><span class="license">javax.activation:javax.activation-api</span> - CDDL/GPLv2+CE (segun artefacto).</p>
+    <p class="note">Consulta los POM y LICENSE oficiales de cada artefacto para la variante exacta de licencia incluida en tu version.</p>
+  </div>
+
+  <p class="note">Para distribucion comercial o publica, valida el cumplimiento final de cada licencia en las versiones exactas que empaquetas.</p>
+</body>
+</html>
+

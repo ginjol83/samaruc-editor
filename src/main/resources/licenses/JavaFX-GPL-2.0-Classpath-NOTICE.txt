@@ -1,0 +1,14 @@
+JavaFX (OpenJFX)
+License: GPL v2 with Classpath Exception
+Source: https://openjfx.io/
+
+OpenJFX is generally distributed under GPL-2.0 with the Classpath Exception.
+This exception permits linking with independent modules under certain conditions.
+
+Official license references:
+- GPL-2.0 text: https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
+- Classpath exception: https://openjdk.org/legal/gplv2+ce.html
+
+For strict compliance in redistribution, include the exact LICENSE files
+provided by the OpenJFX artifacts and version you package.
+

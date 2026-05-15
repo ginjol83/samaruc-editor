@@ -1,0 +1,16 @@
+JSpeccy
+License: GNU General Public License v3.0
+Source: https://github.com/jsanchezv/JSpeccy
+
+JSpeccy is licensed under GPL-3.0.
+To comply with redistribution requirements, include the complete GPL-3.0 text
+and preserve copyright notices from JSpeccy distribution.
+
+Official GPL-3.0 text:
+https://www.gnu.org/licenses/gpl-3.0.txt
+
+Practical compliance checklist:
+- Keep original copyright/license headers.
+- Distribute source code as required by GPL when applicable.
+- Include clear attribution and a copy/link to GPL-3.0.
+

@@ -1,6 +1,7 @@
 
 package com.retroeditor.controller.projectExplorer;
 
+import java.awt.Desktop;
 import java.io.File;
 import java.io.IOException;
 import java.util.Optional;
@@ -72,12 +73,14 @@ public class ProjectExplorerController {
         treeView.setCellFactory(param -> new TreeCell<String>() {
 
             private final ContextMenu cellMenu = new ContextMenu();
+            private final MenuItem newFileItem = new MenuItem("Nuevo archivo");
+            private final MenuItem newFolderItem = new MenuItem("Nueva carpeta");
+            private final MenuItem deleteItem = new MenuItem("Eliminar");
+            private final MenuItem runRomItem = new MenuItem("Ejecutar ROM en emulador");
+            private final MenuItem openInExplorerItem = new MenuItem("Abrir directorio en Windows");
 
             {
-                MenuItem newFileItem   = new MenuItem("Nuevo archivo");
-                MenuItem newFolderItem = new MenuItem("Nueva carpeta");
-
-                cellMenu.getItems().addAll(newFileItem, newFolderItem);
+                cellMenu.getItems().addAll(newFileItem, newFolderItem, deleteItem, runRomItem, openInExplorerItem);
 
                 newFileItem.setOnAction(e -> {
 
@@ -196,6 +199,34 @@ public class ProjectExplorerController {
                     }
                 });
 
+                openInExplorerItem.setOnAction(e -> {
+                    FileTreeItem selected = (FileTreeItem) getTreeItem();
+                    File target = getFileFromTreeItem(selected);
+                    openDirectoryInWindowsExplorer(target);
+                });
+
+                runRomItem.setOnAction(e -> {
+                    FileTreeItem selected = (FileTreeItem) getTreeItem();
+                    File target = getFileFromTreeItem(selected);
+
+                    if (target == null || !target.isFile()) {
+                        showError("Selecciona un archivo ROM para ejecutar.");
+                        return;
+                    }
+
+                    if (mainController == null) {
+                        showError("No hay controlador principal disponible para ejecutar la ROM.");
+                        return;
+                    }
+
+                    mainController.runRomFromProjectExplorer(target);
+                });
+
+                deleteItem.setOnAction(e -> {
+                    FileTreeItem selected = (FileTreeItem) getTreeItem();
+                    deleteTreeItem(selected);
+                });
+
                 // Manejo de clic derecho para seleccionar el ítem
                 this.setOnMousePressed(evt -> {
 
@@ -258,6 +289,14 @@ public class ProjectExplorerController {
                     javafx.scene.layout.HBox hbox = new javafx.scene.layout.HBox(5, iconLabel, new javafx.scene.control.Label(item));
                     setGraphic(hbox);
                     setText(null);
+                    boolean canRunRom = file != null
+                        && file.isFile()
+                        && mainController != null
+                        && mainController.isSupportedRomFile(file);
+                    boolean canDelete = file != null
+                        && !(rootDirectory != null && file.getAbsolutePath().equals(rootDirectory.getAbsolutePath()));
+                    runRomItem.setDisable(!canRunRom);
+                    deleteItem.setDisable(!canDelete);
                     // Asignar el menú contextual a la celda para que la acción use el TreeItem de esta celda
                     setContextMenu(cellMenu);
                 }
@@ -284,33 +323,7 @@ public class ProjectExplorerController {
             if (event.getCode() == KeyCode.DELETE) {
                 FileTreeItem selected = (FileTreeItem) treeView.getSelectionModel().getSelectedItem();
 
-                if (selected == null) return;
-
-                File target = getFileFromTreeItem(selected);
-
-                if (target == null) return;
-
-                if (rootDirectory != null && target.getAbsolutePath().equals(rootDirectory.getAbsolutePath())) {
-                    showError("No se puede borrar la carpeta raíz del proyecto.");
-                    event.consume();
-                    return;
-                }
-
-                if (!confirmDelete(target)) {
-                    event.consume();
-                    return;
-                }
-
-                try {
-                    boolean targetWasDirectory = target.isDirectory();
-                    projectExplorerModel.deleteFileOrDirectory(target);
-                    if (mainController != null) {
-                        mainController.closeTabsForDeletedTarget(target, targetWasDirectory);
-                    }
-                    refreshTree();
-                } catch (IOException ex) {
-                    showError("Error al borrar: " + ex.getMessage());
-                }
+                deleteTreeItem(selected);
 
                 event.consume();
             }
@@ -326,7 +339,11 @@ public class ProjectExplorerController {
                     File file = getFileFromTreeItem(selected);
 
                     if (file != null && file.isFile() && mainController != null) {
-                        mainController.openFileFromExplorer(file);
+                        if (mainController.isSupportedRomFile(file)) {
+                            mainController.runRomFromProjectExplorer(file);
+                        } else {
+                            mainController.openFileFromExplorer(file);
+                        }
                     }
                 }
             }
@@ -471,7 +488,11 @@ public class ProjectExplorerController {
      * @param String msg
      */
     private void showError(String msg) {
-        projectExplorerModel.showError(msg);
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Error");
+        alert.setHeaderText(null);
+        alert.setContentText(msg);
+        alert.showAndWait();
     }
 
     private boolean confirmDelete(File target) {
@@ -484,6 +505,67 @@ public class ProjectExplorerController {
 
         Optional<ButtonType> result = alert.showAndWait();
         return result.isPresent() && result.get() == ButtonType.OK;
+    }
+
+    private void deleteTreeItem(FileTreeItem selected) {
+        if (selected == null) return;
+
+        File target = getFileFromTreeItem(selected);
+        if (target == null) return;
+
+        if (rootDirectory != null && target.getAbsolutePath().equals(rootDirectory.getAbsolutePath())) {
+            showError("No se puede borrar la carpeta raíz del proyecto.");
+            return;
+        }
+
+        if (!confirmDelete(target)) return;
+
+        try {
+            boolean targetWasDirectory = target.isDirectory();
+            projectExplorerModel.deleteFileOrDirectory(target);
+            if (mainController != null) {
+                mainController.closeTabsForDeletedTarget(target, targetWasDirectory);
+            }
+            refreshTree();
+        } catch (IOException ex) {
+            showError("Error al borrar: " + ex.getMessage());
+        }
+    }
+
+    private void openDirectoryInWindowsExplorer(File selectedPath) {
+        File directoryToOpen = resolveDirectoryToOpen(selectedPath);
+
+        if (directoryToOpen == null) {
+            showError("No se pudo resolver el directorio para abrir.");
+            return;
+        }
+
+        if (!directoryToOpen.exists() || !directoryToOpen.isDirectory()) {
+            showError("El directorio no existe o no es válido: " + directoryToOpen.getAbsolutePath());
+            return;
+        }
+
+        try {
+            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                Desktop.getDesktop().open(directoryToOpen);
+                return;
+            }
+
+            // Fallback específico para Windows si Desktop no está disponible.
+            new ProcessBuilder("explorer.exe", directoryToOpen.getAbsolutePath()).start();
+        } catch (IOException | SecurityException ex) {
+            showError("No se pudo abrir el directorio: " + ex.getMessage());
+        }
+    }
+
+    private File resolveDirectoryToOpen(File selectedPath) {
+        File target = selectedPath != null ? selectedPath : rootDirectory;
+
+        if (target == null) return null;
+        if (target.isDirectory()) return target;
+
+        File parent = target.getParentFile();
+        return parent != null ? parent : rootDirectory;
     }
 }
 

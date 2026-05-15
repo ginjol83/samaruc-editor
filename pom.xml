@@ -10,8 +10,16 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>17</java.version>
-    <javafx.version>17.0.10</javafx.version>
+        <javafx.version>17.0.19</javafx.version>
+        <junit.jupiter.version>5.10.2</junit.jupiter.version>
     </properties>
+    <repositories>
+        <repository>
+            <id>project-local-third-party</id>
+            <name>Project local third-party repository</name>
+            <url>file://${project.basedir}/third_party/maven-repo</url>
+        </repository>
+    </repositories>
     <dependencies>
         <!-- Ikonli JavaFX icon library -->
         <dependency>
@@ -35,16 +43,6 @@
             <artifactId>javafx-fxml</artifactId>
             <version>${javafx.version}</version>
         </dependency>
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-base</artifactId>
-            <version>${javafx.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.openjfx</groupId>
-            <artifactId>javafx-graphics</artifactId>
-            <version>${javafx.version}</version>
-        </dependency>
         <!-- RichTextFX for syntax highlighting -->
         <dependency>
             <groupId>org.fxmisc.richtext</groupId>
@@ -56,8 +54,6 @@
             <groupId>local</groupId>
             <artifactId>jspeccy</artifactId>
             <version>1.0</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/libs/JSpeccy.jar</systemPath>
         </dependency>
         <!-- JavaFX Web for WebView -->
         <dependency>
@@ -81,6 +77,17 @@
             <artifactId>javax.activation-api</artifactId>
             <version>1.2.0</version>
         </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.jupiter.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.18.2</version>
+        </dependency>
     </dependencies>
     <build>
         <plugins>
@@ -100,6 +107,11 @@
                 <configuration>
                     <mainClass>com.retroeditor.Launcher</mainClass>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -124,4 +136,26 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>verbose-tests</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <version>3.2.5</version>
+                        <configuration>
+                            <useFile>false</useFile>
+                            <printSummary>true</printSummary>
+                            <reportFormat>plain</reportFormat>
+                            <trimStackTrace>false</trimStackTrace>
+                            <redirectTestOutputToFile>false</redirectTestOutputToFile>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

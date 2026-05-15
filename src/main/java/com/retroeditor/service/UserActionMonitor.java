@@ -191,6 +191,14 @@ public final class UserActionMonitor {
         AppLogger.logMonitor("HELP_CREDITS", tr("log.monitor.help.credits", "Creditos mostrados"));
     }
 
+    public static void licensesOpened() {
+        AppLogger.logMonitor("HELP_LICENSES", tr("log.monitor.help.licenses", "Licencias de terceros abiertas"));
+    }
+
+    public static void pluginManualOpened() {
+        AppLogger.logMonitor("HELP_PLUGIN_MANUAL", tr("log.monitor.help.plugins.manual", "Manual de plugins abierto"));
+    }
+
     // ============ ERRORES ============
     
     public static void errorOccurred(String errorType, String message) {

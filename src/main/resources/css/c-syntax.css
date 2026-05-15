@@ -15,6 +15,76 @@
     -fx-fill: #b22222;
 }
 
+.code-area .character {
+    -fx-fill: #b22222;
+}
+
+.code-area .operator {
+    -fx-fill: #8b008b;
+}
+
+.code-area .zx-function {
+    -fx-fill: #8a2be2;
+    -fx-font-weight: bold;
+}
+
+.code-area .gbdk-function {
+    -fx-fill: #005cc5;
+    -fx-font-weight: bold;
+}
+
+.code-area .md-heading {
+    -fx-fill: #1f4e79;
+    -fx-font-weight: bold;
+}
+
+.code-area .md-blockquote {
+    -fx-fill: #6a737d;
+    -fx-font-style: italic;
+}
+
+.code-area .md-list {
+    -fx-fill: #005cc5;
+}
+
+.code-area .md-checklist {
+    -fx-fill: #22863a;
+}
+
+.code-area .md-checklist-pending {
+    -fx-fill: #b08800;
+}
+
+.code-area .md-checklist-done {
+    -fx-fill: #22863a;
+    -fx-font-style: italic;
+}
+
+.code-area .md-table {
+    -fx-fill: #6f42c1;
+}
+
+.code-area .md-link {
+    -fx-fill: #0366d6;
+    -fx-underline: true;
+}
+
+.code-area .md-bold {
+    -fx-font-weight: bold;
+}
+
+.code-area .md-italic {
+    -fx-font-style: italic;
+}
+
+.code-area .md-code {
+    -fx-fill: #b31d28;
+}
+
+.code-area .md-code-block {
+    -fx-fill: #b31d28;
+}
+
 /* Marca visual de error/warning por linea (RichTextFX puede aplicar clase al paragraph-box o paragraph-text) */
 .code-area .paragraph-box.compile-error-line,
 .code-area .paragraph-text.compile-error-line {

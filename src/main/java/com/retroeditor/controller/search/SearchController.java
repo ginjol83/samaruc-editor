@@ -1,18 +1,15 @@
 package com.retroeditor.controller.search;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.fxmisc.richtext.CodeArea;
 
+import com.retroeditor.service.ProjectSearchService;
+import com.retroeditor.service.TextSearchService;
 import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.util.FXUtils;
 
@@ -40,8 +37,11 @@ public class SearchController {
     private final FXUtils        fxUtils;
     private final Map<Tab, File> tabFileMap;
 
-    private final com.retroeditor.model.EditorModel         editorModel;
-    private final com.retroeditor.controller.MainController mainController;
+    private final com.retroeditor.model.EditorModel editorModel;
+    private final ProjectContextPort projectContextPort;
+    private final FileOpenPort fileOpenPort;
+    private final ProjectSearchService projectSearchService;
+    private final TextSearchService textSearchService;
 
     private int    lastSearchIndex = -1;
     private String lastSearchTerm  = null;
@@ -57,13 +57,17 @@ public class SearchController {
      * @param fxUtils Utilidades para JavaFX.
      */
     public SearchController(Stage owner, TabPane tabPane, Map<Tab, File> tabFileMap,
-            com.retroeditor.model.EditorModel editorModel, com.retroeditor.controller.MainController mainController, FXUtils fxUtils) {
+            com.retroeditor.model.EditorModel editorModel, ProjectContextPort projectContextPort, FileOpenPort fileOpenPort,
+            ProjectSearchService projectSearchService, TextSearchService textSearchService, FXUtils fxUtils) {
         this.owner          = owner;
         this.fxUtils        = fxUtils;
         this.tabPane        = tabPane;
         this.tabFileMap     = tabFileMap;
         this.editorModel    = editorModel;
-        this.mainController = mainController;
+        this.projectContextPort = projectContextPort;
+        this.fileOpenPort = fileOpenPort;
+        this.projectSearchService = projectSearchService;
+        this.textSearchService = textSearchService;
     }
 
 
@@ -252,43 +256,13 @@ public class SearchController {
 
         if (area == null) return;
 
-        String text     = area.getText();
-        String hay      = text;
-        String needle   = term;
+        String text = area.getText();
+        int start = area.getSelection().getEnd();
+        TextSearchService.MatchRange next = textSearchService.findNext(text, term, start, caseSensitive, regex);
 
-        if (!caseSensitive && !regex) {
-            hay = text.toLowerCase();
-            needle = term.toLowerCase();
-        }
-
-        int start    = area.getSelection().getEnd();
-        int idx      = -1;
-        int matchEnd = -1;
-
-        try {
-            if (regex) {
-                java.util.regex.Matcher m = java.util.regex.Pattern.compile(term, caseSensitive ? 0 : java.util.regex.Pattern.CASE_INSENSITIVE).matcher(text);
-
-                if (m.find(start)) {
-                    idx      = m.start();
-                    matchEnd = m.end();
-                } else if (start > 0 && m.find(0)) {
-                    idx      = m.start();
-                    matchEnd = m.end();
-                }
-            } else {
-                idx = hay.indexOf(needle, Math.max(0, start));
-
-                if (idx < 0 && start > 0) idx = hay.indexOf(needle, 0);
-                if (idx >= 0) matchEnd = idx + needle.length();
-            }
-        } catch (Exception ex) {
-            return;
-        }
-
-        if (idx >= 0) {
-            final int fidx = idx;
-            final int fend = (matchEnd > idx) ? matchEnd : idx + Math.max(1, term.length());
+        if (next != null) {
+            final int fidx = next.getStart();
+            final int fend = Math.max(next.getEnd(), fidx + Math.max(1, term.length()));
             Platform.runLater(() -> {
                 area.requestFocus();
                 area.selectRange(fidx, Math.min(area.getLength(), fend));
@@ -311,47 +285,12 @@ public class SearchController {
 
         if (area == null) return;
 
-        String text   = area.getText();
-        String hay    = text;
-        String needle = term;
-
-        if (!caseSensitive && !regex) {
-            hay    = text.toLowerCase();
-            needle = term.toLowerCase();
-        }
-
+        String text = area.getText();
         int start = area.getSelection().getStart() - 1;
-
-        if (start < 0) start = text.length();
-
-        int idx      = -1;
-        int matchEnd = -1;
-
-        try {
-            if (regex) {
-                java.util.regex.Pattern p = java.util.regex.Pattern.compile(term, caseSensitive ? 0 : java.util.regex.Pattern.CASE_INSENSITIVE);
-                java.util.regex.Matcher m = p.matcher(text);
-                int last    = -1;
-                int lastEnd = -1;
-
-                while (m.find() && m.start() < start) {
-                    last    = m.start();
-                    lastEnd = m.end();
-                }
-
-                idx      = last;
-                matchEnd = lastEnd;
-            } else {
-                idx = hay.lastIndexOf(needle, start);
-                if (idx >= 0) matchEnd = idx + needle.length();
-            }
-
-        } catch (Exception ex) {
-            return;
-        }
-        if (idx >= 0) {
-            final int fidx = idx;
-            final int fend = (matchEnd > idx) ? matchEnd : idx + Math.max(1, term.length());
+        TextSearchService.MatchRange prev = textSearchService.findPrevious(text, term, start, caseSensitive, regex);
+        if (prev != null) {
+            final int fidx = prev.getStart();
+            final int fend = Math.max(prev.getEnd(), fidx + Math.max(1, term.length()));
 
             Platform.runLater(() -> {
                 area.requestFocus();
@@ -379,28 +318,13 @@ public class SearchController {
         if (area == null) return list;
 
         String text = area.getText();
-
-        try {
-            if (regex) {
-                java.util.regex.Matcher m = java.util.regex.Pattern.compile(term, caseSensitive ? 0 : java.util.regex.Pattern.CASE_INSENSITIVE).matcher(text);
-                while (m.find()) {
-                    int len = m.end() - m.start();
-                    list.add(new IndexSnippet(m.start(), len, getSnippet(text, m.start(), len)));
-                }
-            } else {
-                String hay = caseSensitive ? text : text.toLowerCase();
-                String needle = caseSensitive ? term : term.toLowerCase();
-                int idx = 0;
-                while ((idx = hay.indexOf(needle, idx)) >= 0) {
-                    list.add(new IndexSnippet(idx, term.length(), getSnippet(text, idx, term.length())));
-                    idx += Math.max(1, term.length());
-                }
-            }
-        } catch (Exception ex) {
-            // ignore
+        for (TextSearchService.SnippetMatch match : textSearchService.findAll(text, term, caseSensitive, regex)) {
+            list.add(new IndexSnippet(match.getStart(), match.getLength(), match.getSnippet()));
         }
+
         return list;
     }
+
 
     /** 
      * Clase que obtiene un fragmento de texto alrededor de una coincidencia.
@@ -504,44 +428,16 @@ public class SearchController {
      * @return Lista de coincidencias encontradas.
      */
     private List<SearchMatch> searchProject(String term) {
+        File root = projectContextPort != null ? projectContextPort.getCurrentProjectDir() : null;
         List<SearchMatch> matches = new ArrayList<>();
-        File root = mainController.getCurrentProjectDir();
 
-        if (root == null || !root.isDirectory()) return matches;
+        for (ProjectSearchService.Match match : projectSearchService.searchProject(root, term)) {
+            matches.add(new SearchMatch(match.getFile(), match.getIndex(), match.getSnippet()));
+        }
 
-        try (Stream<Path> paths = Files.walk(root.toPath())) {
-            List<Path> files = paths.filter(Files::isRegularFile).collect(Collectors.toList());
-
-            for (Path p : files) {
-                try {
-                    String content = Files.readString(p);
-                    int idx = content.indexOf(term);
-
-                    if (idx >= 0) {
-                        String snippet = getSnippet(content, idx, term.length());
-                        matches.add(new SearchMatch(p.toFile(), idx, snippet));
-                    }
-
-                } catch (IOException ex) { }
-            }
-        } catch (IOException e) { }
-        
         return matches;
     }
 
-    /**
-     * Obtiene un fragmento de texto alrededor de una coincidencia.
-     * @param content Contenido completo del texto.
-     * @param idx Índice donde se encontró la coincidencia.
-     * @param length Longitud del término buscado.
-     * @return Fragmento de texto alrededor de la coincidencia.
-     */
-    private String getSnippet(String content, int idx, int length) {
-        int start = Math.max(0, idx - 30);
-        int end   = Math.min(content.length(), idx + length + 30);
-
-        return content.substring(start, end).replaceAll("\r?\n", " ");
-    }
 
     /**
      * Muestra los resultados de la búsqueda en un diálogo.
@@ -584,7 +480,9 @@ public class SearchController {
                 SearchMatch sel = list.getSelectionModel().getSelectedItem();
 
                 if (sel != null) {
-                    mainController.openFileFromExplorer(sel.file);
+                    if (fileOpenPort != null) {
+                        fileOpenPort.openFileFromExplorer(sel.file);
+                    }
 
                     Platform.runLater(() -> {
 

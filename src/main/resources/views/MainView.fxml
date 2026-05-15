@@ -14,9 +14,13 @@
             <MenuBar fx:id="menuBar">
                 <menus>
                     <Menu fx:id="menuArchivo" text="Archivo">
+                        <MenuItem fx:id="menuItemNuevoProyecto" text="Nuevo proyecto" onAction="#onNuevoProyecto" />
+                        <MenuItem fx:id="menuItemAbrirProyecto" text="Abrir proyecto" onAction="#onAbrirProyecto" />
+                        <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemNuevo" text="Nuevo" onAction="#onNewTab" />
                         <MenuItem fx:id="menuItemAbrir" text="Abrir" onAction="#onOpenFile" />
                         <MenuItem fx:id="menuItemGuardar" text="Guardar" onAction="#onSaveFile" />
+                        <MenuItem fx:id="menuItemGuardarTodo" text="Guardar todo" onAction="#onSaveAllFiles" />
                         <MenuItem fx:id="menuItemGuardarComo" text="Guardar como" onAction="#onSaveAsFile" />
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemCerrar" text="Cerrar pestaña" onAction="#onCloseFile" />
@@ -28,6 +32,8 @@
                     <Menu fx:id="menuCompilacion" text="Compilación/Ejecución">
                         <MenuItem fx:id="menuItemCompilar" text="Compilar" onAction="#onCompilar" />
                         <MenuItem fx:id="menuItemEjecutar" text="Ejecutar" onAction="#onEjecutar" />
+                        <SeparatorMenuItem />
+                        <MenuItem fx:id="menuItemCpcWebTest" text="Probar CPC (Web)" onAction="#onOpenCpcWebTest" />
                     </Menu>
                     <Menu fx:id="menuEdicion" text="Edición">
                         <MenuItem fx:id="menuItemDeshacer" text="Deshacer" onAction="#onUndo" />
@@ -45,6 +51,8 @@
 
                     <Menu fx:id="menuAyuda" text="Ayuda">
                         <MenuItem fx:id="menuItemManual" text="Manual" onAction="#onOpenManual" />
+                        <MenuItem fx:id="menuItemPluginManual" text="Manual de plugins" onAction="#onOpenPluginManual" />
+                        <MenuItem fx:id="menuItemLicenses" text="Licencias" onAction="#onOpenLicenses" />
                         <MenuItem fx:id="menuItemCreditos" text="Créditos" onAction="#onShowCredits" />
                     </Menu>
                 </menus>
@@ -106,6 +114,9 @@
                 <Button fx:id="btnEjecutar" onAction="#onEjecutar">
                     <tooltip><Tooltip text="Ejecutar" /></tooltip>
                 </Button>
+                <!-- Button fx:id="btnCpcWebTest" onAction="#onOpenCpcWebTest">
+                    <tooltip><Tooltip text="Probar CPC en WebView" /></tooltip>
+                </Button -->
                 <Separator />
                 <!-- Configuración -->
                 <Button fx:id="btnConfig" onAction="#onOpenConfig">
@@ -157,6 +168,12 @@
                                     style="-fx-padding: 2 6 2 6; -fx-background-radius: 3; -fx-cursor: hand;">
                                 <graphic><FontIcon iconLiteral="fas-trash-alt" iconSize="13" /></graphic>
                                 <tooltip><Tooltip text="Limpiar consola" /></tooltip>
+                            </Button>
+                            <Button fx:id="btnCopyConsole"
+                                    onAction="#onCopyConsole"
+                                    style="-fx-padding: 2 6 2 6; -fx-background-radius: 3; -fx-cursor: hand;">
+                                <graphic><FontIcon iconLiteral="fas-copy" iconSize="13" /></graphic>
+                                <tooltip><Tooltip text="Copiar consola" /></tooltip>
                             </Button>
                                         </HBox>
                                     </top>

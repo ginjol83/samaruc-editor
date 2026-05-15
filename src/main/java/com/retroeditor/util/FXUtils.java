@@ -34,12 +34,65 @@ import javafx.stage.Stage;
 
 public class FXUtils {
 
+    private static final String TAB_PROP_BASE_TITLE = "editor.baseTitle";
+    private static final String TAB_PROP_BASE_TEXT = "editor.baseText";
+
+    private enum ProjectTemplate {
+        EMPTY,
+        SPECTRUM,
+        SPECTRUM_SCREEN,
+        GAMEBOY,
+        GAMEBOY_SPRITE
+    }
+
+    private static class ProjectCreationOptions {
+        private final ProjectTemplate template;
+        private final boolean createReadme;
+        private final boolean createGitignore;
+
+        private ProjectCreationOptions(ProjectTemplate template, boolean createReadme, boolean createGitignore) {
+            this.template = template;
+            this.createReadme = createReadme;
+            this.createGitignore = createGitignore;
+        }
+    }
+
+    private boolean lastProjectCreationCancelled = false;
+    private ProjectTemplate lastCreatedProjectTemplate = null;
+    private boolean lastCreateReadmeSelected = true;
+    private boolean lastCreateGitignoreSelected = true;
+    private String projectReadmeLanguage = "en";
+
+    public boolean wasLastProjectCreationCancelled() {
+        return lastProjectCreationCancelled;
+    }
+
+    public boolean wasLastCreatedProjectGameBoyTemplate() {
+        return lastCreatedProjectTemplate == ProjectTemplate.GAMEBOY
+            || lastCreatedProjectTemplate == ProjectTemplate.GAMEBOY_SPRITE;
+    }
+
+    public boolean wasLastCreatedProjectSpectrumTemplate() {
+        return lastCreatedProjectTemplate == ProjectTemplate.SPECTRUM
+            || lastCreatedProjectTemplate == ProjectTemplate.SPECTRUM_SCREEN;
+    }
+
     /**
      * Obtiene un nombre de archivo predeterminado para guardar en función del título de la pestaña.
      * @param tab Pestaña actual.
      * @return Nombre de archivo sugerido.
      */
-    public String getDefaultFileName(Tab tab)        { return tab.getText(); }
+    public String getDefaultFileName(Tab tab) {
+        if (tab == null) return "";
+
+        Object baseTitle = tab.getProperties().get(TAB_PROP_BASE_TITLE);
+        if (baseTitle instanceof String && !((String) baseTitle).isBlank()) {
+            return (String) baseTitle;
+        }
+
+        String title = tab.getText();
+        return title != null && title.endsWith("*") ? title.substring(0, title.length() - 1) : title;
+    }
 
     /**
      * Cierra una pestaña específica en el TabPane.
@@ -65,13 +118,14 @@ public class FXUtils {
      */
     public Tab addTab(String title, String content, SyntaxHighlighter syntaxHighlighter, TabPane tabPane) {
         CodeArea codeArea = new CodeArea();
+        String initialText = content != null ? content : "";
 
         // Habilita la función de numeración de líneas para los párrafos. 
         codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
-        codeArea.replaceText(content);
+        codeArea.replaceText(initialText);
 
         // Aplica el resaltado inicial de sintaxis
-        codeArea.setStyleSpans(0, syntaxHighlighter.computeHighlighting(content));
+        codeArea.setStyleSpans(0, syntaxHighlighter.computeHighlighting(initialText, title));
 
         // Reduce el tiempo de ejecución de las ediciones posteriores para evitar actualizaciones de estilo demasiado frecuentes
         codeArea.multiPlainChanges()
@@ -79,7 +133,7 @@ public class FXUtils {
                 .subscribe(ignore -> {
                     try {
                         // Aplica el resaltado de sintaxis al texto modificado
-                        codeArea.setStyleSpans(0, syntaxHighlighter.computeHighlighting(codeArea.getText()));
+                        codeArea.setStyleSpans(0, syntaxHighlighter.computeHighlighting(codeArea.getText(), title));
                     } catch (Exception ex) {
                         ex.printStackTrace();
                     }
@@ -87,10 +141,44 @@ public class FXUtils {
 
         codeArea.getStylesheets().add(getClass().getResource("/css/c-syntax.css").toExternalForm());
         Tab tab = new Tab(title, codeArea);
+        tab.getProperties().put(TAB_PROP_BASE_TITLE, title != null ? title : "");
+        tab.getProperties().put(TAB_PROP_BASE_TEXT, initialText);
+
+        codeArea.textProperty().addListener((obs, oldText, newText) -> updateTabDirtyIndicator(tab, codeArea));
+
         tabPane.getTabs().add(tab);
         tabPane.getSelectionModel().select(tab);
 
         return tab;
+    }
+
+    public void markTabSaved(Tab tab, String baseTitle, String savedText) {
+        if (tab == null) return;
+
+        String normalizedTitle = baseTitle != null ? baseTitle : "";
+        String normalizedText = savedText != null ? savedText : "";
+
+        tab.getProperties().put(TAB_PROP_BASE_TITLE, normalizedTitle);
+        tab.getProperties().put(TAB_PROP_BASE_TEXT, normalizedText);
+        tab.setText(normalizedTitle);
+    }
+
+    private void updateTabDirtyIndicator(Tab tab, CodeArea codeArea) {
+        if (tab == null || codeArea == null) return;
+
+        Object baseTitleObj = tab.getProperties().get(TAB_PROP_BASE_TITLE);
+        String baseTitle = baseTitleObj instanceof String ? (String) baseTitleObj : (tab.getText() != null ? tab.getText() : "");
+        if (baseTitle.endsWith("*")) {
+            baseTitle = baseTitle.substring(0, baseTitle.length() - 1);
+            tab.getProperties().put(TAB_PROP_BASE_TITLE, baseTitle);
+        }
+
+        Object baseTextObj = tab.getProperties().get(TAB_PROP_BASE_TEXT);
+        String baseText = baseTextObj instanceof String ? (String) baseTextObj : "";
+        String currentText = codeArea.getText() != null ? codeArea.getText() : "";
+
+        boolean dirty = !currentText.equals(baseText);
+        tab.setText(dirty ? baseTitle + "*" : baseTitle);
     }
 
     /**
@@ -213,12 +301,15 @@ public class FXUtils {
         if (uiElements.menuArchivo         != null) uiElements.menuArchivo.setText          (bundle.getString("menu.file"));
         if (uiElements.menuEdicion         != null) uiElements.menuEdicion.setText          (bundle.getString("menu.edit"));
         if (uiElements.menuCompilacion     != null) uiElements.menuCompilacion.setText      (bundle.getString("menu.project"));
+        if (uiElements.menuItemNuevoProyecto != null) uiElements.menuItemNuevoProyecto.setText(bundle.getString("button.newProject"));
+        if (uiElements.menuItemAbrirProyecto != null) uiElements.menuItemAbrirProyecto.setText(bundle.getString("button.openProject"));
         if (uiElements.menuItemNuevo       != null) uiElements.menuItemNuevo.setText        (bundle.getString("button.new"));
         if (uiElements.menuItemAbrir       != null) uiElements.menuItemAbrir.setText        (bundle.getString("button.open"));
         if (uiElements.menuItemSalir       != null) uiElements.menuItemSalir.setText        (bundle.getString("menu.exit"));
         if (uiElements.menuItemConfig      != null) uiElements.menuItemConfig.setText       (bundle.getString("button.config"));
         if (uiElements.menuItemCerrar      != null) uiElements.menuItemCerrar.setText       (bundle.getString("button.close"));
         if (uiElements.menuItemGuardar     != null) uiElements.menuItemGuardar.setText      (bundle.getString("button.save"));
+        if (uiElements.menuItemGuardarTodo != null) uiElements.menuItemGuardarTodo.setText  (bundle.getString("button.saveAll"));
         if (uiElements.menuItemCompilar    != null) uiElements.menuItemCompilar.setText     (bundle.getString("button.compile"));
         if (uiElements.menuItemEjecutar    != null) uiElements.menuItemEjecutar.setText     (bundle.getString("button.run"));
         if (uiElements.menuItemGuardarComo != null) uiElements.menuItemGuardarComo.setText  (bundle.getString("button.saveAs"));
@@ -269,6 +360,11 @@ public class FXUtils {
         return createNewProject(parentStage, null);
     }
 
+    public File createNewProject(Stage parentStage, ResourceBundle bundle, String readmeLanguage) {
+        projectReadmeLanguage = normalizeReadmeLanguage(readmeLanguage);
+        return createNewProject(parentStage, bundle);
+    }
+
     /**
      * Crea un nuevo proyecto en una carpeta seleccionada por el usuario.
      * @param parentStage La ventana principal (stage) de la aplicación.
@@ -276,6 +372,9 @@ public class FXUtils {
      * @return La carpeta del nuevo proyecto, o null si se cancela la operación.
      */
     public File createNewProject(Stage parentStage, ResourceBundle bundle) {
+        projectReadmeLanguage = normalizeReadmeLanguage(projectReadmeLanguage);
+        lastProjectCreationCancelled = false;
+        lastCreatedProjectTemplate = null;
         DirectoryChooser chooser = new DirectoryChooser();
         chooser.setTitle(msg(bundle, "dialog.project.new.selectFolder.title", "Selecciona carpeta para el nuevo proyecto"));
         File parent = chooser.showDialog(parentStage);
@@ -291,7 +390,10 @@ public class FXUtils {
 
                 java.util.Optional<String> result = dialog.showAndWait();
 
-                if (!result.isPresent()) return null; // Usuario canceló
+                if (!result.isPresent()) {
+                    lastProjectCreationCancelled = true;
+                    return null; // Usuario canceló
+                }
 
                 String nombre = result.get().trim();
 
@@ -316,6 +418,11 @@ public class FXUtils {
                 }
 
                 File nuevoProyecto = new File(parent, nombre);
+                ProjectCreationOptions creationOptions = askProjectTemplate(bundle);
+                if (creationOptions == null || creationOptions.template == null) {
+                    lastProjectCreationCancelled = true;
+                    return null;
+                }
 
                 if (nuevoProyecto.exists()) {
                     ButtonType overwrite = new ButtonType(msg(bundle, "dialog.project.new.action.overwrite", "Sobrescribir"), ButtonBar.ButtonData.YES);
@@ -332,7 +439,10 @@ public class FXUtils {
 
                     Optional<ButtonType> choice = alert.showAndWait();
 
-                    if (!choice.isPresent() || choice.get().getButtonData() == ButtonBar.ButtonData.CANCEL_CLOSE) return null; // Cancelado
+                    if (!choice.isPresent() || choice.get().getButtonData() == ButtonBar.ButtonData.CANCEL_CLOSE) {
+                        lastProjectCreationCancelled = true;
+                        return null; // Cancelado
+                    }
 
                     if (choice.get().getButtonData() == ButtonBar.ButtonData.OK_DONE) continue; // Reintentar
                     // Overwrite selected: attempt recursive delete
@@ -370,6 +480,7 @@ public class FXUtils {
                         Optional<ButtonType> choice2 = err.showAndWait();
 
                         if (!choice2.isPresent() || choice2.get().getButtonData() == ButtonBar.ButtonData.CANCEL_CLOSE) {
+                            lastProjectCreationCancelled = true;
                             return null;
                         }
 
@@ -379,19 +490,24 @@ public class FXUtils {
                     // En este punto, la carpeta antigua fue eliminada; intentar crear una nueva a continuación en el flujo normal
                 }
 
-                if (nuevoProyecto.mkdir()) {
+                try {
+                    createProjectFromTemplate(nuevoProyecto, creationOptions);
+                    lastCreatedProjectTemplate = creationOptions.template;
+                    lastCreateReadmeSelected = creationOptions.createReadme;
+                    lastCreateGitignoreSelected = creationOptions.createGitignore;
                     return nuevoProyecto;
-                } else {
+                } catch (IOException ex) {
                     ButtonType retry  = new ButtonType(msg(bundle, "dialog.project.new.action.retry", "Reintentar"), ButtonBar.ButtonData.OK_DONE);
                     ButtonType cancel = new ButtonType(msg(bundle, "dialog.project.new.action.cancel", "Cancelar"), ButtonBar.ButtonData.CANCEL_CLOSE);
-                    Alert alert       = new Alert     (Alert.AlertType.CONFIRMATION, 
-                                                                                                 msg(bundle, "dialog.project.new.createError.content", "No se pudo crear la carpeta del proyecto. Comprueba permisos."), 
-                                                                                                 retry, 
-                                                                                                 cancel);
+                    Alert alert       = new Alert(Alert.AlertType.CONFIRMATION,
+                        msg(bundle, "dialog.project.new.createError.content", "No se pudo crear la carpeta del proyecto. Comprueba permisos.") + ": " + ex.getMessage(),
+                        retry,
+                        cancel);
                     alert.setTitle(msg(bundle, "dialog.project.new.createError.title", "Error"));
                     alert.setHeaderText(null);
                     Optional<ButtonType> choice = alert.showAndWait();
                     if (!choice.isPresent() || choice.get().getButtonData() == ButtonBar.ButtonData.CANCEL_CLOSE) {
+                        lastProjectCreationCancelled = true;
                         return null;
                     }
                     // otro intento
@@ -399,7 +515,469 @@ public class FXUtils {
                 }
             }
         }
+        lastProjectCreationCancelled = true;
+        lastCreatedProjectTemplate = null;
         return null;
+    }
+
+    private ProjectCreationOptions askProjectTemplate(ResourceBundle bundle) {
+        java.util.LinkedHashMap<ProjectTemplate, String> labels = new java.util.LinkedHashMap<>();
+        labels.put(ProjectTemplate.EMPTY, msg(bundle, "dialog.project.new.template.option.empty", "Proyecto vacio"));
+        labels.put(ProjectTemplate.SPECTRUM, msg(bundle, "dialog.project.new.template.option.spectrum", "Spectrum - Basico"));
+        labels.put(ProjectTemplate.SPECTRUM_SCREEN, msg(bundle, "dialog.project.new.template.option.spectrumScreen", "Spectrum - Pantalla inicial"));
+        labels.put(ProjectTemplate.GAMEBOY, msg(bundle, "dialog.project.new.template.option.gameboy", "Game Boy - Basico"));
+        labels.put(ProjectTemplate.GAMEBOY_SPRITE, msg(bundle, "dialog.project.new.template.option.gameboySprite", "Game Boy - Sprite demo"));
+
+        java.util.Map<ProjectTemplate, String> descriptions = new java.util.HashMap<>();
+        descriptions.put(ProjectTemplate.EMPTY, msg(bundle, "dialog.project.new.template.description.empty", "Estructura minima en C con src/main.c sin dependencias."));
+        descriptions.put(ProjectTemplate.SPECTRUM, msg(bundle, "dialog.project.new.template.description.spectrum", "Plantilla base para Spectrum con un main en C y salida por consola."));
+        descriptions.put(ProjectTemplate.SPECTRUM_SCREEN, msg(bundle, "dialog.project.new.template.description.spectrumScreen", "Ejemplo para Spectrum con mensaje de bienvenida y pausa por teclado."));
+        descriptions.put(ProjectTemplate.GAMEBOY, msg(bundle, "dialog.project.new.template.description.gameboy", "Plantilla base de Game Boy con bucle principal y sincronizacion VBlank."));
+        descriptions.put(ProjectTemplate.GAMEBOY_SPRITE, msg(bundle, "dialog.project.new.template.description.gameboySprite", "Demo de Game Boy con sprite cargado y mostrado en pantalla."));
+
+        javafx.scene.control.Dialog<ProjectCreationOptions> dialog = new javafx.scene.control.Dialog<>();
+        dialog.setTitle(msg(bundle, "dialog.project.new.template.title", "Plantilla del proyecto"));
+        dialog.setHeaderText(msg(bundle, "dialog.project.new.template.header", "Selecciona una plantilla para el proyecto"));
+
+        ButtonType accept = new ButtonType(msg(bundle, "dialog.project.new.template.action.accept", "Aceptar"), ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().setAll(accept, ButtonType.CANCEL);
+
+        javafx.scene.control.ComboBox<ProjectTemplate> combo = new javafx.scene.control.ComboBox<>();
+        combo.getItems().addAll(labels.keySet());
+        combo.getSelectionModel().select(ProjectTemplate.SPECTRUM);
+
+        combo.setCellFactory(list -> new javafx.scene.control.ListCell<>() {
+            @Override
+            protected void updateItem(ProjectTemplate item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : labels.get(item));
+            }
+        });
+        combo.setButtonCell(new javafx.scene.control.ListCell<>() {
+            @Override
+            protected void updateItem(ProjectTemplate item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : labels.get(item));
+            }
+        });
+
+        javafx.scene.control.Label descLabel = new javafx.scene.control.Label();
+        descLabel.setWrapText(true);
+        descLabel.setMaxWidth(420);
+        descLabel.setText(descriptions.get(ProjectTemplate.SPECTRUM));
+
+        combo.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> {
+            ProjectTemplate selectedTemplate = newV != null ? newV : ProjectTemplate.SPECTRUM;
+            descLabel.setText(descriptions.getOrDefault(selectedTemplate, ""));
+        });
+
+        javafx.scene.control.Label selectorLabel = new javafx.scene.control.Label(msg(bundle, "dialog.project.new.template.label", "Plantilla:"));
+        javafx.scene.control.CheckBox readmeCheck = new javafx.scene.control.CheckBox(
+            msg(bundle, "dialog.project.new.template.option.readme", "Crear README.md")
+        );
+        readmeCheck.setSelected(lastCreateReadmeSelected);
+
+        javafx.scene.control.CheckBox gitignoreCheck = new javafx.scene.control.CheckBox(
+            msg(bundle, "dialog.project.new.template.option.gitignore", "Crear .gitignore")
+        );
+        gitignoreCheck.setSelected(lastCreateGitignoreSelected);
+
+        javafx.scene.layout.VBox content = new javafx.scene.layout.VBox(8, selectorLabel, combo, descLabel, readmeCheck, gitignoreCheck);
+        content.setPrefWidth(430);
+        dialog.getDialogPane().setContent(content);
+
+        dialog.setResultConverter(button -> {
+            if (button != accept) return null;
+            return new ProjectCreationOptions(
+                combo.getValue(),
+                readmeCheck.isSelected(),
+                gitignoreCheck.isSelected()
+            );
+        });
+
+        Optional<ProjectCreationOptions> selected = dialog.showAndWait();
+        return selected.orElse(null);
+    }
+
+    private void createProjectFromTemplate(File projectDir, ProjectCreationOptions options) throws IOException {
+        ProjectTemplate template = options != null ? options.template : ProjectTemplate.EMPTY;
+        Path projectPath = projectDir.toPath();
+        Path srcPath = projectPath.resolve("src");
+        Path mainFile = srcPath.resolve("main.c");
+
+        Files.createDirectories(srcPath);
+        Files.writeString(mainFile, getTemplateMainContent(template));
+
+        if (options != null && options.createReadme) {
+            Files.writeString(projectPath.resolve("README.md"), getReadmeContent(projectDir.getName(), template));
+        }
+
+        if (options != null && options.createGitignore) {
+            Files.writeString(projectPath.resolve(".gitignore"), getGitignoreContent(template));
+        }
+    }
+
+    private String getReadmeContent(String projectName, ProjectTemplate template) {
+        String normalizedName = projectName != null && !projectName.isBlank() ? projectName : "Nuevo Proyecto";
+
+        if (template == ProjectTemplate.GAMEBOY || template == ProjectTemplate.GAMEBOY_SPRITE) {
+            return getGameBoyReadmeContent(normalizedName, template);
+        }
+
+        if (template == ProjectTemplate.SPECTRUM || template == ProjectTemplate.SPECTRUM_SCREEN) {
+            return getSpectrumReadmeContent(normalizedName, template);
+        }
+
+        return getGenericReadmeContent(normalizedName);
+    }
+
+    private String getSpectrumReadmeContent(String projectName, ProjectTemplate template) {
+        if (isSpanishReadme()) {
+            return getSpectrumReadmeContentEs(projectName, template);
+        }
+
+        String demoNote = template == ProjectTemplate.SPECTRUM_SCREEN
+            ? "\nThis project uses the ZX Spectrum splash-screen template."
+            : "";
+
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "ZX Spectrum project created with Samaruc.",
+            demoNote,
+            "",
+            "## Structure",
+            "- Main source file: `src/main.c`",
+            "- Build output: `out/`",
+            "",
+            "## Recommended Toolchain",
+            "- z88dk (`zcc`)",
+            "",
+            "## Notes",
+            "- If you use a Makefile, try to write artifacts to `out/`.",
+            ""
+        );
+    }
+
+    private String getGameBoyReadmeContent(String projectName, ProjectTemplate template) {
+        if (isSpanishReadme()) {
+            return getGameBoyReadmeContentEs(projectName, template);
+        }
+
+        String demoNote = template == ProjectTemplate.GAMEBOY_SPRITE
+            ? "\nThis project uses the Game Boy sprite demo template."
+            : "";
+
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "Game Boy project created with Samaruc.",
+            demoNote,
+            "",
+            "## Structure",
+            "- Main source file: `src/main.c`",
+            "- Build output: `out/`",
+            "",
+            "## Recommended Toolchain",
+            "- GBDK (`lcc`)",
+            "",
+            "## Notes",
+            "- If you use a Makefile, try to write artifacts to `out/`.",
+            ""
+        );
+    }
+
+    private String getGenericReadmeContent(String projectName) {
+        if (isSpanishReadme()) {
+            return getGenericReadmeContentEs(projectName);
+        }
+
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "C project created with Samaruc.",
+            "",
+            "## Structure",
+            "- Main source file: `src/main.c`",
+            "- Recommended build output: `out/`",
+            "",
+            "## Supported Toolchains",
+            "- ZX Spectrum (z88dk)",
+            "- Game Boy (GBDK)",
+            "",
+            "## Notes",
+            "- You can switch platform from the compiler configuration.",
+            ""
+        );
+    }
+
+    private String getSpectrumReadmeContentEs(String projectName, ProjectTemplate template) {
+        String demoNote = template == ProjectTemplate.SPECTRUM_SCREEN
+            ? "\nEste proyecto usa la plantilla de pantalla inicial para ZX Spectrum."
+            : "";
+
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "Proyecto ZX Spectrum creado con Samaruc.",
+            demoNote,
+            "",
+            "## Estructura",
+            "- Archivo principal: `src/main.c`",
+            "- Salida de compilación: `out/`",
+            "",
+            "## Toolchain recomendada",
+            "- z88dk (`zcc`)",
+            "",
+            "## Notas",
+            "- Si usas Makefile, intenta generar artefactos en `out/`.",
+            ""
+        );
+    }
+
+    private String getGameBoyReadmeContentEs(String projectName, ProjectTemplate template) {
+        String demoNote = template == ProjectTemplate.GAMEBOY_SPRITE
+            ? "\nEste proyecto usa la plantilla de demo con sprite para Game Boy."
+            : "";
+
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "Proyecto Game Boy creado con Samaruc.",
+            demoNote,
+            "",
+            "## Estructura",
+            "- Archivo principal: `src/main.c`",
+            "- Salida de compilación: `out/`",
+            "",
+            "## Toolchain recomendada",
+            "- GBDK (`lcc`)",
+            "",
+            "## Notas",
+            "- Si usas Makefile, intenta generar artefactos en `out/`.",
+            ""
+        );
+    }
+
+    private String getGenericReadmeContentEs(String projectName) {
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "Proyecto C creado con Samaruc.",
+            "",
+            "## Estructura",
+            "- Archivo principal: `src/main.c`",
+            "- Salida recomendada: `out/`",
+            "",
+            "## Toolchains soportadas",
+            "- ZX Spectrum (z88dk)",
+            "- Game Boy (GBDK)",
+            "",
+            "## Notas",
+            "- Puedes cambiar la plataforma desde la configuración del compilador.",
+            ""
+        );
+    }
+
+    private boolean isSpanishReadme() {
+        return "es".equalsIgnoreCase(normalizeReadmeLanguage(projectReadmeLanguage));
+    }
+
+    private String normalizeReadmeLanguage(String language) {
+        if (language == null) return "en";
+        String normalized = language.trim().toLowerCase();
+        return "es".equals(normalized) ? "es" : "en";
+    }
+
+    private String getGitignoreContent(ProjectTemplate template) {
+        StringBuilder sb = new StringBuilder();
+        appendGitignoreBase(sb);
+
+        if (template == ProjectTemplate.GAMEBOY || template == ProjectTemplate.GAMEBOY_SPRITE) {
+            appendGameBoyGitignore(sb);
+        } else if (template == ProjectTemplate.SPECTRUM || template == ProjectTemplate.SPECTRUM_SCREEN) {
+            appendSpectrumGitignore(sb);
+        } else {
+            appendGenericPlatformGitignore(sb);
+        }
+
+        return sb.toString();
+    }
+
+    private void appendGitignoreBase(StringBuilder sb) {
+        sb.append("# Build output\n");
+        sb.append("out/\n");
+        sb.append("build/\n\n");
+        sb.append("# Generic binary artifacts\n");
+        sb.append("*.o\n");
+        sb.append("*.obj\n");
+        sb.append("*.bin\n");
+        sb.append("*.rom\n");
+        sb.append("*.ihx\n");
+        sb.append("*.map\n");
+        sb.append("*.sym\n");
+        sb.append("*.noi\n");
+        sb.append("*.lst\n");
+        sb.append("*.asm\n\n");
+    }
+
+    private void appendSpectrumGitignore(StringBuilder sb) {
+        sb.append("# ZX Spectrum outputs\n");
+        sb.append("*.tap\n");
+        sb.append("*.tzx\n");
+        sb.append("*.sna\n");
+        sb.append("*.z80\n");
+        sb.append("\n");
+    }
+
+    private void appendGameBoyGitignore(StringBuilder sb) {
+        sb.append("# Game Boy outputs\n");
+        sb.append("*.gb\n");
+        sb.append("*.gbc\n");
+        sb.append("\n");
+    }
+
+    private void appendGenericPlatformGitignore(StringBuilder sb) {
+        sb.append("# Platform-specific outputs (generic template)\n");
+        sb.append("*.tap\n");
+        sb.append("*.tzx\n");
+        sb.append("*.sna\n");
+        sb.append("*.z80\n");
+        sb.append("*.gb\n");
+        sb.append("*.gbc\n");
+        sb.append("\n");
+    }
+
+    private String getTemplateMainContent(ProjectTemplate template) {
+        if (template == ProjectTemplate.EMPTY) {
+            return String.join("\n",
+                "/* Proyecto C vacio */",
+                "",
+                "int main(void)",
+                "{",
+                "    return 0;",
+                "}",
+                ""
+            );
+        }
+
+        if (template == ProjectTemplate.GAMEBOY) {
+            return String.join("\n",
+                "#include <gb/gb.h>",
+                "",
+                "void main(void)",
+                "{",
+                "    DISPLAY_ON;",
+                "",
+                "    while (1) {",
+                "        wait_vbl_done();",
+                "    }",
+                "}",
+                ""
+            );
+        }
+
+        if (template == ProjectTemplate.GAMEBOY_SPRITE) {
+            return String.join("\n",
+                "#include <gb/gb.h>",
+                "",
+                "static const unsigned char sprite_data[] = {",
+                "    0x3C, 0x3C, 0x42, 0x42, 0xA5, 0xA5, 0x81, 0x81,",
+                "    0xA5, 0xA5, 0x99, 0x99, 0x42, 0x42, 0x3C, 0x3C",
+                "};",
+                "",
+                "void main(void)",
+                "{",
+                "    SPRITES_8x8;",
+                "    set_sprite_data(0, 1, sprite_data);",
+                "    set_sprite_tile(0, 0);",
+                "    move_sprite(0, 84, 72);",
+                "    SHOW_SPRITES;",
+                "    DISPLAY_ON;",
+                "",
+                "    while (1) {",
+                "        wait_vbl_done();",
+                "    }",
+                "}",
+                ""
+            );
+        }
+
+        if (template == ProjectTemplate.SPECTRUM_SCREEN) {
+            return String.join("\n",
+                "#include <conio.h>",
+                "",
+                "void main()",
+                "{",
+                "    unsigned char key;",
+                "    unsigned char border_color = 1;",
+                "",
+                "    textcolor(7);",
+                "    textbackground(0);",
+                "    bordercolor(1);",
+                "    clrscr();",
+                "",
+                "    gotoxy(5, 5);",
+                "    cputs(\"*** ZX SPECTRUM ***\");",
+                "",
+                "    gotoxy(6, 7);",
+                "    cputs(\"SAMARUC TEMPLATE\");",
+                "",
+                "    gotoxy(2, 10);",
+                "    cputs(\"CONTROLS:\");",
+                "",
+                "    gotoxy(2, 11);",
+                "    cputs(\"SPACE - Change border\");",
+                "",
+                "    gotoxy(2, 12);",
+                "    cputs(\"ENTER - Exit\");",
+                "",
+                "    while (1) {",
+                "        if (kbhit()) {",
+                "            key = getch();",
+                "",
+                "            if (key == ' ') {",
+                "                border_color = (border_color + 1) % 8;",
+                "                bordercolor(border_color);",
+                "            }",
+                "",
+                "            if (key == 13) {",
+                "                break;",
+                "            }",
+                "        }",
+                "    }",
+                "",
+                "    clrscr();",
+                "    textcolor(7);",
+                "    textbackground(2);",
+                "    gotoxy(10, 10);",
+                "    cputs(\"BYE!\");",
+                "    getch();",
+                "}",
+                ""
+            );
+        }
+
+        return String.join("\n",
+            "#include <conio.h>",
+            "",
+            "void main()",
+            "{",
+            "    clrscr();",
+            "    textcolor(7);",
+            "    textbackground(0);",
+            "    bordercolor(1);",
+            "",
+            "    gotoxy(6, 10);",
+            "    cputs(\"ZX SPECTRUM - BASIC\");",
+            "",
+            "    gotoxy(5, 12);",
+            "    cputs(\"Press any key...\");",
+            "",
+            "    getch();",
+            "}",
+            ""
+        );
     }
 
     /**

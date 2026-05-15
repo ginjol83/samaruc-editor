@@ -135,6 +135,7 @@ public class EmulatorLauncher {
         return new LaunchResult(proc);
     }
 
+
     /** @deprecated Usar {@link #launchEmulicious} en su lugar. */
     @Deprecated
     public static LaunchResult launchCoffeeGb(File jar, File romFile, StyleClassedTextArea console, List<String> extraArgs) throws IOException {

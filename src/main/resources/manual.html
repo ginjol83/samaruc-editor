@@ -1,604 +1,798 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Manual de Samaru C Retro Editor</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 2em 3em;
-            line-height: 1.6;
-            background: #f5f5f5;
-            color: #333;
-        }
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            background: white;
-            padding: 3em;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            border-radius: 8px;
-        }
-        h1 {
-            color: #2c3e50;
-            border-bottom: 3px solid #3498db;
-            padding-bottom: 0.5em;
-            margin-bottom: 1em;
-        }
-        h2 {
-            color: #2980b9;
-            margin-top: 2em;
-            border-left: 4px solid #3498db;
-            padding-left: 0.5em;
-        }
-        h3 {
-            color: #34495e;
-            margin-top: 1.5em;
-        }
-        nav {
-            background: #ecf0f1;
-            padding: 1em;
-            margin-bottom: 2em;
-            border-radius: 5px;
-            border-left: 4px solid #3498db;
-        }
-        nav a {
-            margin-right: 1.5em;
-            color: #2980b9;
-            text-decoration: none;
-            font-weight: 500;
-        }
-        nav a:hover {
-            text-decoration: underline;
-            color: #1abc9c;
-        }
-        .feature-list {
-            background: #f8f9fa;
-            padding: 1em 1.5em;
-            border-radius: 5px;
-            margin: 1em 0;
-        }
-        .feature-list li {
-            margin: 0.5em 0;
-        }
-        .keyboard-shortcut {
-            background: #34495e;
-            color: white;
-            padding: 0.2em 0.5em;
-            border-radius: 3px;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9em;
-        }
-        .note {
-            background: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 1em;
-            margin: 1em 0;
-            border-radius: 4px;
-        }
-        .tip {
-            background: #d1ecf1;
-            border-left: 4px solid #17a2b8;
-            padding: 1em;
-            margin: 1em 0;
-            border-radius: 4px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1em 0;
-        }
-        th, td {
-            padding: 0.8em;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-        th {
-            background: #3498db;
-            color: white;
-        }
-        tr:hover {
-            background: #f5f5f5;
-        }
-        code {
-            background: #f4f4f4;
-            padding: 0.2em 0.4em;
-            border-radius: 3px;
-            font-family: 'Courier New', monospace;
-            color: #e83e8c;
-        }
-        footer {
-            margin-top: 3em;
-            padding-top: 2em;
-            border-top: 2px solid #ecf0f1;
-            color: #7f8c8d;
-            font-size: 0.9em;
-            text-align: center;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manual de Usuario &#8211; SamaruC Retro Editor</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+      line-height: 1.7;
+      color: #222;
+      background: #fff;
+    }
+    h1 { font-size: 2rem;   border-bottom: 3px solid #1a73e8; padding-bottom: .3em; margin-top: 1.5em; }
+    h2 { font-size: 1.5rem; border-bottom: 1px solid #ccc;    padding-bottom: .2em; margin-top: 2em; color: #1a73e8; }
+    h3 { font-size: 1.2rem; margin-top: 1.5em; color: #333; }
+    h4 { font-size: 1rem;   margin-top: 1em;   color: #555; font-style: italic; }
+    p  { margin: .6em 0 .6em 0; }
+    code {
+      background: #f3f3f3;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-family: "Consolas", "Courier New", monospace;
+      font-size: .9em;
+    }
+    pre {
+      background: #f8f8f8;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 1rem;
+      overflow-x: auto;
+    }
+    pre code { background: none; border: none; padding: 0; }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1em 0;
+      font-size: .95em;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #eef2fb; font-weight: bold; }
+    tr:nth-child(even) td { background: #fafafa; }
+    caption { font-style: italic; color: #555; margin-bottom: .4em; }
+    figure {
+      text-align: center;
+      margin: 1.5em auto;
+      max-width: 100%;
+    }
+    figure img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.1);
+    }
+    figcaption {
+      font-size: .9em;
+      font-style: italic;
+      color: #666;
+      margin-top: .5em;
+    }
+    ul, ol { padding-left: 1.6em; }
+    li { margin: .3em 0; }
+    dl dt { font-weight: bold; margin-top: .6em; }
+    dl dd { margin-left: 1.8em; margin-bottom: .3em; }
+    .table-wrapper { overflow-x: auto; margin: 1em 0; }
+    .toc {
+      background: #f8fbff;
+      border: 1px solid #d7e6fb;
+      border-left: 4px solid #1a73e8;
+      border-radius: 6px;
+      padding: 1rem 1.2rem;
+      margin: 1.25rem 0 1.75rem 0;
+    }
+    .toc h2 {
+      margin-top: 0;
+      margin-bottom: .6rem;
+      border-bottom: none;
+      padding-bottom: 0;
+      font-size: 1.2rem;
+      color: #1a73e8;
+    }
+    .toc ul { margin: .35rem 0; }
+    .toc ul ul { margin-top: .25rem; }
+    .back-to-index {
+      margin-top: 1rem;
+      font-size: .95em;
+      text-align: right;
+    }
+    a { color: #1a73e8; }
+    hr { border: none; border-top: 1px solid #eee; margin: 2em 0; }
+    @media print {
+      body { max-width: 100%; padding: 0; }
+      h2 { page-break-before: always; }
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>📘 Manual de Usuario - Samaru C Retro Editor</h1>
+<h1>Manual de usuario</h1>
 
-        <nav>
-            <a href="#intro">Introducción</a>
-            <a href="#instalacion">Instalación</a>
-            <a href="#interfaz">Interfaz</a>
-            <a href="#proyectos">Proyectos</a>
-            <a href="#edicion">Edición</a>
-            <a href="#busqueda">Búsqueda</a>
-            <a href="#compilacion">Compilación</a>
-            <a href="#terminal">Terminal</a>
-            <a href="#configuracion">Configuración</a>
-            <a href="#atajos">Atajos de Teclado</a>
-            <a href="#faq">FAQ</a>
-        </nav>
+<nav id="indice" class="toc" aria-label="Tabla de contenido del manual">
+  <h2>Contenido</h2>
+  <ul>
+    <li><a href="#introduccion">Introducción</a></li>
+    <li><a href="#instalacion">Instalación</a></li>
+    <li><a href="#interfaz">Interfaz</a></li>
+    <li><a href="#gestion-proyectos">Gestión de proyectos</a></li>
+    <li><a href="#edicion-codigo">Edición de código</a></li>
+    <li><a href="#busqueda-texto">Búsqueda de texto</a></li>
+    <li><a href="#compilacion-ejecucion">Compilación y ejecución</a></li>
+    <li><a href="#terminal-consola">Terminal y consola</a></li>
+    <li>
+      <a href="#configuracion-personalizacion">Configuración y personalización</a>
+      <ul>
+        <li><a href="#config-idioma">Pestaña Idioma</a></li>
+        <li><a href="#config-compilador">Pestaña Compilador</a></li>
+        <li><a href="#config-plugins">Pestaña Plugins</a></li>
+      </ul>
+    </li>
+    <li><a href="#miscelanea">Miscelánea</a></li>
+  </ul>
+</nav>
 
-        <section id="intro">
-            <h2>🎯 Introducción</h2>
-            <p><strong>Retro Editor</strong> es un entorno de desarrollo integrado (IDE) especializado para programación en lenguaje C, diseñado con una interfaz moderna y funcional basada en JavaFX.</p>
+<h2 id="introduccion">Introducción</h2>
+<p><strong>SamaruC Retro Editor</strong> es un entorno de desarrollo integrado (IDE) especializado para programación en lenguaje C, diseñado con una interfaz moderna y funcional basada en JavaFX.</p>
 
-            <div class="feature-list">
-                <h3>Características principales:</h3>
-                <ul>
-                    <li>✅ <strong>Editor de código</strong> con resaltado de sintaxis para C/C++</li>
-                    <li>✅ <strong>Gestión de proyectos</strong> con explorador de archivos integrado</li>
-                    <li>✅ <strong>Compilación y ejecución</strong> directa desde el IDE</li>
-                    <li>✅ <strong>Terminal integrada</strong> con consola de salida y depuración</li>
-                    <li>✅ <strong>Búsqueda avanzada</strong> en archivos y proyectos completos</li>
-                    <li>✅ <strong>Pestañas múltiples</strong> para trabajar con varios archivos simultáneamente</li>
-                    <li>✅ <strong>Interfaz personalizable</strong> con temas claro y oscuro</li>
-                    <li>✅ <strong>Soporte multiidioma</strong> (Español/Inglés)</li>
-                    <li>✅ <strong>Deshacer/Rehacer</strong> con historial ilimitado</li>
-                    <li>✅ <strong>Iconos FontAwesome 5</strong> para una interfaz moderna</li>
-                </ul>
-            </div>
+<p><strong>Nota:</strong> El nombre <em>SamaruC</em> es un juego de palabras. Por una parte <em>Samaruc</em> es un pez endémico de la Comunidad Valenciana en grave peligro de extinción, referenciando la región de origen del proyecto. Por otra parte, remarca la terminación con letra mayúscula de la <code>C</code>, haciendo referencia al lenguaje de programación para el cual está optimizado este editor.</p>
 
-            <div class="note">
-                <strong>📌 Nota:</strong> Este editor está optimizado para desarrollo de aplicaciones C, especialmente orientado a proyectos retro y desarrollo para Game Boy usando GBDK.
-            </div>
-        </section>
+<h3>Características principales</h3>
+<ul>
+  <li><strong>Editor de código</strong> con resaltado de sintaxis para C/C++.</li>
+  <li><strong>Gestión de proyectos</strong> con explorador de archivos integrado.</li>
+  <li><strong>Compilación y ejecución</strong> directa desde el IDE.</li>
+  <li><strong>Terminal integrada</strong> con consola de salida y depuración.</li>
+  <li><strong>Búsqueda avanzada</strong> en archivos y proyectos completos.</li>
+  <li><strong>Pestañas múltiples</strong> para trabajar con varios archivos simultáneamente.</li>
+  <li><strong>Soporte multiidioma</strong> (Español/Inglés).</li>
+  <li><strong>Deshacer/Rehacer</strong> con historial ilimitado.</li>
+  <li><strong>Iconos FontAwesome 5</strong> para una interfaz moderna.</li>
+</ul>
 
-        <section id="instalacion">
-            <h2>⚙️ Instalación y Requisitos</h2>
+<p class="back-to-index"><a href="#indice">↑ Volver al índice</a></p>
 
-            <h3>Requisitos del Sistema</h3>
-            <ul>
-                <li><strong>Java:</strong> JDK 17 o superior</li>
-                <li><strong>Maven:</strong> 3.6 o superior (para compilar desde código fuente)</li>
-                <li><strong>Compilador C:</strong> GCC, MinGW o GBDK (según tu proyecto)</li>
-                <li><strong>Sistema Operativo:</strong> Windows, Linux o macOS</li>
-            </ul>
+<h2 id="instalacion">Instalación</h2>
+<h3>Requisitos del sistema</h3>
+<ul>
+  <li><strong>Java:</strong> JDK 17 o superior.</li>
+  <li><strong>Maven:</strong> 3.6 o superior (para compilar desde código fuente).</li>
+  <li><strong>Compilador C:</strong> GCC, Z88DK o GBDK (según tu proyecto).</li>
+  <li><strong>Sistema operativo:</strong> Windows, Linux o macOS.</li>
+</ul>
 
-            <h3>Instalación desde Código Fuente</h3>
-            <p>Para compilar y ejecutar el editor desde el código fuente:</p>
-            <ol>
-                <li>Clona o descarga el repositorio del proyecto</li>
-                <li>Abre una terminal en el directorio del proyecto</li>
-                <li>Ejecuta los siguientes comandos:
-                    <pre><code>mvn clean compile
+<h3>Instalación desde código fuente</h3>
+<p>Para compilar y ejecutar el editor desde el código fuente:</p>
+<ol>
+  <li>Clona o descarga el repositorio del proyecto.</li>
+  <li>Abre una terminal en el directorio del proyecto.</li>
+  <li>Ejecuta los siguientes comandos:</li>
+</ol>
+
+<pre><code>mvn clean compile
 mvn install
 mvn javafx:run</code></pre>
-                </li>
-            </ol>
 
-            <h3>Instalación desde Ejecutable</h3>
-            <p>Si tienes el paquete ejecutable (.exe en Windows):</p>
-            <ul>
-                <li>Extrae el archivo <code>RetroEditor-win.zip</code></li>
-                <li>Ejecuta <code>RetroEditor.exe</code></li>
-                <li>No requiere instalación de Java (incluye runtime embebido)</li>
-            </ul>
-        </section>
+<h3>Instalación desde ejecutable</h3>
+<p>Si tienes el paquete ejecutable (.exe en Windows):</p>
+<ul>
+  <li>Extrae el archivo <code>RetroEditor-win.zip</code>.</li>
+  <li>Ejecuta <code>RetroEditor.exe</code>.</li>
+  <li>No requiere instalación de Java (incluye runtime embebido).</li>
+</ul>
 
-        <section id="interfaz">
-            <h2>🖥️ Descripción de la Interfaz</h2>
+<p class="back-to-index"><a href="#indice">↑ Volver al índice</a></p>
 
-            <h3>Barra de Menús</h3>
-            <table>
-                <tr>
-                    <th>Menú</th>
-                    <th>Descripción</th>
-                </tr>
-                <tr>
-                    <td><strong>Archivo</strong></td>
-                    <td>Crear, abrir, guardar y cerrar archivos. Gestión de proyectos.</td>
-                </tr>
-                <tr>
-                    <td><strong>Edición</strong></td>
-                    <td>Deshacer, rehacer, cortar, copiar, pegar. Búsqueda en archivos.</td>
-                </tr>
-                <tr>
-                    <td><strong>Compilación</strong></td>
-                    <td>Compilar y ejecutar el proyecto actual.</td>
-                </tr>
-                <tr>
-                    <td><strong>Configuración</strong></td>
-                    <td>Ajustes de idioma, compilador y preferencias.</td>
-                </tr>
-                <tr>
-                    <td><strong>Ayuda</strong></td>
-                    <td>Acceso a este manual y acerca de.</td>
-                </tr>
-            </table>
+<h2 id="interfaz">Interfaz</h2>
+<h3>Descripción de la interfaz</h3>
 
-            <h3>Barra de Herramientas</h3>
-            <p>La barra de herramientas proporciona acceso rápido a las funciones más utilizadas:</p>
-            <ul>
-                <li>📁 <strong>Nuevo Proyecto / Abrir Proyecto:</strong> Gestión rápida de proyectos</li>
-                <li>📄 <strong>Nuevo / Abrir / Guardar / Cerrar:</strong> Operaciones con archivos</li>
-                <li>↶ <strong>Deshacer / Rehacer:</strong> Control del historial de edición</li>
-                <li>🔍 <strong>Buscar en archivo / Buscar en proyecto:</strong> Herramientas de búsqueda</li>
-                <li>✂️ <strong>Cortar / Copiar / Pegar:</strong> Edición de texto</li>
-                <li>🔨 <strong>Compilar / Ejecutar:</strong> Construcción y ejecución del código</li>
-                <li>⚙️ <strong>Configuración:</strong> Acceso a preferencias</li>
-                <li>🌓 <strong>Tema:</strong> Alternar entre tema claro y oscuro</li>
-                <li>❓ <strong>Manual:</strong> Abre este manual de usuario</li>
-            </ul>
+<h4>Barra de menús</h4>
+<p>La barra de menús se encuentra en la parte superior de la ventana, como se puede apreciar en la captura <a href="#fig:Menus">[ver figura]</a>, y contiene los siguientes menús principales:</p>
 
-            <h3>Panel del Explorador de Proyectos</h3>
-            <p>Ubicado en el lado izquierdo, muestra la estructura de directorios y archivos del proyecto actual. Permite:</p>
-            <ul>
-                <li>Navegar por la estructura de carpetas</li>
-                <li>Abrir archivos con doble clic</li>
-                <li>Ver archivos .c, .h y otros tipos</li>
-            </ul>
+<figure>
+  <a id="fig:Menus"></a>
+  <img src="../imagenes/aplicacion/Menus.png" style="max-width:378px" alt="Barra de menús de la aplicación">
+  <figcaption>Situación de los menús desplegables de la herramienta.</figcaption>
+</figure>
 
-            <h3>Área de Edición con Pestañas</h3>
-            <p>El área central donde se editan los archivos. Características:</p>
-            <ul>
-                <li>Soporte para múltiples archivos abiertos simultáneamente</li>
-                <li>Resaltado de sintaxis automático para C/C++</li>
-                <li>Numeración de líneas</li>
-                <li>Indicador de archivo modificado (*) en la pestaña</li>
-            </ul>
+<p>Funciones principales de cada menú:</p>
+<ul>
+  <li><strong>Archivo:</strong> crear, abrir, guardar y cerrar archivos.</li>
+  <li><strong>Edición:</strong> deshacer, rehacer, cortar, copiar y pegar.</li>
+  <li><strong>Compilación:</strong> compilar y ejecutar el proyecto actual.</li>
+  <li><strong>Configuración:</strong> ajustes de idioma, compilador y preferencias.</li>
+  <li><strong>Ayuda:</strong> acceso a este manual y a la información de la aplicación.</li>
+</ul>
 
-            <h3>Panel de Consola y Terminal</h3>
-            <p>Panel inferior con pestañas para:</p>
-            <ul>
-                <li><strong>Consola:</strong> Salida de compilación y ejecución</li>
-                <li><strong>Depurador:</strong> Mensajes de depuración y logs del sistema</li>
-            </ul>
+<h4>Barra de herramientas</h4>
+<p>Como se puede ver en la captura de pantalla <a href="#fig:BarraHerramientas">[ver figura]</a>, otra manera de acceder rápidamente a las funciones elementales de la herramienta es mediante la barra de herramientas con iconos representativos de cada función:</p>
 
-            <h3>Barra de Estado</h3>
-            <p>Muestra información del proyecto actual y el estado del editor.</p>
-        </section>
+<figure>
+  <a id="fig:BarraHerramientas"></a>
+  <img src="../imagenes/aplicacion/Captura_barra_herramientas.png" style="max-width:378px" alt="Barra de herramientas">
+  <figcaption>Barra de herramientas con los iconos representativos de cada función.</figcaption>
+</figure>
 
-        <section id="proyectos">
-            <h2>📂 Gestión de Proyectos</h2>
+<p>La barra de herramientas proporciona acceso rápido a las funciones más utilizadas:</p>
+<ul>
+  <li>📁 <strong>Nuevo proyecto:</strong> abre el diálogo de creación de un nuevo proyecto.</li>
+  <li>📂 <strong>Abrir proyecto:</strong> abre un proyecto o archivo existente.</li>
+  <li>📄 <strong>Nuevo:</strong> crea un archivo nuevo.</li>
+  <li>💾 <strong>Guardar:</strong> guarda el archivo actual.</li>
+  <li>✕ <strong>Cerrar:</strong> cierra el archivo actual.</li>
+  <li>↩ <strong>Deshacer:</strong> deshace la última acción realizada.</li>
+  <li>↪ <strong>Rehacer:</strong> rehace la última acción deshecha.</li>
+  <li>🔍 <strong>Buscar en archivo:</strong> herramientas de búsqueda en el archivo actual.</li>
+  <li>🔍➕ <strong>Buscar en proyecto:</strong> herramientas de búsqueda en todo el proyecto.</li>
+  <li>✂ <strong>Cortar:</strong> corta el texto seleccionado.</li>
+  <li>⎘ <strong>Copiar:</strong> copia el texto seleccionado.</li>
+  <li>📋 <strong>Pegar:</strong> pega el texto copiado o cortado.</li>
+  <li>🔨 <strong>Compilar:</strong> construcción y compilación del código fuente.</li>
+  <li>⏹ <strong>Detener:</strong> detiene la ejecución del código fuente.</li>
+  <li>▶ <strong>Ejecutar:</strong> construcción, compilación y ejecución del código fuente.</li>
+  <li>⚙ <strong>Configuración:</strong> acceso a preferencias y configuración.</li>
+  <li>❓ <strong>Ayuda - Manual:</strong> abre este manual de usuario.</li>
+</ul>
 
-            <h3>Crear un Nuevo Proyecto</h3>
-            <ol>
-                <li>Haz clic en el botón <strong>Nuevo Proyecto</strong> 📁 o usa el menú <em>Archivo → Nuevo Proyecto</em></li>
-                <li>Selecciona o crea una carpeta para el proyecto</li>
-                <li>El explorador mostrará la estructura del directorio</li>
-                <li>Comienza a crear archivos .c y .h</li>
-            </ol>
+<h4>Panel del explorador de proyectos</h4>
+<p>Ubicado en el lado izquierdo de la interfaz <a href="#fig:ExploradorProyectos">[ver figura]</a>, este panel muestra la estructura de directorios y archivos del proyecto activo.</p>
 
-            <h3>Abrir un Proyecto Existente</h3>
-            <ol>
-                <li>Haz clic en <strong>Abrir Proyecto</strong> 📂 o usa el menú <em>Archivo → Abrir Proyecto</em></li>
-                <li>Navega hasta la carpeta del proyecto</li>
-                <li>Selecciona el directorio raíz del proyecto</li>
-                <li>Todos los archivos del proyecto aparecerán en el explorador</li>
-            </ol>
+<figure>
+  <a id="fig:ExploradorProyectos"></a>
+  <img src="../imagenes/aplicacion/Area_explorador.jpg" style="max-width:264px" alt="Explorador de proyectos">
+  <figcaption>Panel del explorador de proyectos.</figcaption>
+</figure>
 
-            <div class="tip">
-                <strong>💡 Consejo:</strong> Organiza tus proyectos con subdirectorios (src/, include/, build/) para mejor estructura y mantenimiento.
-            </div>
+<p>Desde este apartado es posible navegar por la jerarquía de carpetas, así como desplegar o contraer los directorios para visualizar u ocultar su contenido. Asimismo, los archivos pueden abrirse mediante doble clic, lo que permite visualizar y editar su contenido en el área de trabajo principal.</p>
 
-            <h3>Trabajar con Archivos</h3>
-            <ul>
-                <li><strong>Crear archivo nuevo:</strong> Botón "Nuevo" o <span class="keyboard-shortcut">Ctrl+N</span></li>
-                <li><strong>Abrir archivo:</strong> Doble clic en el explorador o botón "Abrir"</li>
-                <li><strong>Guardar archivo:</strong> <span class="keyboard-shortcut">Ctrl+S</span> o botón "Guardar"</li>
-                <li><strong>Guardar como:</strong> Menú <em>Archivo → Guardar Como</em></li>
-                <li><strong>Cerrar archivo:</strong> Botón "Cerrar" o click en X de la pestaña</li>
-            </ul>
-        </section>
+<p>Al hacer clic con el botón derecho del ratón sobre esta zona, se despliega un menú contextual que ofrece opciones como la creación de un nuevo archivo o una nueva carpeta.</p>
 
-        <section id="edicion">
-            <h2>✏️ Edición de Código</h2>
+<p>Si pulsas la tecla <code>Suprimir</code> con un archivo o carpeta seleccionada, aparecerá un diálogo de confirmación que, si confirmas, eliminará el elemento seleccionado.</p>
 
-            <h3>Resaltado de Sintaxis</h3>
-            <p>El editor proporciona resaltado automático para:</p>
-            <ul>
-                <li><strong style="color: #0000ff;">Palabras clave:</strong> if, else, for, while, return, struct, etc.</li>
-                <li><strong style="color: #008000;">Comentarios:</strong> // comentarios de línea y /* bloques */</li>
-                <li><strong style="color: #a31515;">Cadenas:</strong> "texto entre comillas"</li>
-                <li><strong style="color: #098658;">Números:</strong> 123, 0xFF, 3.14</li>
-                <li><strong style="color: #795e26;">Funciones:</strong> printf, scanf, main</li>
-                <li><strong style="color: #0000ff;">Directivas:</strong> #include, #define, #ifdef</li>
-            </ul>
+<p>Además, hay un botón en la esquina superior izquierda del panel del explorador que permite refrescar la vista para mostrar los cambios realizados en el sistema de archivos, como la adición o eliminación de archivos fuera del editor.</p>
 
-            <h3>Operaciones de Edición</h3>
-            <table>
-                <tr>
-                    <th>Operación</th>
-                    <th>Atajo</th>
-                    <th>Descripción</th>
-                </tr>
-                <tr>
-                    <td>Deshacer</td>
-                    <td><span class="keyboard-shortcut">Ctrl+Z</span></td>
-                    <td>Revierte la última acción</td>
-                </tr>
-                <tr>
-                    <td>Rehacer</td>
-                    <td><span class="keyboard-shortcut">Ctrl+Y</span></td>
-                    <td>Restaura la acción deshecha</td>
-                </tr>
-                <tr>
-                    <td>Cortar</td>
-                    <td><span class="keyboard-shortcut">Ctrl+X</span></td>
-                    <td>Corta el texto seleccionado</td>
-                </tr>
-                <tr>
-                    <td>Copiar</td>
-                    <td><span class="keyboard-shortcut">Ctrl+C</span></td>
-                    <td>Copia el texto seleccionado</td>
-                </tr>
-                <tr>
-                    <td>Pegar</td>
-                    <td><span class="keyboard-shortcut">Ctrl+V</span></td>
-                    <td>Pega desde el portapapeles</td>
-                </tr>
-                <tr>
-                    <td>Seleccionar todo</td>
-                    <td><span class="keyboard-shortcut">Ctrl+A</span></td>
-                    <td>Selecciona todo el texto</td>
-                </tr>
-            </table>
+<h4>Área de edición con pestañas</h4>
+<p>El área central, donde se editan los archivos, puede verse en la captura <a href="#fig:AreaEdicion">[ver figura]</a>. Entre sus características destacan:</p>
 
-            <h3>Características Avanzadas</h3>
-            <ul>
-                <li><strong>Numeración de líneas:</strong> Siempre visible para referencia</li>
-                <li><strong>Múltiples pestañas:</strong> Trabaja con varios archivos simultáneamente</li>
-                <li><strong>Detección de cambios:</strong> Asterisco (*) indica archivos modificados no guardados</li>
-                <li><strong>Historial ilimitado:</strong> Deshacer/Rehacer sin límites</li>
-            </ul>
-        </section>
+<figure>
+  <a id="fig:AreaEdicion"></a>
+  <img src="../imagenes/aplicacion/CapturaZonaEdicion.png" style="max-width:378px" alt="Área de edición con pestañas">
+  <figcaption>Área de edición con pestañas.</figcaption>
+</figure>
 
-        <section id="busqueda">
-            <h2>🔍 Búsqueda de Texto</h2>
+<ul>
+  <li>Soporte para múltiples archivos abiertos simultáneamente.</li>
+  <li>Resaltado de sintaxis automático para C/C++.</li>
+  <li>Numeración de líneas.</li>
+  <li>Indicador de archivo modificado (*) en la pestaña.</li>
+</ul>
 
-            <h3>Buscar en Archivo Actual</h3>
-            <ul>
-                <li>Presiona <span class="keyboard-shortcut">Ctrl+F</span> o haz clic en el botón de búsqueda 🔍</li>
-                <li>Se abre un panel de búsqueda en la parte superior del editor</li>
-                <li>Escribe el término a buscar</li>
-                <li>Navega entre resultados con los botones Anterior/Siguiente</li>
-                <li>Opción de reemplazo de texto disponible</li>
-            </ul>
+<h4>Panel de consola y monitor + barra de estado</h4>
+<figure>
+  <a id="fig:PanelConsola"></a>
+  <img src="../imagenes/aplicacion/ConsolaCaptura.jpg" style="max-width:604px" alt="Panel de consola y monitor">
+  <figcaption>Panel de consola y monitor.</figcaption>
+</figure>
 
-            <h3>Buscar en Todo el Proyecto</h3>
-            <ul>
-                <li>Presiona <span class="keyboard-shortcut">Ctrl+H</span> o usa el botón 🔍+ en la barra de herramientas</li>
-                <li>Busca en todos los archivos del proyecto</li>
-                <li>Los resultados muestran archivo, línea y contexto</li>
-                <li>Haz doble clic en un resultado para abrir el archivo en esa ubicación</li>
-            </ul>
+<figure>
+  <a id="fig:BarraEstado"></a>
+  <img src="../imagenes/aplicacion/BarraEstadoCaptura.jpg" style="max-width:604px" alt="Barra de estado">
+  <figcaption>Barra de estado.</figcaption>
+</figure>
 
-            <div class="tip">
-                <strong>💡 Consejo:</strong> Usa la búsqueda en proyecto para encontrar definiciones de funciones, referencias a variables o identificar dónde se usa una función específica.
-            </div>
-        </section>
+<p>Este panel se divide en dos pestañas principales: <strong>Consola</strong> y <strong>Monitor</strong>, mostrados en las capturas <a href="#fig:PanelConsola">[ver figura]</a> y <a href="#fig:BarraEstado">[ver figura]</a> respectivamente. Además, en la parte inferior de la ventana se encuentra la barra de estado que muestra el estado actual del editor.</p>
 
-        <section id="compilacion">
-            <h2>🔨 Compilación y Ejecución</h2>
+<p class="back-to-index"><a href="#indice">↑ Volver al índice</a></p>
 
-            <h3>Compilar el Proyecto</h3>
-            <ol>
-                <li>Asegúrate de tener un proyecto abierto con archivos .c</li>
-                <li>Haz clic en el botón <strong>Compilar</strong> 🔨 o usa el menú <em>Compilación → Compilar</em></li>
-                <li>La salida de compilación aparece en la consola inferior</li>
-                <li>Los errores y warnings se muestran con detalles de línea y archivo</li>
-            </ol>
+<h2 id="gestion-proyectos">Gestión de proyectos</h2>
+<p>En esta sección se describen las herramientas para crear, abrir y organizar proyectos de programación en SamaruC Retro Editor <a href="#fig:CrearNuevoProyecto">[ver figura]</a>.</p>
 
-            <h3>Ejecutar el Programa</h3>
-            <ol>
-                <li>Después de compilar exitosamente, haz clic en <strong>Ejecutar</strong> ▶️</li>
-                <li>El programa se ejecuta y la salida aparece en la consola</li>
-                <li>La entrada interactiva también está disponible en la consola</li>
-            </ol>
+<p>SamaruC Retro Editor utiliza una estructura de proyecto basada en directorios, donde cada proyecto corresponde a una carpeta que contiene los archivos fuente (<code>.c</code>), encabezados (<code>.h</code>) y otros recursos relacionados. El panel del explorador de proyectos permite gestionar esta estructura de manera visual e intuitiva.</p>
 
-            <h3>Configurar el Compilador</h3>
-            <p>El editor soporta diferentes compiladores C:</p>
-            <ul>
-                <li><strong>GCC:</strong> Compilador GNU para C/C++</li>
-                <li><strong>MinGW:</strong> GCC para Windows</li>
-                <li><strong>GBDK:</strong> Game Boy Development Kit</li>
-            </ul>
-            <p>Configura la ruta del compilador en <em>Configuración → Compilador</em></p>
+<h3>Crear un nuevo proyecto</h3>
+<figure>
+  <a id="fig:CrearNuevoProyecto"></a>
+  <img src="../imagenes/manual/Captura_manual_nuevo_proyecto.jpg" style="max-width:453px" alt="Crear nuevo proyecto">
+  <figcaption>Crear un nuevo proyecto.</figcaption>
+</figure>
 
-            <div class="note">
-                <strong>📌 Nota:</strong> Asegúrate de que el compilador esté en el PATH del sistema o configura la ruta completa en las preferencias.
-            </div>
-        </section>
+<ol>
+  <li>Haz clic en el botón <strong>Nuevo proyecto</strong> o usa el menú <em>Archivo → Nuevo proyecto</em>.</li>
+  <li>Selecciona o crea una carpeta para el proyecto.</li>
+  <li>El explorador mostrará la estructura del directorio.</li>
+  <li>Comienza a crear archivos <code>.c</code> y <code>.h</code>.</li>
+</ol>
 
-        <section id="terminal">
-            <h2>💻 Terminal y Consola</h2>
+<h3>Abrir un proyecto existente</h3>
+<p>A continuación se muestra el proceso para abrir un proyecto existente en SamaruC Retro Editor, como se puede apreciar en la captura de pantalla <a href="#fig:AbrirProyectoExistente">[ver figura]</a>.</p>
 
-            <h3>Consola de Salida</h3>
-            <p>Muestra:</p>
-            <ul>
-                <li>Salida del compilador (gcc, make, etc.)</li>
-                <li>Mensajes de error y warnings</li>
-                <li>Salida del programa (stdout)</li>
-                <li>Entrada interactiva (stdin)</li>
-            </ul>
+<figure>
+  <a id="fig:AbrirProyectoExistente"></a>
+  <img src="../imagenes/manual/Captura_manual_abrir_proyecto.jpg" style="max-width:453px" alt="Abrir proyecto existente">
+  <figcaption>Abrir un proyecto existente.</figcaption>
+</figure>
 
-            <h3>Consola de Depuración</h3>
-            <p>Registra:</p>
-            <ul>
-                <li>Mensajes de log del sistema</li>
-                <li>Información de depuración del IDE</li>
-                <li>Errores internos y diagnósticos</li>
-            </ul>
+<ol>
+  <li>Haz clic en <strong>Abrir proyecto</strong> o usa el menú <em>Archivo → Abrir proyecto</em>.</li>
+  <li>Navega hasta la carpeta del proyecto.</li>
+  <li>Selecciona el directorio raíz del proyecto.</li>
+  <li>Todos los archivos del proyecto aparecerán en el explorador.</li>
+</ol>
 
-            <h3>Limpiar la Consola</h3>
-            <p>Usa el botón de limpiar en el panel de consola para borrar la salida anterior y tener una vista limpia.</p>
-        </section>
+<p><strong>Consejo:</strong> Organiza tus proyectos con subdirectorios (<code>src/</code>, <code>include/</code>, <code>build/</code>) para mejorar la estructura y el mantenimiento.</p>
 
-        <section id="configuracion">
-            <h2>⚙️ Configuración y Personalización</h2>
+<h3>Trabajar con archivos</h3>
+<p>SamaruC Retro Editor permite crear, abrir, guardar y cerrar archivos de manera sencilla desde el menú de archivos o la barra de herramientas.</p>
+<ul>
+  <li><strong>Crear archivo nuevo:</strong> botón &laquo;Nuevo&raquo; o <code>Ctrl+N</code>.</li>
+  <li><strong>Abrir archivo:</strong> doble clic en el explorador o botón &laquo;Abrir&raquo;.</li>
+  <li><strong>Guardar archivo:</strong> <code>Ctrl+S</code> o botón &laquo;Guardar&raquo;.</li>
+  <li><strong>Guardar como:</strong> menú <em>Archivo → Guardar como</em>.</li>
+  <li><strong>Cerrar archivo:</strong> botón &laquo;Cerrar&raquo; o clic en la X de la pestaña.</li>
+</ul>
 
-            <h3>Configuración de Idioma</h3>
-            <ol>
-                <li>Abre <em>Configuración → Preferencias</em> o haz clic en el botón ⚙️</li>
-                <li>Ve a la pestaña <strong>Idioma</strong></li>
-                <li>Selecciona entre Español o Inglés</li>
-                <li>Haz clic en <strong>Guardar</strong></li>
-                <li>La interfaz se actualiza automáticamente</li>
-            </ol>
+<p class="back-to-index"><a href="#indice">↑ Volver al índice</a></p>
 
-            <h3>Configuración del Compilador</h3>
-            <ol>
-                <li>Abre las preferencias (⚙️)</li>
-                <li>Ve a la pestaña <strong>Compilador</strong></li>
-                <li>Especifica la ruta completa al ejecutable del compilador</li>
-                <li>Ejemplo: <code>C:\MinGW\bin\gcc.exe</code> o <code>/usr/bin/gcc</code></li>
-                <li>Guarda los cambios</li>
-            </ol>
+<h2 id="edicion-codigo">Edición de código</h2>
+<p>En esta sección se describen las herramientas y características disponibles para la edición de código fuente en SamaruC Retro Editor, incluyendo el resaltado de sintaxis, operaciones de edición y características avanzadas del editor.</p>
 
-            <h3>Temas Visuales</h3>
-            <p>El editor incluye dos temas:</p>
-            <ul>
-                <li><strong>Tema Claro:</strong> Fondo blanco, ideal para ambientes iluminados</li>
-                <li><strong>Tema Oscuro:</strong> Fondo oscuro, reduce fatiga visual en ambientes con poca luz</li>
-            </ul>
-            <p>Alterna entre temas usando el botón 🌓 en la barra de herramientas.</p>
+<h3>Resaltado de sintaxis</h3>
+<p>El editor de texto integrado en SamaruC Retro Editor utiliza la biblioteca RichTextFX para proporcionar resaltado de sintaxis automático para el lenguaje C. Esto facilita la lectura y escritura de código al diferenciar visualmente los distintos elementos del lenguaje, como se puede ver en la captura de pantalla <a href="#fig:ResaltadoSintaxis">[ver figura]</a>.</p>
 
-            <h3>Archivo de Configuración</h3>
-            <p>Las preferencias se guardan en: <code>~/.retroeditor.properties</code></p>
-            <p>Puedes editar manualmente este archivo si es necesario.</p>
-        </section>
+<figure>
+  <a id="fig:ResaltadoSintaxis"></a>
+  <img src="../imagenes/manual/Captura_manual_ejemplo_resaltado_sintaxis.jpg" style="max-width:302px" alt="Resaltado de sintaxis">
+  <figcaption>Resaltado de sintaxis en el editor de código.</figcaption>
+</figure>
 
-        <section id="atajos">
-            <h2>⌨️ Atajos de Teclado</h2>
+<p>El editor proporciona resaltado automático para las siguientes categorías de elementos de código:</p>
+<ul>
+  <li><span style="color:blue"><strong>Palabras clave:</strong></span> <code>if</code>, <code>else</code>, <code>for</code>, <code>while</code>, <code>return</code>, <code>struct</code>, etc.</li>
+  <li><span style="color:green"><strong>Comentarios:</strong></span> comentarios de línea y bloques.</li>
+  <li><span style="color:red"><strong>Cadenas:</strong></span> texto entre comillas.</li>
+  <li><span style="color:teal"><strong>Números:</strong></span> <code>123</code>, <code>0xFF</code>, <code>3.14</code>.</li>
+  <li><span style="color:brown"><strong>Funciones:</strong></span> <code>printf</code>, <code>scanf</code>, <code>main</code>.</li>
+  <li><span style="color:blue"><strong>Directivas:</strong></span> <code>#include</code>, <code>#define</code>, <code>#ifdef</code>.</li>
+</ul>
 
-            <table>
-                <tr>
-                    <th>Atajo</th>
-                    <th>Acción</th>
-                </tr>
-                <tr>
-                    <td><span class="keyboard-shortcut">Ctrl+N</span></td>
-                    <td>Nuevo archivo</td>
-                </tr>
-                <tr>
-                    <td><span class="keyboard-shortcut">Ctrl+O</span></td>
-                    <td>Abrir archivo</td>
-                </tr>
-                <tr>
-                    <td><span class="keyboard-shortcut">Ctrl+S</span></td>
-                    <td>Guardar archivo</td>
-                </tr>
-                <tr>
-                    <td><span class="keyboard-shortcut">Ctrl+W</span></td>
-                    <td>Cerrar archivo actual</td>
-                </tr>
-                <tr>
-                    <td><span class="keyboard-shortcut">Ctrl+Z</span></td>
-                    <td>Deshacer</td>
-                </tr>
-                <tr>
-                    <td><span class="keyboard-shortcut">Ctrl+Y</span></td>
-                    <td>Rehacer</td>
-                </tr>
-                <tr>
-                    <td><span class="keyboard-shortcut">Ctrl+X</span></td>
-                    <td>Cortar</td>
-                </tr>
-                <tr>
-                    <td><span class="keyboard-shortcut">Ctrl+C</span></td>
-                    <td>Copiar</td>
-                </tr>
-                <tr>
-                    <td><span class="keyboard-shortcut">Ctrl+V</span></td>
-                    <td>Pegar</td>
-                </tr>
-                <tr>
-                    <td><span class="keyboard-shortcut">Ctrl+A</span></td>
-                    <td>Seleccionar todo</td>
-                </tr>
-                <tr>
-                    <td><span class="keyboard-shortcut">Ctrl+F</span></td>
-                    <td>Buscar en archivo actual</td>
-                </tr>
-                <tr>
-                    <td><span class="keyboard-shortcut">Ctrl+H</span></td>
-                    <td>Buscar en proyecto completo</td>
-                </tr>
-                <tr>
-                    <td><span class="keyboard-shortcut">F5</span></td>
-                    <td>Compilar proyecto</td>
-                </tr>
-                <tr>
-                    <td><span class="keyboard-shortcut">F6</span></td>
-                    <td>Ejecutar programa</td>
-                </tr>
-            </table>
-        </section>
+<h3>Operaciones de edición</h3>
+<p>En la siguiente tabla <a href="#tab:atajos_teclado">[ver figura]</a> se resumen las operaciones de edición más comunes y sus atajos de teclado correspondientes para mejorar la eficiencia al escribir código:</p>
 
-        <section id="faq">
-            <h2>❓ Preguntas Frecuentes (FAQ)</h2>
+<div class="table-wrapper">
+  <table>
+    <tr><th><strong>Operación</strong></th><th><strong>Atajo</strong></th><th><strong>Descripción</strong></th></tr>
+    <tr><td>Deshacer</td><td><code>Ctrl+Z</code></td><td>Revierte la última acción.</td></tr>
+    <tr><td>Rehacer</td><td><code>Ctrl+Y</code></td><td>Restaura la acción deshecha.</td></tr>
+    <tr><td>Cortar</td><td><code>Ctrl+X</code></td><td>Corta el texto seleccionado.</td></tr>
+    <tr><td>Copiar</td><td><code>Ctrl+C</code></td><td>Copia el texto seleccionado.</td></tr>
+    <tr><td>Pegar</td><td><code>Ctrl+V</code></td><td>Pega desde el portapapeles.</td></tr>
+    <tr><td>Seleccionar todo</td><td><code>Ctrl+A</code></td><td>Selecciona todo el texto.</td></tr>
+  </table>
+</div>
+<a id="tab:atajos_teclado"></a>
 
-            <h3>¿Cómo cambio el compilador que usa el editor?</h3>
-            <p>Ve a <em>Configuración → Preferencias → Compilador</em> e introduce la ruta completa al ejecutable de tu compilador preferido.</p>
+<h3>Características avanzadas</h3>
+<p>SamaruC Retro Editor incluye varias características avanzadas para mejorar la experiencia de edición de código y la productividad del programador:</p>
+<ul>
+  <li><strong>Numeración de líneas:</strong> siempre visible para referencia.</li>
+  <li><strong>Múltiples pestañas:</strong> trabaja con varios archivos simultáneamente.</li>
+  <li><strong>Detección de cambios:</strong> un asterisco (*) indica archivos modificados no guardados.</li>
+  <li><strong>Historial ilimitado:</strong> deshacer/rehacer sin límites.</li>
+</ul>
 
-            <h3>¿Puedo usar el editor para C++ además de C?</h3>
-            <p>Sí, el resaltado de sintaxis soporta tanto C como C++. Asegúrate de configurar el compilador apropiado (g++ para C++).</p>
+<p class="back-to-index"><a href="#indice">↑ Volver al índice</a></p>
 
-            <h3>¿Dónde se guardan mis configuraciones?</h3>
-            <p>En el archivo <code>.retroeditor.properties</code> en tu directorio home (~/ en Linux/Mac, %USERPROFILE% en Windows).</p>
+<h2 id="busqueda-texto">Búsqueda de texto</h2>
+<p>SamaruC Retro Editor ofrece herramientas de búsqueda para localizar texto dentro de un archivo o en todo el proyecto. Estas funciones son esenciales para navegar rápidamente por el código, encontrar definiciones de funciones, referencias a variables o cualquier término específico.</p>
 
-            <h3>No veo la salida de mi programa en la consola</h3>
-            <p>Asegúrate de que el programa se ha compilado sin errores. Verifica también que estés mirando la pestaña correcta (Consola vs Depurador).</p>
+<h3>Buscar en archivo actual</h3>
+<p>Cuando deseas buscar un término dentro del archivo que estás editando, puedes utilizar la función de búsqueda integrada de la siguiente manera:</p>
+<ul>
+  <li>Presiona <code>Ctrl+F</code> o haz clic en el botón de búsqueda.</li>
+  <li>Se abre un panel de búsqueda en la parte superior del editor.</li>
+  <li>Escribe el término a buscar.</li>
+  <li>Navega entre resultados con los botones anterior/siguiente.</li>
+</ul>
 
-            <h3>¿Cómo puedo depurar mi código?</h3>
-            <p>Actualmente el editor muestra la salida de compilación. Para depuración interactiva, puedes usar printf() en tu código o usar herramientas externas como gdb.</p>
+<h3>Buscar en todo el proyecto</h3>
+<p>Si necesitas encontrar un término en todos los archivos de tu proyecto, la función de búsqueda en proyecto te permite hacerlo de manera eficiente, como se detalla en las capturas de pantalla <a href="#fig:BuscarEnProyecto">[ver figura]</a> y <a href="#fig:ResultadosBusquedaProyecto">[ver figura]</a>.</p>
 
-            <h3>¿El editor soporta plugins?</h3>
-            <p>El editor tiene una arquitectura de plugins. Puedes colocar archivos JAR de plugins en la carpeta <code>plugins/</code> junto al ejecutable.</p>
+<figure>
+  <a id="fig:BuscarEnProyecto"></a>
+  <img src="../imagenes/manual/Captura_manual_buscar_en_proyecto.jpg" style="max-width:302px" alt="Buscar en proyecto">
+  <figcaption>Búsqueda en proyecto actual.</figcaption>
+</figure>
 
-            <h3>¿Cómo contribuyo al proyecto?</h3>
-            <p>Este es un proyecto de código abierto. Puedes revisar el código fuente, reportar bugs o contribuir con mejoras a través del repositorio del proyecto.</p>
+<ul>
+  <li>Presiona <code>Ctrl+H</code> o usa el botón <strong>Buscar en proyecto</strong> en la barra de herramientas.</li>
+  <li>Busca en todos los archivos del proyecto.</li>
+  <li>Los resultados muestran archivo, línea y contexto.</li>
+  <li>Haz doble clic en un resultado para abrir el archivo en esa ubicación.</li>
+</ul>
 
-            <h3>¿Qué versión de Java necesito?</h3>
-            <p>Java 17 o superior es necesario para ejecutar el editor desde código fuente. La versión empaquetada incluye su propio runtime.</p>
-        </section>
+<figure>
+  <a id="fig:ResultadosBusquedaProyecto"></a>
+  <img src="../imagenes/manual/Captura_manual_buscar_en_proyecto_resultados.jpg" style="max-width:226px" alt="Resultados de búsqueda en proyecto">
+  <figcaption>Resultados de búsqueda en proyecto.</figcaption>
+</figure>
 
-        <section id="about">
-            <h2>ℹ️ Acerca de</h2>
-            <p><strong>Samaru C Retro Editor</strong> versión 1.0</p>
-            <p>Un IDE moderno para desarrollo en C con enfoque en proyectos retro y Game Boy.</p>
+<p><strong>Consejo:</strong> Usa la búsqueda en proyecto para encontrar definiciones de funciones, referencias a variables o identificar dónde se usa una función específica.</p>
 
-            <h3>Tecnologías utilizadas:</h3>
-            <ul>
-                <li><strong>JavaFX 17:</strong> Framework de interfaz de usuario</li>
-                <li><strong>RichTextFX:</strong> Editor de texto con resaltado de sintaxis</li>
-                <li><strong>Ikonli FontAwesome 5:</strong> Iconos de interfaz</li>
-                <li><strong>SQLite JDBC:</strong> Persistencia de datos</li>
-                <li><strong>Maven:</strong> Gestión de dependencias y construcción</li>
-            </ul>
+<p class="back-to-index"><a href="#indice">↑ Volver al índice</a></p>
 
-            <h3>Requisitos del Sistema:</h3>
-            <ul>
-                <li>Java 17+</li>
-                <li>4 GB RAM mínimo (8 GB recomendado)</li>
-                <li>200 MB espacio en disco</li>
-                <li>Compilador C (GCC, MinGW, GBDK, etc.)</li>
-            </ul>
-        </section>
+<h2 id="compilacion-ejecucion">Compilación y ejecución</h2>
+<h3>Compilar el proyecto</h3>
+<p>Una vez abierto un proyecto, el entorno permite compilar automáticamente todos los archivos fuente utilizando la toolchain configurada. Durante este proceso, el sistema analiza el código, genera los binarios correspondientes y muestra información detallada sobre posibles errores o advertencias detectadas.</p>
 
-        <footer>
-            <p><strong>Desarrollado por Andres Gimenez © 2025</strong></p>
-            <p>Para soporte, reportes de bugs o sugerencias, contacta al desarrollador.</p>
-            <p style="margin-top: 1em; font-size: 0.8em;">Manual versión 2.0 - Actualizado 2026</p>
-        </footer>
-    </div>
+<ol>
+  <li>Asegúrate de tener un proyecto abierto con archivos <code>.c</code>.</li>
+  <li>Haz clic en el botón <strong>Compilar</strong> o usa el menú <em>Compilación → Compilar</em>.</li>
+  <li>La salida de compilación aparece en la consola inferior.</li>
+  <li>Los errores y advertencias se muestran con detalles de línea y archivo.</li>
+</ol>
+
+<h3>Ejecutar el programa</h3>
+<p>Tras completar la compilación correctamente, la aplicación permite ejecutar el programa directamente desde el entorno de desarrollo. La salida estándar y la interacción con el usuario se realizan mediante la consola integrada, facilitando las pruebas rápidas durante el desarrollo.</p>
+
+<ol>
+  <li>Después de compilar exitosamente, haz clic en el botón <strong>Ejecutar</strong> o usa el menú <em>Ejecución → Ejecutar</em>.</li>
+  <li>El programa se ejecuta y la salida aparece en la consola.</li>
+  <li>La entrada interactiva también está disponible en la consola.</li>
+</ol>
+
+<p><strong>Nota:</strong> Es recomendable asegurarse de que el compilador se encuentre disponible en el PATH del sistema operativo. En caso contrario, la ruta completa al ejecutable puede configurarse manualmente desde las preferencias de la aplicación.</p>
+
+<p class="back-to-index"><a href="#indice">↑ Volver al índice</a></p>
+
+<h2 id="terminal-consola">Terminal y consola</h2>
+<h3>Consola de salida</h3>
+<p>La consola de salida centraliza toda la información relacionada con el proceso de compilación y ejecución del proyecto. Este panel permite al usuario supervisar el comportamiento del programa y detectar errores de forma rápida durante el desarrollo.</p>
+<p>Muestra:</p>
+<ul>
+  <li>Salida del compilador (<code>gcc</code>, <code>make</code>, etc.).</li>
+  <li>Mensajes de error y advertencias.</li>
+  <li>Salida del programa (<code>stdout</code>).</li>
+  <li>Entrada interactiva (<code>stdin</code>).</li>
+</ul>
+
+<h3>Consola de depuración</h3>
+<p>Además de la consola principal, el entorno incorpora una consola de depuración orientada al diagnóstico interno del IDE. Esta herramienta resulta útil para identificar problemas técnicos y analizar el comportamiento interno de la aplicación durante el desarrollo y las pruebas.</p>
+<p>Registra:</p>
+<ul>
+  <li>Mensajes de log del sistema.</li>
+  <li>Información de depuración del IDE.</li>
+  <li>Errores internos y diagnósticos.</li>
+</ul>
+
+<h3>Limpiar la consola</h3>
+<p>Con el objetivo de mantener una visualización más clara de la información, el entorno permite limpiar el contenido de la consola en cualquier momento. Esta función resulta especialmente útil tras varias ejecuciones consecutivas del programa.</p>
+<p>Usa el botón de limpiar en el panel de consola para borrar la salida anterior y tener una vista limpia.</p>
+
+<p class="back-to-index"><a href="#indice">↑ Volver al índice</a></p>
+
+<h2 id="configuracion-personalizacion">Configuración y personalización</h2>
+<h3>Cómo abrir el diálogo de configuración</h3>
+<p>La ventana de configuración centraliza las principales opciones de personalización y compilación del entorno. Puede abrirse en cualquier momento mediante el menú principal o desde la barra de herramientas.</p>
+<p>Puedes acceder a ella de dos formas:</p>
+<ol>
+  <li>Desde el menú principal: <strong>Archivo → Configuración</strong>.</li>
+  <li>Desde la barra de herramientas: botón de <strong>Configuración</strong>.</li>
+</ol>
+
+<p>Podemos ver en la captura de pantalla <a href="#fig:ConfigCompilador">[ver figura]</a> la ventana de configuración con la pestaña de compilador activa:</p>
+<figure>
+  <a id="fig:ConfigCompilador"></a>
+  <img src="../imagenes/manual/Captura_config.jpg" style="max-width:378px" alt="Ventana de configuración">
+  <figcaption>Ventana de configuración con la pestaña de compilador activa.</figcaption>
+</figure>
+
+<p>Al abrirse la ventana se muestran tres pestañas principales:</p>
+<ul>
+  <li><strong>Idioma</strong></li>
+  <li><strong>Compilador</strong></li>
+  <li><strong>Plugins</strong></li>
+</ul>
+
+<p>En la parte inferior aparece el botón <strong>Cerrar</strong>. Además, la pestaña de compilador incorpora una zona de mensajes donde Samaruc muestra errores de validación y avisos relacionados con la configuración actual.</p>
+
+<h3 id="config-idioma">Pestaña <code>Idioma</code></h3>
+<p>La pestaña <strong>Idioma</strong> agrupa las opciones relacionadas con la localización de la aplicación y la generación automática de documentación inicial para nuevos proyectos.</p>
+
+<h4>Qué puedes cambiar</h4>
+<p>Dentro de esta sección se muestran dos listas desplegables principales:</p>
+<ul>
+  <li><strong>Idioma de la interfaz:</strong> cambia el idioma visible en menús, botones y textos de la aplicación.</li>
+  <li><strong>Idioma del README para proyectos nuevos:</strong> define en qué idioma se generará el <code>README.md</code> al crear un proyecto nuevo desde Samaruc.</li>
+</ul>
+
+<p>Los valores disponibles actualmente son <strong>Español</strong> y <strong>English</strong>.</p>
+
+<h3 id="config-compilador">Pestaña <code>Compilador</code></h3>
+<p>La pestaña está organizada en tres bloques:</p>
+<ol>
+  <li>un selector superior con el compilador o flujo activo,</li>
+  <li>un conjunto de subpestañas con opciones específicas,</li>
+  <li>una zona inferior con preferencias de detección automática de perfil y el botón <strong>Guardar configuración</strong>.</li>
+</ol>
+
+<h4>Selector principal de compilador</h4>
+<p>En la parte superior de la pestaña aparece una lista desplegable con cuatro opciones:</p>
+<ul>
+  <li><strong>GBDK</strong></li>
+  <li><strong>Z88DK - Spectrum</strong></li>
+  <li><strong>Z88DK - Amstrad CPC</strong></li>
+  <li><strong>Makefile</strong></li>
+</ul>
+
+<p>Este selector no solo cambia la subpestaña visible. También actualiza internamente el perfil activo que Samaruc utilizará para construir el proyecto.</p>
+
+<h4>Qué implica cada opción</h4>
+<dl>
+  <dt>GBDK</dt><dd>Perfil orientado a proyectos de <strong>Game Boy</strong>. Al seleccionarlo, Samaruc considera este flujo como el principal y asocia internamente la ejecución con el emulador usado para Game Boy.</dd>
+  <dt>Z88DK - Spectrum</dt><dd>Perfil orientado a <strong>ZX Spectrum</strong>. Activa el modo <code>z88dk</code> con perfil <code>spectrum</code>.</dd>
+  <dt>Z88DK - Amstrad CPC</dt><dd>Perfil orientado a <strong>Amstrad CPC</strong>. Activa el modo <code>z88dk</code> con perfil <code>cpc</code>.</dd>
+  <dt>Makefile</dt><dd>Perfil genérico para proyectos que ya tienen su propia automatización de construcción.</dd>
+</dl>
+
+<p>Cambiar el selector superior puede persistir inmediatamente la selección del perfil. Aun así, si has modificado rutas o campos de texto, conviene terminar siempre pulsando <strong>Guardar configuración</strong>.</p>
+
+<h4>Cómo guarda Samaruc la configuración</h4>
+<p>Desde el punto de vista del usuario, hay dos formas de guardado dentro de esta pestaña:</p>
+<ul>
+  <li><strong>guardado inmediato en controles concretos:</strong> algunos desplegables, casillas y botones secundarios guardan al interactuar con ellos.</li>
+  <li><strong>guardado global:</strong> el botón <strong>Guardar configuración</strong> valida el conjunto y deja persistido el perfil activo.</li>
+</ul>
+
+<p>En la práctica, esto significa que puedes ver cambios que ya quedan almacenados incluso antes de pulsar el botón principal. Sin embargo, para evitar inconsistencias, la mejor rutina es:</p>
+<ol>
+  <li>elegir el perfil,</li>
+  <li>completar rutas y opciones,</li>
+  <li>revisar mensajes de error si aparecen,</li>
+  <li>pulsar <strong>Guardar configuración</strong> al final.</li>
+</ol>
+
+<h3>Subpestaña <code>GBDK</code></h3>
+<p>Esta subpestaña reúne la configuración específica para proyectos de Game Boy compilados con <code>GBDK</code>.</p>
+
+<h4>Ruta de binarios</h4>
+<p>Los primeros controles permiten indicar dónde está la carpeta <code>bin</code> de la toolchain. Si <strong>GBDK</strong> es el compilador activo, la ruta debe existir realmente. Si el campo está vacío o apunta a una carpeta inexistente, Samaruc no permitirá guardar la configuración completa.</p>
+
+<h4>Nivel de optimización</h4>
+<p>El campo <strong>Nivel de optimización</strong> ofrece estos valores admitidos:</p>
+<dl>
+  <dt><code>none</code></dt><dd>Sin optimización adicional. Puede ser útil al depurar o cuando quieres un comportamiento más predecible.</dd>
+  <dt><code>-O1</code></dt><dd>Optimización ligera. Buen punto de partida si buscas pocos cambios agresivos.</dd>
+  <dt><code>-O2</code></dt><dd>Nivel intermedio y normalmente razonable para uso general.</dd>
+  <dt><code>-O3</code></dt><dd>Optimización más intensa. Puede interesarte cuando priorizas rendimiento y ya has validado el proyecto.</dd>
+</dl>
+
+<h4>Casillas de optimización adicional</h4>
+<p>Debajo del nivel aparecen dos opciones:</p>
+<ul>
+  <li><strong>&ndash;opt-code-speed</strong>: orientada a velocidad.</li>
+  <li><strong>&ndash;opt-code-size</strong>: orientada a tamaño.</li>
+</ul>
+
+<p>Estas casillas se guardan al pulsarlas. No son excluyentes a nivel de interfaz, así que conviene activarlas con criterio.</p>
+<p>Si estás empezando con un proyecto, una estrategia práctica es usar primero un nivel simple como <code>-O1</code> o <code>-O2</code> y dejar desmarcadas las optimizaciones adicionales hasta tener una compilación estable.</p>
+
+<h4>Campos de texto adicionales</h4>
+<dl>
+  <dt>Defines (-D)</dt><dd>Lista de símbolos de preprocesador. Puedes usar valores como <code>DEBUG</code>, <code>RELEASE</code> o cualquier macro propia del proyecto.</dd>
+  <dt>Includes (-I)</dt><dd>Rutas adicionales de cabeceras. El texto de ayuda indica separadores por coma o punto y coma.</dd>
+  <dt>Argumentos extra GBDK</dt><dd>Parámetros adicionales avanzados que quieras pasar a la toolchain.</dd>
+</dl>
+
+<h3>Subpestaña <code>Z88DK - Spectrum</code></h3>
+<p>Esta subpestaña está pensada para proyectos de <strong>ZX Spectrum</strong> compilados con <code>z88dk</code>.</p>
+
+<h4>Ruta de binarios</h4>
+<p>La parte superior funciona igual que en GBDK y está definida por un campo de ruta, botón <code>...</code> y botón <strong>Guardar Z88DK</strong>.</p>
+<p>Si el perfil activo es <code>z88dk</code> para Spectrum, Samaruc exige que la ruta <code>bin</code> exista. Si no existe, el guardado global fallará.</p>
+
+<h4>Selector <code>-clib</code></h4>
+<p>La opción <strong><code>-clib</code></strong> permite elegir la variante de biblioteca o runtime que se pasará a <code>z88dk</code>. Las opciones soportadas por la configuración actual son:</p>
+<ul>
+  <li><code>none</code></li>
+  <li><code>default</code></li>
+  <li><code>noclib</code></li>
+  <li><code>ansi</code></li>
+  <li><code>new</code></li>
+  <li><code>sdcc_ix</code></li>
+  <li><code>sdcc_iy</code></li>
+  <li><code>clang_ix</code></li>
+  <li><code>clang_iy</code></li>
+</ul>
+
+<p>Samaruc valida y normaliza este campo según la lista soportada por la aplicación. Si una configuración antigua contiene un valor no reconocido, la aplicación lo reconduce a un valor válido.</p>
+
+<h4>Casilla <code>CRT_ORG_CODE=32768</code></h4>
+<p>La casilla <strong>Usar <code>-pragma-define:CRT_ORG_CODE=32768</code></strong> permite activar esa directiva de compilación. En la configuración por defecto de Spectrum esta opción parte activada.</p>
+<p>Úsala cuando tu proyecto o tu esquema de memoria espere ese origen. Si no estás seguro, conviene mantener el valor que usa tu proyecto actualmente.</p>
+
+<h4>Campo <code>Target Z88DK</code></h4>
+<p>Este campo define el target de la plataforma y su valor habitual es <code>+zx</code>. El target debe empezar obligatoriamente por el carácter <code>+</code>. Si no empieza así, Samaruc mostrará un error y no guardará la configuración.</p>
+
+<h4>Casilla <code>-create-app</code></h4>
+<p>La opción <strong>Usar <code>-create-app</code></strong> indica a <code>z88dk</code> que genere la aplicación empaquetada. En la configuración por defecto de Spectrum esta casilla parte activada.</p>
+
+<h4>Defines, includes y argumentos extra</h4>
+<ul>
+  <li><strong>Defines (-D)</strong> para macros de compilación.</li>
+  <li><strong>Includes (-I)</strong> para rutas adicionales.</li>
+  <li><strong>Argumentos extra Z88DK</strong> para parámetros avanzados.</li>
+</ul>
+
+<h3>Subpestaña <code>Z88DK - Amstrad CPC</code></h3>
+<p>Esta subpestaña es equivalente a la anterior, pero aplicada al perfil de <strong>Amstrad CPC</strong>.</p>
+
+<h4>Opción <code>-clib</code></h4>
+<p>Usa la misma lista de opciones admitidas que en Spectrum:</p>
+<ul>
+  <li><code>none</code></li>
+  <li><code>default</code></li>
+  <li><code>noclib</code></li>
+  <li><code>ansi</code></li>
+  <li><code>new</code></li>
+  <li><code>sdcc_ix</code></li>
+  <li><code>sdcc_iy</code></li>
+  <li><code>clang_ix</code></li>
+  <li><code>clang_iy</code></li>
+</ul>
+
+<h4>Casillas <code>CRT_ORG_CODE=32768</code> y <code>-create-app</code></h4>
+<p>En CPC estas opciones también están disponibles. En <code>CRT_ORG_CODE=32768</code> su valor por defecto no coincide con Spectrum: en CPC parte desactivada.</p>
+
+<h4>Campo <code>Target Z88DK</code></h4>
+<p>El valor habitual es <code>+cpc</code> y también aquí el campo debe empezar por <code>+</code> para que la validación sea correcta.</p>
+
+<h4>Campos avanzados</h4>
+<p>Como en Spectrum, dispones de <strong>Defines (-D)</strong>, <strong>Includes (-I)</strong> y <strong>Argumentos extra Z88DK</strong>.</p>
+
+<h3>Subpestaña <code>Makefile</code></h3>
+<p>La opción <strong>Makefile</strong> está pensada para proyectos con un flujo de construcción propio.</p>
+
+<h4>Campos disponibles en Makefile</h4>
+<dl>
+  <dt>Ejecutable make (opcional)</dt><dd>Permite indicar qué comando debe usarse para invocar <code>make</code>. Por ejemplo, <code>mingw32-make</code>.</dd>
+  <dt>Target para compilar</dt><dd>Si lo dejas vacío, Samaruc interpreta que debe usarse el target por defecto del <code>Makefile</code>.</dd>
+  <dt>Target para ejecutar</dt><dd>Si lo dejas vacío, Samaruc lo normaliza automáticamente a <code>run</code>.</dd>
+  <dt>Argumentos extra para make</dt><dd>Sirve para añadir parámetros adicionales, por ejemplo <code>-j4</code>.</dd>
+</dl>
+
+<h4>Normalización automática</h4>
+<p>En esta subpestaña hay un detalle importante: el campo <strong>Target para ejecutar</strong> nunca se deja vacío al persistir. Si no escribes nada, Samaruc lo transforma en <code>run</code>.</p>
+<p>Las opciones de <code>Makefile</code> no admiten saltos de línea. Si pegas texto con retornos de carro o varias líneas, Samaruc lo rechazará y mostrará un error.</p>
+
+<h4>Cuándo conviene usar Makefile</h4>
+<p>Este perfil es recomendable cuando:</p>
+<ul>
+  <li>el proyecto ya trae su propio <code>Makefile</code>,</li>
+  <li>no quieres adaptar la construcción a los perfiles integrados,</li>
+  <li>necesitas un flujo más libre o más cercano al del proyecto original.</li>
+</ul>
+
+<h3>Detección automática de perfil</h3>
+<p>Debajo de las subpestañas aparece una sección adicional con dos controles:</p>
+<ul>
+  <li><strong>Autoaplicar perfil detectado al abrir proyecto</strong>.</li>
+  <li><strong>Umbral de confianza (%)</strong>.</li>
+</ul>
+
+<h4>Autoaplicar perfil detectado</h4>
+<p>Si esta casilla está activada, Samaruc puede cambiar automáticamente al perfil que considere más probable cuando abres un proyecto.</p>
+<p>Si está desactivada, el campo de umbral queda deshabilitado en la interfaz.</p>
+
+<h4>Umbral de confianza</h4>
+<p>Este valor indica cuánta seguridad necesita Samaruc antes de aplicar automáticamente el cambio de perfil. El valor debe ser un entero entre <code>0</code> y <code>100</code>.</p>
+<ul>
+  <li>valores bajos: más automatización,</li>
+  <li>valores altos: comportamiento más conservador,</li>
+  <li>valor por defecto en la configuración actual: <code>75</code>.</li>
+</ul>
+
+<p>Si introduces un valor no numérico o fuera del rango permitido, Samaruc mostrará un error y no guardará esta preferencia.</p>
+
+<h3 id="config-plugins">Pestaña <code>Plugins</code></h3>
+<h4>Qué es la pestaña <code>Plugins</code></h4>
+<p>La pestaña <strong>Plugins</strong> es el lugar desde el que Samaruc permite gestionar extensiones externas. Está dividida en dos áreas principales:</p>
+<ol>
+  <li><strong>plugins instalados localmente</strong>,</li>
+  <li><strong>marketplace de plugins</strong> o catálogo remoto.</li>
+</ol>
+
+<p>En la primera área trabajas con plugins que ya están disponibles en la carpeta local de plugins. En la segunda, puedes consultar un catálogo remoto, ver información del plugin publicado e instalarlo directamente desde la red.</p>
+
+<h4>Vista general de la pestaña</h4>
+<p>En la siguiente tabla <a href="#tab:resumen_plugins">[ver figura]</a> se resumen las zonas principales de la pestaña <code>Plugins</code> y su función:</p>
+<div class="table-wrapper">
+  <table>
+    <tr><th><strong>Zona</strong></th><th><strong>Para qué sirve</strong></th></tr>
+    <tr><td>Lista de plugins instalados</td><td>Muestra los plugins detectados en la carpeta local de plugins.</td></tr>
+    <tr><td>Panel de acciones local</td><td>Permite instalar, habilitar, deshabilitar, eliminar, abrir carpeta y refrescar.</td></tr>
+    <tr><td>Indicador de recarga local</td><td>Muestra que Samaruc está recargando la lista de plugins.</td></tr>
+    <tr><td>Área de detalles del plugin</td><td>Enseña el nombre del JAR, su estado y las implementaciones detectadas.</td></tr>
+    <tr><td>Campo <strong>URL catálogo</strong></td><td>Define qué dirección remota se usa como índice del marketplace.</td></tr>
+    <tr><td>Lista del marketplace</td><td>Muestra plugins publicados en el catálogo remoto.</td></tr>
+    <tr><td>Panel de acciones del marketplace</td><td>Permite actualizar el catálogo o instalar el plugin seleccionado.</td></tr>
+    <tr><td>Indicador de carga del marketplace</td><td>Señala que el catálogo remoto se está descargando o que un plugin se está instalando.</td></tr>
+    <tr><td>Área de detalles del marketplace</td><td>Muestra nombre, versión, autor, categoría, tamaño, verificación y descripción.</td></tr>
+  </table>
+</div>
+<a id="tab:resumen_plugins"></a>
+
+<h4>Bloque de plugins instalados</h4>
+<p>La parte superior de la pestaña está dedicada a los plugins locales. Samaruc trabaja sobre archivos <code>.jar</code> situados en la carpeta <code>plugins</code> del entorno de trabajo.</p>
+
+<p>La lista principal enseña cada JAR detectado junto a su estado. Normalmente verás algo parecido a esto:</p>
+<ul>
+  <li><code>mi-plugin.jar (habilitado)</code></li>
+  <li><code>otro-plugin.jar (deshabilitado)</code></li>
+</ul>
+
+<p>Al elegir un elemento de la lista, Samaruc rellena el panel de información con estos datos:</p>
+<ul>
+  <li><strong>Jar</strong>: nombre del archivo.</li>
+  <li><strong>Estado</strong>: habilitado o deshabilitado.</li>
+  <li><strong>Implementaciones</strong>: nombres detectados dentro del JAR.</li>
+</ul>
+
+<p>La lista trabaja sobre el archivo JAR y sobre las implementaciones de plugin que Samaruc puede descubrir dentro de él. Si un JAR está presente pero no contiene implementaciones válidas, la información mostrada puede ser limitada.</p>
+<p>Debes tener en cuenta que solo se aceptan archivos <code>.jar</code> y que, si ya existe un archivo con el mismo nombre, la copia puede sobrescribirlo.</p>
+
+<h4>Bloque de marketplace</h4>
+<p>La parte inferior de la pestaña está dedicada al marketplace remoto de plugins.</p>
+<p>El marketplace funciona a partir de un <strong>catálogo JSON remoto</strong>. Ese catálogo contiene información sobre los plugins publicados y la URL desde la que puede descargarse cada uno.</p>
+<p>Samaruc usa una URL por defecto, pero permite cambiarla desde la propia interfaz modificando el valor del campo <code>URL catálogo</code> y pulsando luego el botón <strong>Guardar URL</strong>. Si el campo está vacío o solo contiene espacios, Samaruc vuelve automáticamente a la URL por defecto del marketplace.</p>
+<p>La lista del marketplace muestra plugins publicados en el catálogo remoto. Cada línea se construye con un formato sencillo:</p>
+<ul>
+  <li>nombre del plugin,</li>
+  <li>versión entre paréntesis.</li>
+</ul>
+
+<p class="back-to-index"><a href="#indice">↑ Volver al índice</a></p>
+
+<h2 id="miscelanea">Miscelánea</h2>
+<h3>Atajos de teclado</h3>
+<p>Para mejorar la eficiencia y la experiencia de usuario, el editor incluye una serie de atajos de teclado para las funciones más comunes. A continuación se presenta la tabla <a href="#tab:atajos_teclado_completa">[ver figura]</a> con los atajos de teclado disponibles en <strong>SamaruC Retro Editor</strong>:</p>
+
+<div class="table-wrapper">
+  <a id="tab:atajos_teclado_completa"></a>
+  <table>
+    <caption>Atajos de teclado disponibles en SamaruC Retro Editor.</caption>
+    <tr><th><strong>Atajo</strong></th><th><strong>Acción</strong></th></tr>
+    <tr><td><code>Ctrl+N</code></td><td>Nuevo archivo</td></tr>
+    <tr><td><code>Ctrl+O</code></td><td>Abrir archivo</td></tr>
+    <tr><td><code>Ctrl+S</code></td><td>Guardar archivo</td></tr>
+    <tr><td><code>Ctrl+W</code></td><td>Cerrar archivo actual</td></tr>
+    <tr><td><code>Ctrl+Z</code></td><td>Deshacer</td></tr>
+    <tr><td><code>Ctrl+Y</code></td><td>Rehacer</td></tr>
+    <tr><td><code>Ctrl+X</code></td><td>Cortar</td></tr>
+    <tr><td><code>Ctrl+C</code></td><td>Copiar</td></tr>
+    <tr><td><code>Ctrl+V</code></td><td>Pegar</td></tr>
+    <tr><td><code>Ctrl+A</code></td><td>Seleccionar todo</td></tr>
+    <tr><td><code>Ctrl+F</code></td><td>Buscar en archivo actual</td></tr>
+    <tr><td><code>Ctrl+H</code></td><td>Buscar en proyecto completo</td></tr>
+    <tr><td><code>F5</code></td><td>Compilar proyecto</td></tr>
+    <tr><td><code>F6</code></td><td>Ejecutar programa</td></tr>
+  </table>
+</div>
+
+<h3>Tecnologías utilizadas en el desarrollo de SamaruC Retro Editor</h3>
+<ul>
+  <li><strong>JavaFX 17:</strong> framework de interfaz de usuario.</li>
+  <li><strong>RichTextFX:</strong> editor de texto con resaltado de sintaxis.</li>
+  <li><strong>Ikonli FontAwesome 5:</strong> iconos de interfaz.</li>
+  <li><strong>Maven:</strong> gestión de dependencias y construcción.</li>
+</ul>
+
+<h3>Requisitos del sistema</h3>
+<ul>
+  <li>Java 17+.</li>
+  <li>4 GB de RAM mínimo (8 GB recomendado).</li>
+  <li>200 MB de espacio en disco.</li>
+  <li>Compilador C (Z88DK o GBDK).</li>
+</ul>
+
+<p class="back-to-index"><a href="#indice">↑ Volver al índice</a></p>
 </body>
 </html>

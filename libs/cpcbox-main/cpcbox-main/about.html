@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+  <head>
+	<meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	
+	<title>About CPCbox...</title>
+	<link rel="stylesheet" href="css/bootstrap.min.css"/>
+	<link rel="stylesheet" href="css/cpcbox.about.css"/>
+	
+	<script src="libs/jquery-2.1.1.min.js"></script>
+	<script src="libs/bootstrap.min.js"></script>
+</head>
+<body data-spy="scroll" data-target="#affix-nav">
+<div class="bs-header" id="content">
+  <div class="container">
+	<h1 id="title">CPCbox</h1>
+	<p id="subtitle">An Amstrad CPC 8-bit computer emulator, created in JavaScript for the Web Platform.</p>
+  </div>
+</div>
+<div class="container">
+<div class="row">
+<div id="affix-nav" class="bs-sidebar col-md-3">
+    <ul class="nav bs-sidenav" data-spy="affix" data-offset-top="125">
+	    <li class="active"><a href="#amstrad">The Amstrad CPC</a></li>
+        <li><a href="#what">What is CPCbox?</a>
+        <ul class="nav">
+			<li><a href="#features">Features</a></li>
+			<li><a href="#requirements">Requirements</a></li>
+        </ul>
+        </li>
+		<li><a href="#how">How to use?</a>
+        <ul class="nav">
+			<li><a href="#tape">Load tape images</a></li>
+			<li><a href="#disc">Load disc images</a></li>
+        </ul>
+        </li>
+		<li><a href="#history">History</a></li>
+		<li><a href="#friends">Friends</a>
+        <ul class="nav">   
+			<li><a href="#blog">Blog coverage</a></li>
+			<li><a href="#greetings">Greetings</a></li>
+			<li><a href="#competition">Competition</a></li>
+			<li><a href="#links">Links</a></li>
+			<li><a href="#contact">Contact</a></li>
+        </ul>
+        </li>
+    </ul>
+</div>
+<section id="content" class="col-md-9">
+    <article id="amstrad">
+		<h2 class="page-header">The Amstrad CPC</h2>
+		<p>The CPC (short for Colour Personal Computer) is a series of 8-bit home computers produced by Amstrad between 1984 and 1990.
+		<p>It was designed to compete in the mid-1980s home computer market dominated by the Commodore 64 and the Sinclair ZX Spectrum computers. It successfully established itself primarily in the United Kingdom, France, Spain, Germany, Denmark, Greece and Australia.</p>
+		<p>About 3 million Amstrad CPC computer units were sold throughout its commercial lifetime.</p>
+		<p>More information about the Amstrad CPC computer series can be found on this <a target="_new" href="http://en.wikipedia.org/wiki/Amstrad_CPC">Wikipedia article</a>.</p>
+	</article>
+    <article id="what">
+		<h2 class="page-header">What is CPCbox?</h2>
+		<p>CPCbox is an Amstrad CPC emulator. What it means is that CPCbox replicates the inner workings of the Amstrad CPC 8-bit computer hardware so that you can use any software that was made for this computer and run it with the same results as on the real hardware.</p>
+        <section id="features">
+			<h3>Features</h3>
+			<p>CPCbox runs directly on your web browser, without requiring any plugin. You don't have to download, decompress, install & update a CPC emulator anymore. CPCbox renders all those menial and time consuming work unnecessary.</p>
+			<p>CPCbox is a good choice to watch demos thanks to the quality of its audio and video renderings and because of its very precise Z80 and chipset emulation.</p>
+			<p>Retro-gamers will be pleased too as CPCbox features a very intuitive and functional user interface, so that they are just seconds away from playing their favorite 8-bit CPC games.</p>
+		</section>
+        <section id="requirements"><h3>Requirements</h3><p>CPCbox supports the latest web standards promoted by the <a target="_new" href="http://www.w3.org/">W3C</a> and the <a target="_new" href="http://www.whatwg.org/">WHATWG</a> organizations. As such, it is compatible with all the recent web browsers that support those standards.</p>
+		<p class="text-danger">Unfortunately, CPCbox uses an old sound API that has been deprecated and removed from browsers a long time ago. That's why sound is disabled with current browsers. If you really need to enable sound, the best option is to use CPCbox with Firefox v26.0.</p></section>
+    </article>
+    <article id="how">
+        <h2 class="page-header">How to use the CPC?</h2>
+		<p>The CPC doesn't automatically run software you insert on its drives. At startup, you're just welcomed with a basic prompt. It's up to you to type commands to communicate with the CPC.</p>
+        <section id="tape"><h3>Load tape images</h3>
+			<ol><li>Reset the CPC.</li>
+			<li>Insert a .WAV tape image in the tape deck.</li>
+			<li>Switch to tape mode by typing |TAPE⏎</li>
+			<li>Type RUN"⏎</li>
+			<li>Press the Play button on the tape deck</li></ol>
+			<p>Warning: Loading software on tape takes minutes in CPCbox (as well as on real CPC hardware), instead of seconds on disc. Fortunately, almost every CPC game and software ever released elso exists on floppy disc. So, if you just want quick access to CPC games and softwares, consider using disc images instead.</p>
+		</section>
+        <section id="disc">
+			<h3>Load disc images</h3>
+			<ol><li>Reset the CPC.</li>
+			<li>Insert a .DSK disc image into Drive A.</li>
+			<li>Type CAT⏎</li>
+			<li>The list of files contained in that disc appeared on the screen. Usually, you have to pick the program to run among the .BAS (or eventually .BIN) files.</li>
+			<li>You can run that program by typing RUN" followed by the name of the file. For example: RUN"DISK⏎</li></ol>
+			<p>Tip 1: If you get a "Disc error" after the CAT command, it probably means that this disc is in CP/M format. You can run those discs by typing |CPM⏎</p>
+			<p>Tip 2: The '|' character only exists on English and Spanish CPC. The equivalent character is 'ù' on French CPC and 'ø' on Danish CPC.</p>
+		</section>
+    </article>
+	<article id="history">
+    	<h2 class="page-header">Release history</h2>
+        <p>This is a simplified history of CPCbox releases. I'm only highlighting the most significant steps here.</p>
+		<section id="2012-11-12"><h4>Build 2012-11-12</h4><ul><li>Added tape deck emulation.</li></ul></section>
+		<section id="2012-09-01"><h4>Build 2012-09-01</h4><ul><li>Added CPC firmware & brand name selection.</li></ul></section>
+		<section id="2012-03-31"><h4>Build 2012-03-31</h4><ul><li>Emulates CRTC Type 0 & Type 2 chips.</li></ul></section>
+		<section id="2012-03-27"><h4>Build 2012-03-27</h4><ul><li>Added settings panel.</li><li>Added monochrome monitors rendering.</li><li>Emulates the external floppy drive B.</li><li>Implemented 512KB RAM extension.</li></ul></section>
+		<section id="2012-01-08"><h4>Build 2012-01-08</h4><ul><li>Emulates the analog PLL behaviour of the CRT monitor.</li></ul></section>
+		<section id="2011-06-21"><h4>Build 2011-06-21</h4><ul><li>Added AY sound chip emulation.</li></ul></section>
+		<section id="2011-03-12"><h4>Build 2011-03-12</h4><ul><li>Successfully passed the Zexall Z80 test suite.</li></ul></section>
+		<section id="2011-02-17"><h4>Build 2011-02-17</h4><ul><li>Added support for ZIP archives.</li></ul></section>
+		<section id="2010-11-27"><h4>Build 2010-11-27</h4><ul><li>Added primitive emulation of floppy disc drive.</li></ul></section>
+		<section id="2010-09-14"><h4>Build 2010-09-14</h4><ul><li>Added CPC joystick emulation.</li></ul></section>
+        <section id="2010-09-07"><h4>Build 2010-09-07</h4><ul><li>First release.</li></ul></section>
+    </article>
+	<article id="friends">
+		<h2 class="page-header">Friends & community</h2>
+		<p>The CPC still federates a large number of users, retrogamers and developers. CPCbox is proud to help them by making the CPC as simple and accessible as possible.</p>
+        <section id="blog">
+			<h3>Blog coverage</h3>
+			<p>They talk about CPCbox:</p><ul>
+			<li><a target="_new" href="https://www.youtube.com/watch?v=vMMtPHondmI">Play ZX Spectrum and CPC games in your browser!</a>, YouTube, December 6, 2012</li>
+			<li><a target="_new" href="https://www.youtube.com/watch?v=GjFtUkWeYk4">Oh Mummy - Amstrad CPC 464</a>, YouTube, April 1, 2012</li>
+			<li><a target="_new" href="http://mag.mo5.com/actu/11562/CPCbox-fete-la-musique-sur-amstrad/">CPCbox fête la Musique sur Amstrad</a>, MO5, June 25, 2011</li>
+			<li><a target="_new" href="http://www.gamopat.com/article-l-amstrad-cpc-sur-votre-navigateur-web-77422191.html">L'Amstrad CPC sur votre navigateur Web !</a>, Gamopat, June 22, 2011</li>
+			<li><a target="_new" href="http://nostalgeek59.over-blog.com/article-CPCbox-votre-amstrad-dans-votre-navigu-72000049.html">CPCbox votre amstrad dans votre navigateur web !!!</a>, Nostalgeek59, April 18, 2011</li>
+			<li><a target="_new" href="http://www.octoate.de/wp/2010/09/07/CPCbox-cpc-emulator-in-javascript/">First news ever ;)</a>, Octoate, September 7, 2010</li>
+		</ul></section>
+        <section id="greetings">
+			<h3>Greetings</h3>
+			<p>Amstrad ROMs are © copyright Amstrad plc and are distributed with their kind permission. Thanks to Cliff Lawson and Amstrad for making this project possible.</p>
+			<p>I also want to thank the individuals and communities behind the following websites. The information I found there was invaluable to develop CPCbox:</p><ul>
+			<li><a target="_new" href="http://www.cpcwiki.eu/">CPCWiki</a>: the largest Amstrad CPC wiki. Lots of information about the CPC.</li>
+			<li><a target="_new" href="http://www.grimware.org/">Grimware</a>: the best place to grasp the internals of how the CPC works.</li>
+			<li><a target="_new" href="http://quasar.cpcscene.net/">Quasar Net</a>: online version of the fanzine Quasar CPC. High quality technical articles there.</li>
+			<li><a target="_new" href="http://www.cpctech.org.uk/">CPCtech</a>: Kevin Thacker's CPC website. Contains interesting documents and resources.</li>
+			<li><a target="_new" href="http://wikiti.brandonw.net/?title=Z80_Instruction_Set">WikiTI</a>: the best synthetic resource about the Z80.</li>
+		</ul></section>
+		<section id="competition">
+			<h3>Competition</h3>
+			<p>Here are some other CPC emulators that I found interesting for one reason or another:</p><ul>
+			<li><a target="_new" href="http://ace.cpcscene.net/">ACE</a>: the most accurate Amstrad CPC/Plus emulator ever made. Sadly only for MorphOS users.</li>
+			<li><a target="_new" href="http://www.winape.net/">WinAPE</a>: a good Amstrad CPC/Plus emulator for Windows users. Great IDE for developers.</li>
+			<li><a target="_new" href="http://sugarbox.free.fr/">SugarBox</a>: a new and promising Amstrad CPC emulator for Windows users.</li>
+			<li><a target="_new" href="http://cpc-live.com/data/">JavaCPC</a>: a good multi-platform Amstrad CPC emulator created in Java.</li>
+			<li><a target="_new" href="http://roland.retrolandia.net/">Roland</a>: an Amstrad CPC emulator created in Javascript. Useful for fair comparison purposes with CPCbox ;)</li>
+		</ul></section>
+        <section id="links">
+			<h3>Useful links</h3>
+			<p><a target="_new" href="http://www.cpc-power.com/">CPC-Power</a>: the most complete repository of CPC games, demos and tools. Your best source for dumps to download and use with CPCbox!</p>
+			<p><a target="_new" href="http://www.cpcwiki.eu/forum/">CPCWiki forum</a>: the most active CPC forum, with users from all over the world.</p>
+			<p><a target="_new" href="http://www.youtube.com/user/Xyphoe/">Xyphoe's YouTube channel</a>: video reviews of hundreds of CPC games.</p>
+			<p><a target="_new" href="http://cpcrulez.fr/">CPC Rulez</a>: main lair of the French CPC community.</p>
+			<p><a target="_new" href="http://www.amstradtoday.com/">Amstrad Today</a>: how to repair and upgrade real Amstrad CPC computers.</p>
+		</section>
+		<section id="contact"><h3>Contact</h3><p>By e-mail: <a href="mailto: &#097;&#100;&#109;&#105;&#110;&#064;&#099;&#112;&#099;&#098;&#111;&#120;&#046;&#099;&#111;&#109;">
+&#097;&#100;&#109;&#105;&#110;&#064;&#099;&#112;&#099;&#098;&#111;&#120;&#046;&#099;&#111;&#109;</a></p></section>
+    </article>
+</section>      
+</div><!-- end of row -->
+</div><!-- end of container -->
+</body>
+</html>

@@ -2,6 +2,11 @@
 /target/
 **/target/
 
+/release
+/release-smoke
+/release-png-test
+/jp-temp
+
 # Maven shade generated reduced POM
 dependency-reduced-pom.xml
 
@@ -59,8 +64,12 @@ logs/
 /release/
 /release-input/
 
+# Documentation workspace artifacts
+/docs/
+
 # Local packaging/tooling cache
 /tools/
+/.trash/
 
 # Project temporary extraction/check folders
 /tmp-check/

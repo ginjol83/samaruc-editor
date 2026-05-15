@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manual de Plugins - Samaru C Retro Editor</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 2em 3em;
+      line-height: 1.6;
+      background: #f5f5f5;
+      color: #333;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 3em;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      border-radius: 8px;
+    }
+    h1 {
+      color: #2c3e50;
+      border-bottom: 3px solid #3498db;
+      padding-bottom: 0.5em;
+      margin-top: 0;
+      margin-bottom: 1em;
+    }
+    h2 {
+      color: #2980b9;
+      margin-top: 2em;
+      border-left: 4px solid #3498db;
+      padding-left: 0.5em;
+    }
+    h3 { color: #34495e; margin-top: 1.5em; }
+    nav {
+      background: #ecf0f1;
+      padding: 1em;
+      margin-bottom: 2em;
+      border-radius: 5px;
+      border-left: 4px solid #3498db;
+    }
+    nav ol { margin: 0.4em 0 0; padding-left: 1.2em; }
+    nav a {
+      color: #2980b9;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    nav a:hover { text-decoration: underline; color: #1abc9c; }
+    pre { background: #0f172a; color: #e5e7eb; border-radius: 8px; padding: 12px; overflow: auto; }
+    code { background: #f4f4f4; padding: 0.2em 0.4em; border-radius: 3px; font-family: 'Courier New', monospace; color: #e83e8c; }
+    table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+    th, td { padding: 0.8em; text-align: left; border-bottom: 1px solid #ddd; vertical-align: top; }
+    th { background: #3498db; color: #fff; }
+    tr:hover { background: #f5f5f5; }
+    .note { color: #4b5563; }
+    .small { font-size: 0.93em; }
+    .back-to-top { margin-top: 0.6em; text-align: right; }
+    .back-to-top a { color: #2980b9; text-decoration: none; font-size: 0.92em; }
+    .back-to-top a:hover { text-decoration: underline; color: #1abc9c; }
+  </style>
+</head>
+<body id="top">
+  <div class="container">
+  <h1>📘 Manual de Plugins - Samaru C Retro Editor</h1>
+
+  <nav class="toc">
+    <strong>Contenido</strong>
+    <ol>
+      <li><a href="#intro">Introduccion</a></li>
+      <li><a href="#arquitectura">Arquitectura general</a></li>
+      <li><a href="#requisitos">Requisitos previos</a></li>
+      <li><a href="#maven">Crear proyecto Maven</a></li>
+      <li><a href="#plugin">Implementar interfaz Plugin</a></li>
+      <li><a href="#serviceloader">Registrar con ServiceLoader</a></li>
+      <li><a href="#context">Uso de PluginContext</a></li>
+      <li><a href="#packaging">Empaquetar e instalar</a></li>
+      <li><a href="#enable-disable">Habilitar/deshabilitar</a></li>
+      <li><a href="#ejemplo">Ejemplo completo</a></li>
+      <li><a href="#buenas-practicas">Buenas practicas y limitaciones</a></li>
+    </ol>
+  </nav>
+
+  <h2 id="intro">1) Introduccion</h2>
+  <p>SamaruC Editor incluye un sistema de plugins basado en <strong>Java ServiceLoader</strong> que permite extender la aplicacion sin tocar su codigo fuente. Este documento explica como crear, empaquetar e instalar un plugin.</p>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+
+  <h2 id="arquitectura">2) Arquitectura general</h2>
+  <p>La arquitectura se basa en una interfaz comun <code>Plugin</code>. SamaruC descubre e instancia las implementaciones al arrancar y ejecuta su ciclo de vida.</p>
+
+  <table>
+    <thead>
+      <tr><th>Metodo</th><th>Cuando se llama</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>onLoad(ctx)</code></td><td>Justo despues de cargar el JAR. Guarda el contexto.</td></tr>
+      <tr><td><code>onEnable()</code></td><td>Cuando la UI esta lista. Agrega menus/componentes.</td></tr>
+      <tr><td><code>onDisable()</code></td><td>Al desactivar plugin o cerrar app. Limpia recursos.</td></tr>
+      <tr><td><code>getName()</code></td><td>Devuelve el nombre visible del plugin.</td></tr>
+    </tbody>
+  </table>
+
+  <p class="note small">Si tienes diagramas en tu documentacion original, puedes anadirlos como imagenes en resources y enlazarlos desde este HTML.</p>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+
+  <h2 id="requisitos">3) Requisitos previos</h2>
+  <ul>
+    <li>JDK 17 o superior</li>
+    <li>Maven 3.8+ (o Gradle)</li>
+    <li>JAR principal de SamaruC para compilar contra interfaces</li>
+  </ul>
+
+  <p><strong>Consejo:</strong> instala el JAR del host en tu repo local Maven:</p>
+  <pre><code>mvn install:install-file -Dfile=retro-editor-1.0-SNAPSHOT.jar ^
+  -DgroupId=com.retroeditor -DartifactId=retro-editor ^
+  -Dversion=1.0-SNAPSHOT -Dpackaging=jar</code></pre>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+
+  <h2 id="maven">4) Crear el proyecto Maven del plugin</h2>
+  <p>Estructura minima:</p>
+  <pre><code>mi-plugin/
+  pom.xml
+  src/main/java/...
+  src/main/resources/META-INF/services/...</code></pre>
+
+  <p><code>pom.xml</code> minimo:</p>
+  <pre><code>&lt;project ...&gt;
+  &lt;modelVersion&gt;4.0.0&lt;/modelVersion&gt;
+  &lt;groupId&gt;com.miplugin&lt;/groupId&gt;
+  &lt;artifactId&gt;mi-plugin&lt;/artifactId&gt;
+  &lt;version&gt;1.0.0&lt;/version&gt;
+  &lt;packaging&gt;jar&lt;/packaging&gt;
+
+  &lt;dependencies&gt;
+    &lt;dependency&gt;
+      &lt;groupId&gt;com.retroeditor&lt;/groupId&gt;
+      &lt;artifactId&gt;retro-editor&lt;/artifactId&gt;
+      &lt;version&gt;1.0-SNAPSHOT&lt;/version&gt;
+      &lt;scope&gt;provided&lt;/scope&gt;
+    &lt;/dependency&gt;
+    &lt;dependency&gt;
+      &lt;groupId&gt;org.openjfx&lt;/groupId&gt;
+      &lt;artifactId&gt;javafx-controls&lt;/artifactId&gt;
+      &lt;version&gt;17.0.10&lt;/version&gt;
+      &lt;scope&gt;provided&lt;/scope&gt;
+    &lt;/dependency&gt;
+  &lt;/dependencies&gt;
+&lt;/project&gt;</code></pre>
+
+  <p><strong>Importante:</strong> usa <code>provided</code> para dependencias que ya aporta el host.</p>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+
+  <h2 id="plugin">5) Implementar la interfaz <code>Plugin</code></h2>
+  <pre><code>package com.miplugin;
+
+import com.retroeditor.plugin.Plugin;
+import com.retroeditor.plugin.PluginContext;
+import javafx.application.Platform;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuItem;
+
+public class MiPlugin implements Plugin {
+    private PluginContext context;
+    private Menu miMenu;
+
+    @Override
+    public void onLoad(PluginContext context) {
+        this.context = context;
+        context.log("MiPlugin cargado correctamente.");
+    }
+
+    @Override
+    public void onEnable() {
+        Platform.runLater(() -&gt; {
+            miMenu = new Menu("Mi Plugin");
+            MenuItem saludar = new MenuItem("Saludar");
+            saludar.setOnAction(e -&gt; context.log("Hola desde MiPlugin!"));
+            miMenu.getItems().add(saludar);
+            context.registerMenu(miMenu);
+        });
+    }
+
+    @Override
+    public void onDisable() {
+        context.log("MiPlugin desactivado.");
+    }
+
+    @Override
+    public String getName() {
+        return "Mi Plugin de Ejemplo";
+    }
+}</code></pre>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+
+  <h2 id="serviceloader">6) Registrar el plugin con ServiceLoader</h2>
+  <p>Crea el archivo:</p>
+  <p><code>src/main/resources/META-INF/services/com.retroeditor.plugin.Plugin</code></p>
+  <p>Contenido:</p>
+  <pre><code>com.miplugin.MiPlugin</code></pre>
+  <p>Para varias implementaciones, una por linea.</p>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+
+  <h2 id="context">7) Usar <code>PluginContext</code></h2>
+  <table>
+    <thead>
+      <tr><th>Metodo</th><th>Descripcion</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>getPrimaryStage()</code></td><td>Stage principal para dialogos modales.</td></tr>
+      <tr><td><code>getScene()</code></td><td>Scene principal del host.</td></tr>
+      <tr><td><code>getMenuBar()</code></td><td>MenuBar para integraciones.</td></tr>
+      <tr><td><code>log(String)</code></td><td>Escribe en la pestaña Monitor.</td></tr>
+      <tr><td><code>registerMenu(Menu)</code></td><td>Registra menu con limpieza automatica.</td></tr>
+      <tr><td><code>unregisterMenu(Menu)</code></td><td>Elimina menu manualmente.</td></tr>
+      <tr><td><code>unregisterAll()</code></td><td>Limpia todo lo registrado por el plugin.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Ejemplo: abrir dialogo con Stage del host</h3>
+  <pre><code>@Override
+public void onEnable() {
+    Platform.runLater(() -&gt; {
+        Menu menu = new Menu("Herramientas");
+        MenuItem abrirDialogo = new MenuItem("Abrir mi dialogo");
+        abrirDialogo.setOnAction(e -&gt; {
+            Stage dialogo = new Stage();
+            dialogo.initOwner(context.getPrimaryStage());
+            dialogo.setTitle("Mi herramienta");
+            dialogo.show();
+        });
+        menu.getItems().add(abrirDialogo);
+        context.registerMenu(menu);
+    });
+}</code></pre>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+
+  <h2 id="packaging">8) Empaquetar e instalar</h2>
+  <p>Empaquetar:</p>
+  <pre><code>mvn package</code></pre>
+  <p>Genera <code>target/mi-plugin-1.0.0.jar</code>.</p>
+  <p><strong>No uses shade</strong> para evitar duplicar clases del host.</p>
+
+  <h3>Instalacion opcion A (UI de SamaruC)</h3>
+  <ol>
+    <li>Abrir SamaruC.</li>
+    <li>Ir a Archivo / Configuracion.</li>
+    <li>Pestana Plugins.</li>
+    <li>Instalar plugin (.jar).</li>
+    <li>Se copia a carpeta <code>plugins/</code>.</li>
+    <li>Recargar plugins.</li>
+  </ol>
+
+  <h3>Instalacion opcion B (manual)</h3>
+  <pre><code>Samaruc/
++-- Samaruc.exe
++-- app/
+|   +-- samaruc-1.0-SNAPSHOT.jar
++-- plugins/
+    +-- mi-plugin-1.0.0.jar</code></pre>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+
+  <h2 id="enable-disable">9) Habilitar y deshabilitar plugins</h2>
+  <ul>
+    <li>Ver lista de JARs en <code>plugins/</code>.</li>
+    <li>Cambiar estado habilitado/deshabilitado.</li>
+    <li>Recargar para aplicar sin reiniciar.</li>
+  </ul>
+  <p>El estado se guarda en <code>~/.retroeditor.plugins.properties</code>.</p>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+
+  <h2 id="ejemplo">10) Ejemplo completo</h2>
+  <pre><code>plugin-utilidades/
++-- pom.xml
++-- src/main/
+    +-- java/com/ejemplo/UtilsPlugin.java
+    +-- resources/META-INF/services/com.retroeditor.plugin.Plugin</code></pre>
+
+  <pre><code>com.ejemplo.UtilsPlugin</code></pre>
+
+  <pre><code>cd plugin-utilidades
+mvn package
+copy target\plugin-utilidades-1.0.0.jar ..\Samaruc\plugins\</code></pre>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+
+  <h2 id="buenas-practicas">11) Buenas practicas y limitaciones</h2>
+  <h3>Buenas practicas</h3>
+  <ul>
+    <li>Usa siempre <code>Platform.runLater()</code> para tocar UI.</li>
+    <li>Limpia recursos en <code>onDisable()</code>.</li>
+    <li>Prefiere <code>registerMenu()</code> para limpieza automatica.</li>
+    <li>Declara <code>provided</code> en dependencias del host.</li>
+    <li>Versiona y usa paquetes claros para evitar conflictos.</li>
+  </ul>
+
+  <h3>Limitaciones actuales</h3>
+  <ul>
+    <li>No hay extension para reemplazar editor o arbol de proyecto.</li>
+    <li>No hay dependencias entre plugins gestionadas por el host.</li>
+    <li>La carga se hace desde <code>plugins/</code> del directorio de trabajo.</li>
+    <li>No existe aun API completa para contenido del editor abierto.</li>
+  </ul>
+
+  <p class="note small">Documento generado desde el manual LaTeX de plugins adaptado a HTML para integracion directa en SamaruC.</p>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+</div>
+</body>
+</html>
+

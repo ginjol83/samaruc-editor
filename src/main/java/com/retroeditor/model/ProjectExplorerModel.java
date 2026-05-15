@@ -5,14 +5,6 @@ package com.retroeditor.model;
 */
 public class ProjectExplorerModel {
 
-    public void showError(String msg) {
-        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR);
-        
-        alert.setTitle("Error");
-        alert.setHeaderText(null);
-        alert.setContentText(msg);
-        alert.showAndWait();
-    }
 
     /**
      * Crea un nuevo archivo dentro de parent con el nombre dado.
