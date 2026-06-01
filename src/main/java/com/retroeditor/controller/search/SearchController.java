@@ -59,15 +59,15 @@ public class SearchController {
     public SearchController(Stage owner, TabPane tabPane, Map<Tab, File> tabFileMap,
             com.retroeditor.model.EditorModel editorModel, ProjectContextPort projectContextPort, FileOpenPort fileOpenPort,
             ProjectSearchService projectSearchService, TextSearchService textSearchService, FXUtils fxUtils) {
-        this.owner          = owner;
-        this.fxUtils        = fxUtils;
-        this.tabPane        = tabPane;
-        this.tabFileMap     = tabFileMap;
-        this.editorModel    = editorModel;
-        this.projectContextPort = projectContextPort;
-        this.fileOpenPort = fileOpenPort;
-        this.projectSearchService = projectSearchService;
-        this.textSearchService = textSearchService;
+        this.owner                  = owner;
+        this.fxUtils                = fxUtils;
+        this.tabPane                = tabPane;
+        this.tabFileMap             = tabFileMap;
+        this.editorModel            = editorModel;
+        this.fileOpenPort           = fileOpenPort;
+        this.textSearchService      = textSearchService;
+        this.projectContextPort     = projectContextPort;
+        this.projectSearchService   = projectSearchService;
     }
 
 
@@ -87,15 +87,15 @@ public class SearchController {
             txt.setPromptText("Texto a buscar");
             txt.setMinWidth(300);
 
-            javafx.scene.control.CheckBox chkCase  = new javafx.scene.control.CheckBox("Mayúsculas");
-            javafx.scene.control.CheckBox chkRegex = new javafx.scene.control.CheckBox("Regex");
+            javafx.scene.control.CheckBox chkCase   = new javafx.scene.control.CheckBox("Mayúsculas");
+            javafx.scene.control.CheckBox chkRegex  = new javafx.scene.control.CheckBox("Regex");
 
             javafx.scene.control.Button btnNext     = new javafx.scene.control.Button("Siguiente");
             javafx.scene.control.Button btnPrev     = new javafx.scene.control.Button("Anterior");
             javafx.scene.control.Button btnFindAll  = new javafx.scene.control.Button("Buscar todo");
             javafx.scene.control.Button btnClose    = new javafx.scene.control.Button("Cerrar");
 
-            javafx.scene.layout.HBox options  = new javafx.scene.layout.HBox(8, chkCase, chkRegex);
+            javafx.scene.layout.HBox options        = new javafx.scene.layout.HBox(8, chkCase, chkRegex);
             javafx.scene.layout.HBox actions        = new javafx.scene.layout.HBox(8, btnPrev, btnNext, btnFindAll, btnClose);
             javafx.scene.layout.VBox root           = new javafx.scene.layout.VBox(8, txt, options, actions);
             

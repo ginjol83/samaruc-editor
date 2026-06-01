@@ -1,92 +1,104 @@
 package com.retroeditor.controller;
 
-import java.awt.Desktop;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
 import java.util.ResourceBundle;
+import java.util.ArrayList;
+import java.util.Optional;
+import java.util.HashSet;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
-import javafx.event.ActionEvent;
-import org.kordamp.ikonli.javafx.FontIcon;
+import java.awt.Desktop;
+import java.net.URI;
 
-import com.retroeditor.controller.build.BuildController;
+import java.io.InputStream;
+import java.io.IOException;
+import java.io.File;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+
+import org.kordamp.ikonli.javafx.FontIcon;
+import javafx.event.ActionEvent;
+
+import com.retroeditor.controller.projectExplorer.ProjectExplorerController;
 import com.retroeditor.controller.config.ConfigDialogCoordinator;
 import com.retroeditor.controller.editor.EditOptionsController;
 import com.retroeditor.controller.editor.FileOptionsController;
-import com.retroeditor.controller.help.HelpController;
-import com.retroeditor.controller.projectExplorer.ProjectExplorerController;
-import com.retroeditor.controller.search.FileOpenPort;
+import com.retroeditor.controller.terminal.TerminalController;
 import com.retroeditor.controller.search.ProjectContextPort;
 import com.retroeditor.controller.search.SearchController;
-import com.retroeditor.controller.terminal.TerminalController;
-import com.retroeditor.model.ConfigModel;
-import com.retroeditor.model.EditorModel;
-import com.retroeditor.service.AppLogger;
+import com.retroeditor.controller.build.BuildController;
+import com.retroeditor.controller.help.HelpController;
+import com.retroeditor.controller.search.FileOpenPort;
+
 import com.retroeditor.service.CompilationDiagnosticParserService;
-import com.retroeditor.service.ConfigRepository;
-import com.retroeditor.service.PluginApplicationService;
-import com.retroeditor.service.PropertiesConfigRepository;
 import com.retroeditor.service.ProjectPlatformDetectionService;
+import com.retroeditor.service.PropertiesConfigRepository;
+import com.retroeditor.service.syntax.SyntaxHighlighter;
+import com.retroeditor.service.PluginApplicationService;
 import com.retroeditor.service.ProjectSearchService;
 import com.retroeditor.service.TextSearchService;
 import com.retroeditor.service.UserActionMonitor;
-import com.retroeditor.service.syntax.SyntaxHighlighter;
+import com.retroeditor.service.ConfigRepository;
+import com.retroeditor.service.AppLogger;
+
+import com.retroeditor.model.ConfigModel;
+import com.retroeditor.model.EditorModel;
+
 import com.retroeditor.util.CompilationDiagnosticsUiHelper;
 import com.retroeditor.util.FXUtils;
+
 import com.retroeditor.view.UIElements;
 
 import javafx.application.Platform;
+import javafx.stage.Stage;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
-import javafx.scene.Parent;
+
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
-import javafx.scene.control.ButtonType;
-import javafx.scene.control.Label;
-import javafx.scene.control.Menu;
-import javafx.scene.control.MenuBar;
-import javafx.scene.control.MenuItem;
+import javafx.scene.Parent;
+
 import javafx.scene.control.Tab;
+import javafx.scene.control.Menu;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Label;
+import javafx.scene.control.Button;
 import javafx.scene.control.TabPane;
+import javafx.scene.control.MenuBar;
 import javafx.scene.control.ToolBar;
 import javafx.scene.control.Tooltip;
-import javafx.scene.input.KeyCode;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.ButtonType;
+
 import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.input.Clipboard;
-import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.KeyCode;
+
 import javafx.scene.layout.AnchorPane;
-import org.fxmisc.richtext.CodeArea;
+
 import org.fxmisc.richtext.StyleClassedTextArea;
-import javafx.stage.Stage;
+import org.fxmisc.richtext.CodeArea;
 
 public class MainController implements ProjectContextPort, FileOpenPort {
     private static final Set<String> NON_TEXT_EXTENSIONS = Set.of(
         "tap", "tzx", "z80", "sna", "gb", "gbc", "rom", "bin", "cdt", "wav", "dsk", "edsk", "class", "jar", "png", "jpg", "jpeg", "gif", "ico", "exe", "dll"
     );
 
-    private final File userConfigFile = new File(System.getProperty("user.home"), ".retroeditor.properties");
+    private final File        userConfigFile = new File(System.getProperty("user.home"), ".retroeditor.properties");
 
-    private FXUtils fxUtils = new FXUtils();
-    private final ConfigModel configModel = new ConfigModel();
+    private       FXUtils     fxUtils        = new FXUtils();
+    private final ConfigModel configModel    = new ConfigModel();
 
-    private final HelpController helpController = new HelpController();
-    private final EditOptionsController editOptionsController = new EditOptionsController();
-    private final FileOptionsController fileOptionsController = new FileOptionsController();
-    private final TerminalController terminalController = new TerminalController();
-    private final BuildController buildController = new BuildController();
+    private final EditOptionsController   editOptionsController   = new EditOptionsController();
+    private final FileOptionsController   fileOptionsController   = new FileOptionsController();
+    private final TerminalController      terminalController      = new TerminalController();
+    private final BuildController         buildController         = new BuildController();
+    private final HelpController          helpController          = new HelpController();
     private final ConfigDialogCoordinator configDialogCoordinator = new ConfigDialogCoordinator();
     private final CompilationDiagnosticParserService compilationDiagnosticParserService = new CompilationDiagnosticParserService();
     private final CompilationDiagnosticsUiHelper compilationDiagnosticsUiHelper = new CompilationDiagnosticsUiHelper();
@@ -217,11 +229,12 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     private final Map<Tab, File> tabFileMap = new HashMap<>(); // Solo para mapear tabs a archivos
 
-    private static final String HOME_TAB_ID = "home-tab";
-    private static final String HOME_LINK_HOOKED = "home-link-hooked";
-    private final Map<File, CompileLineDiagnostics> compileDiagnosticsByFile = new HashMap<>();
-    private volatile boolean lastCompilationHasErrors = false;
+    private static final String HOME_TAB_ID             = "home-tab";
+    private static final String HOME_LINK_HOOKED        = "home-link-hooked";
+    private volatile boolean lastCompilationHasErrors   = false;
     private volatile boolean lastCompilationHasWarnings = false;
+
+    private final Map<File, CompileLineDiagnostics> compileDiagnosticsByFile = new HashMap<>();
 
     private static final KeyCombination ACCEL_NEW          = new KeyCodeCombination(KeyCode.N, KeyCombination.CONTROL_DOWN);
     private static final KeyCombination ACCEL_OPEN         = new KeyCodeCombination(KeyCode.O, KeyCombination.CONTROL_DOWN);
@@ -418,33 +431,33 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         } catch (Exception ignored) {}
 
         // Menús y textos
-        if (menuArchivo != null) menuArchivo.setText(bundle.getString("menu.file"));
-        if (menuCompilacion != null) menuCompilacion.setText(bundle.getString("menu.project"));
-        if (menuEdicion != null) menuEdicion.setText(bundle.getString("menu.edit"));
-        if (menuAyuda != null) menuAyuda.setText(bundle.getString("menu.help"));
+        if (menuArchivo           != null) menuArchivo.setText(bundle.getString("menu.file"));
+        if (menuCompilacion       != null) menuCompilacion.setText(bundle.getString("menu.project"));
+        if (menuEdicion           != null) menuEdicion.setText(bundle.getString("menu.edit"));
+        if (menuAyuda             != null) menuAyuda.setText(bundle.getString("menu.help"));
         if (menuItemNuevoProyecto != null) menuItemNuevoProyecto.setText(bundle.getString("button.newProject"));
         if (menuItemAbrirProyecto != null) menuItemAbrirProyecto.setText(bundle.getString("button.openProject"));
-        if (menuItemNuevo != null) menuItemNuevo.setText(bundle.getString("button.new"));
-        if (menuItemAbrir != null) menuItemAbrir.setText(bundle.getString("button.open"));
-        if (menuItemGuardar != null) menuItemGuardar.setText(bundle.getString("button.save"));
-        if (menuItemGuardarComo != null) menuItemGuardarComo.setText(bundle.getString("button.saveAs"));
-        if (menuItemCerrar != null) menuItemCerrar.setText(bundle.getString("button.close"));
-        if (menuItemConfig != null) menuItemConfig.setText(bundle.getString("button.config"));
-        if (menuItemSalir != null) menuItemSalir.setText(bundle.getString("menu.exit"));
-        if (menuItemCompilar != null) menuItemCompilar.setText(bundle.getString("button.compile"));
-        if (menuItemEjecutar != null) menuItemEjecutar.setText(bundle.getString("button.run"));
-        if (menuItemDeshacer != null) menuItemDeshacer.setText(bundle.getString("button.undo"));
-        if (menuItemRehacer != null) menuItemRehacer.setText(bundle.getString("button.redo"));
-        if (menuItemCortar != null) menuItemCortar.setText(bundle.getString("button.cut"));
-        if (menuItemCopiar != null) menuItemCopiar.setText(bundle.getString("button.copy"));
-        if (menuItemPegar != null) menuItemPegar.setText(bundle.getString("button.paste"));
-        if (menuItemGoToLine != null) menuItemGoToLine.setText(bundle.getString("menu.goto.line"));
-        if (menuItemFind != null) menuItemFind.setText(bundle.getString("menu.find.file"));
-        if (menuItemFindProject != null) menuItemFindProject.setText(bundle.getString("menu.find.project"));
-        if (menuItemManual != null) menuItemManual.setText(bundle.getString("menu.help.manual"));
-        if (menuItemPluginManual != null) menuItemPluginManual.setText(bundle.getString("menu.help.pluginsManual"));
-        if (menuItemLicenses != null) menuItemLicenses.setText(bundle.getString("menu.help.licenses"));
-        if (menuItemCreditos != null) menuItemCreditos.setText(bundle.getString("menu.help.credits"));
+        if (menuItemNuevo         != null) menuItemNuevo.setText(bundle.getString("button.new"));
+        if (menuItemAbrir         != null) menuItemAbrir.setText(bundle.getString("button.open"));
+        if (menuItemGuardar       != null) menuItemGuardar.setText(bundle.getString("button.save"));
+        if (menuItemGuardarComo   != null) menuItemGuardarComo.setText(bundle.getString("button.saveAs"));
+        if (menuItemCerrar        != null) menuItemCerrar.setText(bundle.getString("button.close"));
+        if (menuItemConfig        != null) menuItemConfig.setText(bundle.getString("button.config"));
+        if (menuItemSalir         != null) menuItemSalir.setText(bundle.getString("menu.exit"));
+        if (menuItemCompilar      != null) menuItemCompilar.setText(bundle.getString("button.compile"));
+        if (menuItemEjecutar      != null) menuItemEjecutar.setText(bundle.getString("button.run"));
+        if (menuItemDeshacer      != null) menuItemDeshacer.setText(bundle.getString("button.undo"));
+        if (menuItemRehacer       != null) menuItemRehacer.setText(bundle.getString("button.redo"));
+        if (menuItemCortar        != null) menuItemCortar.setText(bundle.getString("button.cut"));
+        if (menuItemCopiar        != null) menuItemCopiar.setText(bundle.getString("button.copy"));
+        if (menuItemPegar         != null) menuItemPegar.setText(bundle.getString("button.paste"));
+        if (menuItemGoToLine      != null) menuItemGoToLine.setText(bundle.getString("menu.goto.line"));
+        if (menuItemFind          != null) menuItemFind.setText(bundle.getString("menu.find.file"));
+        if (menuItemFindProject   != null) menuItemFindProject.setText(bundle.getString("menu.find.project"));
+        if (menuItemManual        != null) menuItemManual.setText(bundle.getString("menu.help.manual"));
+        if (menuItemPluginManual  != null) menuItemPluginManual.setText(bundle.getString("menu.help.pluginsManual"));
+        if (menuItemLicenses      != null) menuItemLicenses.setText(bundle.getString("menu.help.licenses"));
+        if (menuItemCreditos      != null) menuItemCreditos.setText(bundle.getString("menu.help.credits"));
         applyDiagnosticLegendI18n();
 
         applyMenuAccelerators();

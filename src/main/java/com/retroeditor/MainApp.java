@@ -32,13 +32,13 @@ public class MainApp extends Application {
             // Inicializar el gestor de plugins (carpeta plugins/ junto al directorio de trabajo)
             try {
                 // Intentar obtener el controlador para poder pasarle la MenuBar a los plugins
-                Object controller = loader.getController();
+                Object controller  = loader.getController();
 
                 if (controller instanceof com.retroeditor.controller.MainController) {
                     mainController = (com.retroeditor.controller.MainController) controller;
-                    pluginManager = new com.retroeditor.plugin.PluginManager(primaryStage, scene, mainController.getMenuBar());
+                    pluginManager  = new com.retroeditor.plugin.PluginManager(primaryStage, scene, mainController.getMenuBar());
                 } else {
-                    pluginManager = new com.retroeditor.plugin.PluginManager(primaryStage, scene, null);
+                    pluginManager  = new com.retroeditor.plugin.PluginManager(primaryStage, scene, null);
                 }
 
                 pluginManager.loadPlugins();
