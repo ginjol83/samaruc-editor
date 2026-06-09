@@ -32,8 +32,8 @@
                     <Menu fx:id="menuCompilacion" text="Compilación/Ejecución">
                         <MenuItem fx:id="menuItemCompilar" text="Compilar" onAction="#onCompilar" />
                         <MenuItem fx:id="menuItemEjecutar" text="Ejecutar" onAction="#onEjecutar" />
-                        <SeparatorMenuItem />
-                        <MenuItem fx:id="menuItemCpcWebTest" text="Probar CPC (Web)" onAction="#onOpenCpcWebTest" />
+                        <!-- SeparatorMenuItem />
+                        <MenuItem fx:id="menuItemCpcWebTest" text="Probar CPC (Web)" onAction="#onOpenCpcWebTest" / -->
                     </Menu>
                     <Menu fx:id="menuEdicion" text="Edición">
                         <MenuItem fx:id="menuItemDeshacer" text="Deshacer" onAction="#onUndo" />
