@@ -49,6 +49,16 @@ class FXUtilsReadmeTest {
         Assertions.assertFalse(readme.contains("ZX Spectrum project created"));
     }
 
+    @Test
+    void markdownPreviewRendererProducesFormattedHtml() throws Exception {
+        String html = invokeMarkdownRenderer("README.md", "# Title\n\n- item\n\n`code`\n");
+
+        Assertions.assertTrue(html.contains("<h1>Title</h1>"));
+        Assertions.assertTrue(html.contains("<ul>"));
+        Assertions.assertTrue(html.contains("<li>item</li>"));
+        Assertions.assertTrue(html.contains("<code>code</code>"));
+    }
+
     @SuppressWarnings({"rawtypes", "unchecked"})
     private String invokeReadme(String templateName, String projectName) throws Exception {
         FXUtils utils = new FXUtils();
@@ -78,5 +88,11 @@ class FXUtilsReadmeTest {
 
         return (String) m.invoke(utils, projectName, template);
     }
-}
 
+    private String invokeMarkdownRenderer(String title, String markdown) throws Exception {
+        FXUtils utils = new FXUtils();
+        Method m = FXUtils.class.getDeclaredMethod("renderMarkdownToHtml", String.class, String.class);
+        m.setAccessible(true);
+        return (String) m.invoke(utils, title, markdown);
+    }
+}

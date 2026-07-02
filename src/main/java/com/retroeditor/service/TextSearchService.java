@@ -149,10 +149,48 @@ public class TextSearchService {
         return list;
     }
 
+    public String replaceFirst(String text, String term, String replacement, int fromIndex, boolean caseSensitive, boolean regex) {
+        if (text == null || term == null || term.isEmpty()) return text;
+        String safeReplacement = replacement != null ? replacement : "";
+
+        MatchRange match = findNext(text, term, fromIndex, caseSensitive, regex);
+        if (match == null) return text;
+
+        return text.substring(0, match.getStart())
+            + safeReplacement
+            + text.substring(match.getEnd());
+    }
+
+    public String replaceAll(String text, String term, String replacement, boolean caseSensitive, boolean regex) {
+        if (text == null || term == null || term.isEmpty()) return text;
+        String safeReplacement = replacement != null ? replacement : "";
+
+        try {
+            if (regex) {
+                java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                    term,
+                    caseSensitive ? 0 : java.util.regex.Pattern.CASE_INSENSITIVE
+                );
+                return pattern.matcher(text).replaceAll(java.util.regex.Matcher.quoteReplacement(safeReplacement));
+            }
+
+            if (caseSensitive) {
+                return text.replace(term, safeReplacement);
+            }
+
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                java.util.regex.Pattern.quote(term),
+                java.util.regex.Pattern.CASE_INSENSITIVE
+            );
+            return pattern.matcher(text).replaceAll(java.util.regex.Matcher.quoteReplacement(safeReplacement));
+        } catch (Exception ignored) {
+            return text;
+        }
+    }
+
     private String buildSnippet(String content, int idx, int length) {
         int start = Math.max(0, idx - 30);
         int end = Math.min(content.length(), idx + length + 30);
         return content.substring(start, end).replaceAll("\\r?\\n", " ");
     }
 }
-

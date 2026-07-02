@@ -33,6 +33,17 @@
                 </VBox>
             </AnchorPane>
         </Tab>
+        <Tab fx:id="tabAppearance" text="Apariencia">
+            <AnchorPane>
+                <VBox spacing="10" alignment="TOP_LEFT" style="-fx-padding: 14;" AnchorPane.topAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0">
+                    <Label fx:id="lblEditorAppearance" text="Apariencia del editor:" />
+                    <ComboBox fx:id="comboEditorAppearance" prefWidth="260" />
+                    <HBox spacing="8" alignment="CENTER_LEFT">
+                        <Button fx:id="btnGuardarAppearance" text="Guardar apariencia" onAction="#onSaveEditorAppearance" prefWidth="170" />
+                    </HBox>
+                </VBox>
+            </AnchorPane>
+        </Tab>
         <Tab fx:id="tabCompilador" text="Compilador">
             <AnchorPane>
             <BorderPane style="-fx-padding: 14;" AnchorPane.topAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.bottomAnchor="0.0">

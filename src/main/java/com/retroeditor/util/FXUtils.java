@@ -3,6 +3,7 @@ package com.retroeditor.util;
 import javafx.event.ActionEvent;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,6 +17,7 @@ import java.util.ResourceBundle;
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.LineNumberFactory;
 
+import com.retroeditor.model.ConfigModel;
 import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.service.syntax.SyntaxHighlighter;
 import com.retroeditor.view.UIElements;
@@ -24,8 +26,13 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.control.Tooltip;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebView;
@@ -36,6 +43,11 @@ public class FXUtils {
 
     private static final String TAB_PROP_BASE_TITLE = "editor.baseTitle";
     private static final String TAB_PROP_BASE_TEXT = "editor.baseText";
+    private static final String TAB_PROP_CODE_AREA = "editor.codeArea";
+    private static final String TAB_PROP_MARKDOWN_WEBVIEW = "editor.markdownWebView";
+    private static final String TAB_PROP_MARKDOWN_PREVIEW = "editor.markdownPreviewVisible";
+    private static final String EDITOR_STYLESHEET_MODERN = "/css/c-syntax.css";
+    private static final String EDITOR_STYLESHEET_CLASSIC = "/css/c-syntax-classic.css";
 
     private enum ProjectTemplate {
         EMPTY,
@@ -62,6 +74,7 @@ public class FXUtils {
     private boolean lastCreateReadmeSelected = true;
     private boolean lastCreateGitignoreSelected = true;
     private String projectReadmeLanguage = "en";
+    private String editorAppearance = ConfigModel.EDITOR_APPEARANCE_MODERN_DARK;
 
     public boolean wasLastProjectCreationCancelled() {
         return lastProjectCreationCancelled;
@@ -139,10 +152,11 @@ public class FXUtils {
                     }
                 });
 
-        codeArea.getStylesheets().add(getClass().getResource("/css/c-syntax.css").toExternalForm());
+        applyEditorAppearance(codeArea);
         Tab tab = new Tab(title, codeArea);
         tab.getProperties().put(TAB_PROP_BASE_TITLE, title != null ? title : "");
         tab.getProperties().put(TAB_PROP_BASE_TEXT, initialText);
+        tab.getProperties().put(TAB_PROP_CODE_AREA, codeArea);
 
         codeArea.textProperty().addListener((obs, oldText, newText) -> updateTabDirtyIndicator(tab, codeArea));
 
@@ -150,6 +164,98 @@ public class FXUtils {
         tabPane.getSelectionModel().select(tab);
 
         return tab;
+    }
+
+    public Tab addMarkdownTab(String title, String content, SyntaxHighlighter syntaxHighlighter, TabPane tabPane) {
+        CodeArea codeArea = new CodeArea();
+        WebView previewView = new WebView();
+        String initialText = content != null ? content : "";
+
+        codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
+        codeArea.replaceText(initialText);
+        applyEditorAppearance(codeArea);
+        codeArea.setStyleSpans(0, syntaxHighlighter.computeHighlighting(initialText, title));
+        codeArea.multiPlainChanges()
+            .successionEnds(Duration.ofMillis(250))
+            .subscribe(ignore -> {
+                try {
+                    codeArea.setStyleSpans(0, syntaxHighlighter.computeHighlighting(codeArea.getText(), title));
+                    updateMarkdownPreview(previewView, codeArea.getText(), title);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            });
+
+        updateMarkdownPreview(previewView, initialText, title);
+
+        StackPane center = new StackPane(codeArea, previewView);
+        previewView.setVisible(false);
+        previewView.setManaged(false);
+
+        ToggleButton codeToggle = new ToggleButton("Código");
+        ToggleButton previewToggle = new ToggleButton("Vista previa");
+        ToggleGroup group = new ToggleGroup();
+        codeToggle.setToggleGroup(group);
+        previewToggle.setToggleGroup(group);
+        codeToggle.setSelected(true);
+
+        BorderPane root = new BorderPane();
+        Tab tab = new Tab(title);
+        codeToggle.setOnAction(e -> setMarkdownPreviewVisible(tab, codeArea, previewView, false));
+        previewToggle.setOnAction(e -> setMarkdownPreviewVisible(tab, codeArea, previewView, true));
+
+        root.setTop(new javafx.scene.control.ToolBar(codeToggle, previewToggle));
+        root.setCenter(center);
+        tab.setContent(root);
+        tab.getProperties().put(TAB_PROP_BASE_TITLE, title != null ? title : "");
+        tab.getProperties().put(TAB_PROP_BASE_TEXT, initialText);
+        tab.getProperties().put(TAB_PROP_CODE_AREA, codeArea);
+        tab.getProperties().put(TAB_PROP_MARKDOWN_WEBVIEW, previewView);
+        tab.getProperties().put(TAB_PROP_MARKDOWN_PREVIEW, Boolean.FALSE);
+
+        codeArea.textProperty().addListener((obs, oldText, newText) -> updateTabDirtyIndicator(tab, codeArea));
+
+        tabPane.getTabs().add(tab);
+        tabPane.getSelectionModel().select(tab);
+        return tab;
+    }
+
+    public void setEditorAppearance(String appearance) {
+        if (ConfigModel.EDITOR_APPEARANCE_CLASSIC.equalsIgnoreCase(appearance)) {
+            editorAppearance = ConfigModel.EDITOR_APPEARANCE_CLASSIC;
+        } else {
+            editorAppearance = ConfigModel.EDITOR_APPEARANCE_MODERN_DARK;
+        }
+    }
+
+    public void applyEditorAppearance(CodeArea codeArea) {
+        if (codeArea == null) return;
+        String modernCss = resolveStylesheet(EDITOR_STYLESHEET_MODERN);
+        String classicCss = resolveStylesheet(EDITOR_STYLESHEET_CLASSIC);
+
+        if (modernCss != null) {
+            codeArea.getStylesheets().remove(modernCss);
+        }
+        if (classicCss != null) {
+            codeArea.getStylesheets().remove(classicCss);
+        }
+
+        String activeCssPath = ConfigModel.EDITOR_APPEARANCE_CLASSIC.equals(editorAppearance)
+            ? EDITOR_STYLESHEET_CLASSIC
+            : EDITOR_STYLESHEET_MODERN;
+        String activeCss = resolveStylesheet(activeCssPath);
+        if (activeCss != null && !codeArea.getStylesheets().contains(activeCss)) {
+            codeArea.getStylesheets().add(activeCss);
+        }
+    }
+
+    private String resolveStylesheet(String resourcePath) {
+        try {
+            java.net.URL resource = getClass().getResource(resourcePath);
+            return resource != null ? resource.toExternalForm() : null;
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     public void markTabSaved(Tab tab, String baseTitle, String savedText) {
@@ -161,6 +267,11 @@ public class FXUtils {
         tab.getProperties().put(TAB_PROP_BASE_TITLE, normalizedTitle);
         tab.getProperties().put(TAB_PROP_BASE_TEXT, normalizedText);
         tab.setText(normalizedTitle);
+        Object preview = tab.getProperties().get(TAB_PROP_MARKDOWN_WEBVIEW);
+        Object codeArea = tab.getProperties().get(TAB_PROP_CODE_AREA);
+        if (preview instanceof WebView && codeArea instanceof CodeArea) {
+            updateMarkdownPreview((WebView) preview, normalizedText, normalizedTitle);
+        }
     }
 
     private void updateTabDirtyIndicator(Tab tab, CodeArea codeArea) {
@@ -322,10 +433,25 @@ public class FXUtils {
      * @param tab Pestaña de la cual obtener el CodeArea.
      * @return CodeArea contenido en la pestaña, o null si no es un CodeArea.
      */
-    private CodeArea getCodeArea(Tab tab) {
+    public CodeArea getCodeArea(Tab tab) {
         if (tab == null) return null;
 
+        Object stored = tab.getProperties().get(TAB_PROP_CODE_AREA);
+        if (stored instanceof CodeArea) {
+            return (CodeArea) stored;
+        }
+
         if (tab.getContent() instanceof CodeArea) { return (CodeArea) tab.getContent(); }
+
+        if (tab.getContent() instanceof BorderPane) {
+            BorderPane borderPane = (BorderPane) tab.getContent();
+            if (borderPane.getCenter() instanceof StackPane) {
+                StackPane stackPane = (StackPane) borderPane.getCenter();
+                for (javafx.scene.Node node : stackPane.getChildren()) {
+                    if (node instanceof CodeArea) return (CodeArea) node;
+                }
+            }
+        }
 
         return null;
     }
@@ -341,7 +467,9 @@ public class FXUtils {
      */
     public void addNewTab(File file, String content, Map<Tab, File> tabFileMap, SyntaxHighlighter syntaxHighlighter, TabPane tabPane, int newFileCounter) {
         String tabName = (file != null) ? file.getName() : ("new" + newFileCounter + ".c");
-        Tab    tab     = addTab(tabName, content, syntaxHighlighter, tabPane);
+        Tab    tab     = isMarkdownFileName(tabName)
+            ? addMarkdownTab(tabName, content, syntaxHighlighter, tabPane)
+            : addTab(tabName, content, syntaxHighlighter, tabPane);
 
         if (file == null) newFileCounter++;
 
@@ -372,11 +500,16 @@ public class FXUtils {
      * @return La carpeta del nuevo proyecto, o null si se cancela la operación.
      */
     public File createNewProject(Stage parentStage, ResourceBundle bundle) {
+        return createNewProject(parentStage, bundle, (File) null);
+    }
+
+    public File createNewProject(Stage parentStage, ResourceBundle bundle, File initialDirectory) {
         projectReadmeLanguage = normalizeReadmeLanguage(projectReadmeLanguage);
         lastProjectCreationCancelled = false;
         lastCreatedProjectTemplate = null;
         DirectoryChooser chooser = new DirectoryChooser();
         chooser.setTitle(msg(bundle, "dialog.project.new.selectFolder.title", "Selecciona carpeta para el nuevo proyecto"));
+        setInitialDirectoryIfValid(chooser, initialDirectory);
         File parent = chooser.showDialog(parentStage);
 
         if (parent != null) {
@@ -996,9 +1129,13 @@ public class FXUtils {
      * @return La carpeta del proyecto seleccionado, o null si se cancela la operación.
      */
     public File openExistingProject(Stage parentStage, ResourceBundle bundle) {
+        return openExistingProject(parentStage, bundle, (File) null);
+    }
 
+    public File openExistingProject(Stage parentStage, ResourceBundle bundle, File initialDirectory) {
         DirectoryChooser chooser = new DirectoryChooser();
         chooser.setTitle(msg(bundle, "dialog.project.open.selectFolder.title", "Abrir proyecto existente"));
+        setInitialDirectoryIfValid(chooser, initialDirectory);
         File carpeta             = chooser.showDialog(parentStage);
 
         if (carpeta != null && carpeta.isDirectory()) {
@@ -1029,5 +1166,187 @@ public class FXUtils {
         String tabName = "nuevo" + newFileCounter + ".c";
         UserActionMonitor.newTabCreated(tabName);
         addNewTab(null, "",  tabFileMap, syntaxHighlighter, tabPane, newFileCounter);
+    }
+
+    private void setInitialDirectoryIfValid(DirectoryChooser chooser, File initialDirectory) {
+        if (chooser == null || initialDirectory == null || !initialDirectory.exists() || !initialDirectory.isDirectory()) {
+            return;
+        }
+
+        try {
+            chooser.setInitialDirectory(initialDirectory);
+        } catch (Exception ignored) {
+        }
+    }
+
+    public boolean isMarkdownFileName(String fileName) {
+        if (fileName == null || fileName.isBlank()) return false;
+        String normalized = fileName.toLowerCase();
+        return normalized.endsWith(".md") || normalized.endsWith(".markdown");
+    }
+
+    private void setMarkdownPreviewVisible(Tab tab, CodeArea codeArea, WebView previewView, boolean previewVisible) {
+        if (tab != null) {
+            tab.getProperties().put(TAB_PROP_MARKDOWN_PREVIEW, Boolean.valueOf(previewVisible));
+        }
+
+        if (codeArea != null) {
+            codeArea.setVisible(!previewVisible);
+            codeArea.setManaged(!previewVisible);
+        }
+
+        if (previewView != null) {
+            previewView.setVisible(previewVisible);
+            previewView.setManaged(previewVisible);
+        }
+    }
+
+    private void updateMarkdownPreview(WebView previewView, String markdownText, String title) {
+        if (previewView == null) return;
+
+        WebEngine engine = previewView.getEngine();
+        engine.loadContent(renderMarkdownToHtml(title, markdownText), "text/html");
+    }
+
+    private String renderMarkdownToHtml(String title, String markdownText) {
+        String body = markdownToHtml(markdownText != null ? markdownText : "");
+        String safeTitle = escapeHtml(title != null && !title.isBlank() ? title : "Markdown");
+        return "<!doctype html><html><head><meta charset=\"utf-8\">"
+            + "<style>"
+            + "body{font-family:Segoe UI,Arial,sans-serif;margin:24px;line-height:1.5;color:#1f2937;background:#fff;}"
+            + "h1,h2,h3,h4,h5,h6{margin:1em 0 0.5em;}"
+            + "pre{background:#f6f8fa;padding:12px;border-radius:8px;overflow:auto;}"
+            + "code{font-family:Consolas,monospace;background:#f6f8fa;padding:0 4px;border-radius:4px;}"
+            + "blockquote{border-left:4px solid #d0d7de;margin:0;padding:0 0 0 12px;color:#57606a;}"
+            + "ul,ol{margin:0 0 1em 1.5em;}"
+            + "a{color:#0969da;text-decoration:none;}"
+            + "table{border-collapse:collapse;margin:1em 0;}"
+            + "th,td{border:1px solid #d0d7de;padding:6px 10px;}"
+            + "hr{border:0;border-top:1px solid #d0d7de;margin:1em 0;}"
+            + ".meta{color:#6b7280;font-size:12px;margin-bottom:12px;}"
+            + "</style></head><body>"
+            + "<div class=\"meta\">" + safeTitle + "</div>"
+            + body
+            + "</body></html>";
+    }
+
+    private String markdownToHtml(String markdownText) {
+        String[] lines = (markdownText != null ? markdownText : "").replace("\r\n", "\n").replace('\r', '\n').split("\n", -1);
+        StringBuilder html = new StringBuilder();
+        boolean inUl = false;
+        boolean inOl = false;
+        boolean inCode = false;
+
+        for (String line : lines) {
+            String trimmed = line.trim();
+
+            if (trimmed.startsWith("```")) {
+                if (inCode) {
+                    html.append("</code></pre>");
+                    inCode = false;
+                } else {
+                    closeLists(html, inUl, inOl);
+                    inUl = false;
+                    inOl = false;
+                    html.append("<pre><code>");
+                    inCode = true;
+                }
+                continue;
+            }
+
+            if (inCode) {
+                html.append(escapeHtml(line)).append("\n");
+                continue;
+            }
+
+            if (trimmed.isEmpty()) {
+                closeLists(html, inUl, inOl);
+                inUl = false;
+                inOl = false;
+                continue;
+            }
+
+            if (trimmed.startsWith("#")) {
+                closeLists(html, inUl, inOl);
+                inUl = false;
+                inOl = false;
+                int level = 0;
+                while (level < trimmed.length() && trimmed.charAt(level) == '#') level++;
+                level = Math.min(6, Math.max(1, level));
+                String text = trimmed.substring(level).trim();
+                html.append("<h").append(level).append(">")
+                    .append(renderInlineMarkdown(text))
+                    .append("</h").append(level).append(">");
+                continue;
+            }
+
+            if (trimmed.startsWith(">")) {
+                closeLists(html, inUl, inOl);
+                inUl = false;
+                inOl = false;
+                html.append("<blockquote>").append(renderInlineMarkdown(trimmed.substring(1).trim())).append("</blockquote>");
+                continue;
+            }
+
+            if (trimmed.matches("[-*+]\\s+.+")) {
+                if (!inUl) {
+                    closeLists(html, inUl, inOl);
+                    inOl = false;
+                    html.append("<ul>");
+                    inUl = true;
+                }
+                html.append("<li>").append(renderInlineMarkdown(trimmed.substring(2).trim())).append("</li>");
+                continue;
+            }
+
+            if (trimmed.matches("\\d+\\.\\s+.+")) {
+                if (!inOl) {
+                    closeLists(html, inUl, inOl);
+                    inUl = false;
+                    html.append("<ol>");
+                    inOl = true;
+                }
+                int dot = trimmed.indexOf('.');
+                html.append("<li>").append(renderInlineMarkdown(trimmed.substring(dot + 1).trim())).append("</li>");
+                continue;
+            }
+
+            closeLists(html, inUl, inOl);
+            inUl = false;
+            inOl = false;
+            html.append("<p>").append(renderInlineMarkdown(trimmed)).append("</p>");
+        }
+
+        if (inCode) {
+            html.append("</code></pre>");
+        }
+        closeLists(html, inUl, inOl);
+        return html.toString();
+    }
+
+    private void closeLists(StringBuilder html, boolean inUl, boolean inOl) {
+        if (inUl) html.append("</ul>");
+        if (inOl) html.append("</ol>");
+    }
+
+    private String renderInlineMarkdown(String text) {
+        if (text == null || text.isEmpty()) return "";
+
+        String escaped = escapeHtml(text);
+        escaped = escaped.replaceAll("`([^`]+)`", "<code>$1</code>");
+        escaped = escaped.replaceAll("\\*\\*([^*]+)\\*\\*", "<strong>$1</strong>");
+        escaped = escaped.replaceAll("(?<!\\*)\\*([^*]+)\\*(?!\\*)", "<em>$1</em>");
+        escaped = escaped.replaceAll("(?<!_)_([^_]+)_(?!_)", "<em>$1</em>");
+        escaped = escaped.replaceAll("\\[([^\\]]+)\\]\\(([^\\)]+)\\)", "<a href=\"$2\">$1</a>");
+        return escaped;
+    }
+
+    private String escapeHtml(String value) {
+        if (value == null || value.isEmpty()) return "";
+        return value
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;");
     }
 }

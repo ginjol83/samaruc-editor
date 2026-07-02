@@ -70,5 +70,16 @@ class TextSearchServiceTest {
         Assertions.assertEquals(1, matches.get(0).getStart());
         Assertions.assertEquals(2, matches.get(1).getLength());
     }
-}
 
+    @Test
+    void replaceFirstLiteralUsesNextMatch() {
+        String updated = service.replaceFirst("abc def abc", "abc", "XXX", 0, true, false);
+        Assertions.assertEquals("XXX def abc", updated);
+    }
+
+    @Test
+    void replaceAllRegexReplacesEveryMatch() {
+        String updated = service.replaceAll("a1 b22 c333", "\\d+", "#", true, true);
+        Assertions.assertEquals("a# b# c#", updated);
+    }
+}

@@ -48,5 +48,40 @@ class ConfigModelLegacyCompatibilityTest {
         Assertions.assertEquals("spectrum", normalized.getProperty("z88dk_profile"));
         Assertions.assertEquals("JSpeccy", normalized.getProperty("emulador_seleccionado"));
     }
-}
 
+    @Test
+    void preservesCustomRecentPropertiesOnRoundTrip() {
+        ConfigModel model = new ConfigModel();
+        model.setConfigProperty("recent_files", "C:\\proj\\main.c\nC:\\proj\\README.md");
+        model.setConfigProperty("last_open_file_directory", "C:\\proj");
+
+        Properties serialized = model.toProperties();
+        Assertions.assertEquals("C:\\proj\\main.c\nC:\\proj\\README.md", serialized.getProperty("recent_files"));
+        Assertions.assertEquals("C:\\proj", serialized.getProperty("last_open_file_directory"));
+
+        ConfigModel reloaded = new ConfigModel();
+        reloaded.applyProperties(serialized);
+        Assertions.assertEquals("C:\\proj\\main.c\nC:\\proj\\README.md", reloaded.getConfigProperty("recent_files", ""));
+        Assertions.assertEquals("C:\\proj", reloaded.getConfigProperty("last_open_file_directory", ""));
+    }
+
+    @Test
+    void editorAppearanceDefaultsToModernDarkAndPersistsClassicChoice() {
+        ConfigModel model = new ConfigModel();
+        Assertions.assertEquals(
+            ConfigModel.EDITOR_APPEARANCE_MODERN_DARK,
+            model.getConfigProperty("editor_appearance", ConfigModel.EDITOR_APPEARANCE_CLASSIC)
+        );
+
+        model.setConfigProperty("editor_appearance", ConfigModel.EDITOR_APPEARANCE_CLASSIC);
+        Properties serialized = model.toProperties();
+        Assertions.assertEquals(ConfigModel.EDITOR_APPEARANCE_CLASSIC, serialized.getProperty("editor_appearance"));
+
+        ConfigModel reloaded = new ConfigModel();
+        reloaded.applyProperties(serialized);
+        Assertions.assertEquals(
+            ConfigModel.EDITOR_APPEARANCE_CLASSIC,
+            reloaded.getConfigProperty("editor_appearance", ConfigModel.EDITOR_APPEARANCE_MODERN_DARK)
+        );
+    }
+}

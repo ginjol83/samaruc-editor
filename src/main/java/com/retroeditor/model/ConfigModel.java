@@ -23,6 +23,8 @@ public class ConfigModel {
     public static final String Z88DK_CLIB_SDCC_IY = "sdcc_iy";
     public static final String Z88DK_CLIB_CLANG_IX = "clang_ix";
     public static final String Z88DK_CLIB_CLANG_IY = "clang_iy";
+    public static final String EDITOR_APPEARANCE_MODERN_DARK = "modern_dark";
+    public static final String EDITOR_APPEARANCE_CLASSIC = "classic";
 
     private static final List<String> Z88DK_CLIB_OPTIONS = List.of(
         Z88DK_CLIB_NONE,
@@ -36,43 +38,44 @@ public class ConfigModel {
         Z88DK_CLIB_CLANG_IY
     );
 
-    private static final String COMPILER_GBDK      = "GBDK";
-    private static final String COMPILER_Z88DK     = "z88dk";
-    private static final String COMPILER_MAKEFILE  = "Makefile";
-    private static final String LEGACY_SPECTRUM    = "Spectrum";
-    private static final String Z88DK_PROFILE_SPECTRUM = "spectrum";
-    private static final String Z88DK_PROFILE_CPC = "cpc";
-    private static final String EMULATOR_EMULICIOUS = "Emulicious";
-    private static final String EMULATOR_JSPECCY   = "JSpeccy";
-    private static final String EMULATOR_CPCBOX_WEB = "CPCBoxWeb";
+    private static final String COMPILER_GBDK           = "GBDK";
+    private static final String COMPILER_Z88DK          = "z88dk";
+    private static final String COMPILER_MAKEFILE       = "Makefile";
+    private static final String LEGACY_SPECTRUM         = "Spectrum";
+    private static final String Z88DK_PROFILE_SPECTRUM  = "spectrum";
+    private static final String Z88DK_PROFILE_CPC       = "cpc";
+    private static final String EMULATOR_EMULICIOUS     = "Emulicious";
+    private static final String EMULATOR_JSPECCY        = "JSpeccy";
+    private static final String EMULATOR_CPCBOX_WEB     = "CPCBoxWeb";
 
     private final Properties     configProps             = new Properties();
-    private final StringProperty idioma                  = new SimpleStringProperty(this, "idioma", "es");
-    private final StringProperty projectReadmeLanguage   = new SimpleStringProperty(this, "project_readme_language", "en");
-    private final StringProperty gbdkBin                 = new SimpleStringProperty(this, "gbdk_bin", "");
-    private final StringProperty compilador              = new SimpleStringProperty(this, "compilador", "gcc");
-    private final StringProperty spectrumBin             = new SimpleStringProperty(this, "spectrum_bin", "");
-    private final StringProperty cpcBin                  = new SimpleStringProperty(this, "cpc_bin", "");
-    private final StringProperty compiladorSeleccionado  = new SimpleStringProperty(this, "compilador_seleccionado", "GBDK");
-    private final StringProperty emuladorSeleccionado    = new SimpleStringProperty(this, "emulador_seleccionado", "Emulicious");
-    private final StringProperty z88dkProfile            = new SimpleStringProperty(this, "z88dk_profile", Z88DK_PROFILE_SPECTRUM);
-    private final StringProperty z88dkClibOption         = new SimpleStringProperty(this, "z88dk_clib_option", Z88DK_CLIB_NEW);
+    private final StringProperty idioma                  = new SimpleStringProperty (this, "idioma", "es");
+    private final StringProperty projectReadmeLanguage   = new SimpleStringProperty (this, "project_readme_language", "en");
+    private final StringProperty editorAppearance        = new SimpleStringProperty (this, "editor_appearance", EDITOR_APPEARANCE_MODERN_DARK);
+    private final StringProperty gbdkBin                 = new SimpleStringProperty (this, "gbdk_bin", "");
+    private final StringProperty compilador              = new SimpleStringProperty (this, "compilador", "gcc");
+    private final StringProperty spectrumBin             = new SimpleStringProperty (this, "spectrum_bin", "");
+    private final StringProperty cpcBin                  = new SimpleStringProperty (this, "cpc_bin", "");
+    private final StringProperty compiladorSeleccionado  = new SimpleStringProperty (this, "compilador_seleccionado", "GBDK");
+    private final StringProperty emuladorSeleccionado    = new SimpleStringProperty (this, "emulador_seleccionado", "Emulicious");
+    private final StringProperty z88dkProfile            = new SimpleStringProperty (this, "z88dk_profile", Z88DK_PROFILE_SPECTRUM);
+    private final StringProperty z88dkClibOption         = new SimpleStringProperty (this, "z88dk_clib_option", Z88DK_CLIB_NEW);
     private final BooleanProperty z88dkUseCrtOrgCode     = new SimpleBooleanProperty(this, "z88dk_use_pragma_crt_org_code_32768", true);
-    private final StringProperty z88dkTarget             = new SimpleStringProperty(this, "z88dk_target", "+zx");
+    private final StringProperty z88dkTarget             = new SimpleStringProperty (this, "z88dk_target", "+zx");
     private final BooleanProperty z88dkCreateApp         = new SimpleBooleanProperty(this, "z88dk_create_app", true);
-    private final StringProperty z88dkDefines            = new SimpleStringProperty(this, "z88dk_defines", "");
-    private final StringProperty z88dkIncludes           = new SimpleStringProperty(this, "z88dk_includes", "");
-    private final StringProperty z88dkExtraArgs          = new SimpleStringProperty(this, "z88dk_extra_args", "");
-    private final StringProperty z88dkCpcClibOption      = new SimpleStringProperty(this, "z88dk_cpc_clib_option", Z88DK_CLIB_NEW);
+    private final StringProperty z88dkDefines            = new SimpleStringProperty (this, "z88dk_defines", "");
+    private final StringProperty z88dkIncludes           = new SimpleStringProperty (this, "z88dk_includes", "");
+    private final StringProperty z88dkExtraArgs          = new SimpleStringProperty (this, "z88dk_extra_args", "");
+    private final StringProperty z88dkCpcClibOption      = new SimpleStringProperty (this, "z88dk_cpc_clib_option", Z88DK_CLIB_NEW);
     private final BooleanProperty z88dkCpcUseCrtOrgCode  = new SimpleBooleanProperty(this, "z88dk_cpc_use_pragma_crt_org_code_32768", false);
-    private final StringProperty z88dkCpcTarget          = new SimpleStringProperty(this, "z88dk_cpc_target", "+cpc");
+    private final StringProperty z88dkCpcTarget          = new SimpleStringProperty (this, "z88dk_cpc_target", "+cpc");
     private final BooleanProperty z88dkCpcCreateApp      = new SimpleBooleanProperty(this, "z88dk_cpc_create_app", true);
-    private final StringProperty z88dkCpcDefines         = new SimpleStringProperty(this, "z88dk_cpc_defines", "");
-    private final StringProperty z88dkCpcIncludes        = new SimpleStringProperty(this, "z88dk_cpc_includes", "");
-    private final StringProperty z88dkCpcExtraArgs       = new SimpleStringProperty(this, "z88dk_cpc_extra_args", "");
-    private final StringProperty marketplaceCatalogUrl   = new SimpleStringProperty(this, "marketplace_catalog_url", PluginMarketplaceService.DEFAULT_MARKETPLACE_URL);
-    private final BooleanProperty autoApplyDetectedProjectProfile = new SimpleBooleanProperty(this, "project_detect_auto_apply", true);
-    private final StringProperty autoApplyDetectedProjectProfileThreshold = new SimpleStringProperty(this, "project_detect_auto_apply_threshold", "75");
+    private final StringProperty z88dkCpcDefines         = new SimpleStringProperty (this, "z88dk_cpc_defines", "");
+    private final StringProperty z88dkCpcIncludes        = new SimpleStringProperty (this, "z88dk_cpc_includes", "");
+    private final StringProperty z88dkCpcExtraArgs       = new SimpleStringProperty (this, "z88dk_cpc_extra_args", "");
+    private final StringProperty marketplaceCatalogUrl   = new SimpleStringProperty (this, "marketplace_catalog_url", PluginMarketplaceService.DEFAULT_MARKETPLACE_URL);
+    private final BooleanProperty autoApplyDetectedProjectProfile         = new SimpleBooleanProperty(this, "project_detect_auto_apply", true);
+    private final StringProperty autoApplyDetectedProjectProfileThreshold = new SimpleStringProperty (this, "project_detect_auto_apply_threshold", "75");
 
     // GBDK optimization options
     public static final String GBDK_OPT_NONE = "none";
@@ -84,13 +87,13 @@ public class ConfigModel {
     private final StringProperty  gbdkOptLevel     = new SimpleStringProperty (this, "gbdk_opt_level",     GBDK_OPT_NONE);
     private final BooleanProperty gbdkOptSpeed     = new SimpleBooleanProperty(this, "gbdk_opt_speed",     false);
     private final BooleanProperty gbdkOptSize      = new SimpleBooleanProperty(this, "gbdk_opt_size",      false);
-    private final StringProperty  gbdkDefines      = new SimpleStringProperty(this, "gbdk_defines", "");
-    private final StringProperty  gbdkIncludes     = new SimpleStringProperty(this, "gbdk_includes", "");
-    private final StringProperty  gbdkExtraArgs    = new SimpleStringProperty(this, "gbdk_extra_args", "");
-    private final StringProperty  makeExecutable   = new SimpleStringProperty(this, "make_executable", "");
-    private final StringProperty  makeBuildTarget  = new SimpleStringProperty(this, "make_build_target", "");
-    private final StringProperty  makeRunTarget    = new SimpleStringProperty(this, "make_run_target", "run");
-    private final StringProperty  makeExtraArgs    = new SimpleStringProperty(this, "make_extra_args", "");
+    private final StringProperty  gbdkDefines      = new SimpleStringProperty (this, "gbdk_defines", "");
+    private final StringProperty  gbdkIncludes     = new SimpleStringProperty (this, "gbdk_includes", "");
+    private final StringProperty  gbdkExtraArgs    = new SimpleStringProperty (this, "gbdk_extra_args", "");
+    private final StringProperty  makeExecutable   = new SimpleStringProperty (this, "make_executable", "");
+    private final StringProperty  makeBuildTarget  = new SimpleStringProperty (this, "make_build_target", "");
+    private final StringProperty  makeRunTarget    = new SimpleStringProperty (this, "make_run_target", "run");
+    private final StringProperty  makeExtraArgs    = new SimpleStringProperty (this, "make_extra_args", "");
 
     /**
      * Obtener una propiedad de configuración con valor por defecto
@@ -102,6 +105,7 @@ public class ConfigModel {
         switch (key) {
             case "idioma"                   : return getIdioma()                 != null ? getIdioma()                 : defaultValue;
             case "project_readme_language"  : return getProjectReadmeLanguage()  != null ? getProjectReadmeLanguage()  : defaultValue;
+            case "editor_appearance"        : return getEditorAppearance()        != null ? getEditorAppearance()        : defaultValue;
             case "gbdk_bin"                 : return getGbdkBin()                != null ? getGbdkBin()                : defaultValue;
             case "compilador"               : return getCompilador()             != null ? getCompilador()             : defaultValue;
             case "spectrum_bin"             : return getSpectrumBin()            != null ? getSpectrumBin()            : defaultValue;
@@ -149,6 +153,7 @@ public class ConfigModel {
         switch (key) {
             case "idioma":                  setIdioma(value);                    break;
             case "project_readme_language": setProjectReadmeLanguage(value);     break;
+            case "editor_appearance":       setEditorAppearance(value);           break;
             case "gbdk_bin":                setGbdkBin(value);                   break;
             case "compilador":              setCompilador(value);                break;
             case "spectrum_bin":            setSpectrumBin(value);               break;
@@ -198,6 +203,7 @@ public class ConfigModel {
         String profile = normalizeZ88dkProfile(source.getProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM));
         idioma                 .set(source.getProperty("idioma", "es"));
         projectReadmeLanguage  .set(normalizeReadmeLanguage(source.getProperty("project_readme_language", "en")));
+        editorAppearance       .set(normalizeEditorAppearance(source.getProperty("editor_appearance", EDITOR_APPEARANCE_MODERN_DARK)));
         compilador             .set(source.getProperty("compilador", "gcc"));
         compiladorSeleccionado .set(compilerSelection);
         emuladorSeleccionado   .set(deriveEmulatorForCompilerAndProfile(compilerSelection, profile));
@@ -237,8 +243,10 @@ public class ConfigModel {
     public Properties toProperties() {
         Properties p = new Properties();
         String compilerSelection = normalizeCompilerSelection(getCompiladorSeleccionado());
+        p.putAll(configProps);
         p.setProperty("idioma", getIdioma() != null ? getIdioma() : "es");
         p.setProperty("project_readme_language", getProjectReadmeLanguage() != null ? getProjectReadmeLanguage() : "en");
+        p.setProperty("editor_appearance", getEditorAppearance() != null ? getEditorAppearance() : EDITOR_APPEARANCE_MODERN_DARK);
         p.setProperty("gbdk_bin", getGbdkBin() != null ? getGbdkBin() : "");
         p.setProperty("compilador", getCompilador() != null ? getCompilador() : "gcc");
         p.setProperty("spectrum_bin", getSpectrumBin() != null ? getSpectrumBin() : "");
@@ -294,6 +302,10 @@ public class ConfigModel {
     public StringProperty projectReadmeLanguageProperty()     { return projectReadmeLanguage; }
     public String         getProjectReadmeLanguage()          { return normalizeReadmeLanguage(projectReadmeLanguage.get()); }
     public void           setProjectReadmeLanguage(String v)  { projectReadmeLanguage.set(normalizeReadmeLanguage(v)); }
+
+    public StringProperty editorAppearanceProperty()          { return editorAppearance; }
+    public String         getEditorAppearance()               { return normalizeEditorAppearance(editorAppearance.get()); }
+    public void           setEditorAppearance(String v)       { editorAppearance.set(normalizeEditorAppearance(v)); }
 
     public StringProperty compiladorProperty()                { return compilador; }
     public String         getCompilador()                     { return compilador.get(); }
@@ -502,6 +514,13 @@ public class ConfigModel {
         return "es".equals(normalized) ? "es" : "en";
     }
 
+    private String normalizeEditorAppearance(String appearance) {
+        if (appearance == null || appearance.isBlank()) return EDITOR_APPEARANCE_MODERN_DARK;
+        String normalized = appearance.trim().toLowerCase();
+        if (EDITOR_APPEARANCE_CLASSIC.equals(normalized)) return EDITOR_APPEARANCE_CLASSIC;
+        return EDITOR_APPEARANCE_MODERN_DARK;
+    }
+
     private String deriveEmulatorForCompilerAndProfile(String compiler, String profile) {
         if (COMPILER_Z88DK.equalsIgnoreCase(normalizeCompilerSelection(compiler))) {
             return Z88DK_PROFILE_CPC.equalsIgnoreCase(normalizeZ88dkProfile(profile)) ? EMULATOR_CPCBOX_WEB : EMULATOR_JSPECCY;
@@ -529,4 +548,3 @@ public class ConfigModel {
     }
 
 }
-

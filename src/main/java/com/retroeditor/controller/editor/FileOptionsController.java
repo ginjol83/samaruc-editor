@@ -20,7 +20,12 @@ public class FileOptionsController {
 
     private final FXUtils fxUtils = new FXUtils();
 
+    private File defaultOpenDirectory = null;
     private File defaultSaveDirectory = null;
+
+    public void setDefaultOpenDirectory(File dir) {
+        this.defaultOpenDirectory = dir;
+    }
 
     /**
      * Establece el directorio por defecto para guardar archivos.
@@ -39,9 +44,16 @@ public class FileOptionsController {
      * @param editorModel
      * @param syntaxHighlighter
      */
-    public void onOpenFile(ActionEvent event, TabPane tabPane, Map<Tab, File> tabFileMap, EditorModel editorModel, SyntaxHighlighter syntaxHighlighter) {
+    public File onOpenFile(ActionEvent event, TabPane tabPane, Map<Tab, File> tabFileMap, EditorModel editorModel, SyntaxHighlighter syntaxHighlighter) {
         FileChooser fileChooser = new FileChooser();
-        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("C Files", "*.c", "*.h"));
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("C / Assembly / Markdown", "*.c", "*.h", "*.asm", "*.s", "*.md", "*.markdown"));
+        if (defaultOpenDirectory != null && defaultOpenDirectory.exists() && defaultOpenDirectory.isDirectory()) {
+            try {
+                fileChooser.setInitialDirectory(defaultOpenDirectory);
+            } catch (Exception ex) {
+                // ignore invalid directory
+            }
+        }
         File file = fileChooser.showOpenDialog(fxUtils.getStage(tabPane));
 
         if (file != null) {
@@ -50,7 +62,7 @@ public class FileOptionsController {
             for (Map.Entry<Tab, File> entry : tabFileMap.entrySet()) {
                 if (file.equals(entry.getValue())) {
                     tabPane.getSelectionModel().select(entry.getKey());
-                    return;
+                    return file;
                 }
             }
 
@@ -59,13 +71,19 @@ public class FileOptionsController {
             } catch (IOException e) {
                 UserActionMonitor.errorOccurred("FILE_OPEN", e.getMessage());
                 e.printStackTrace();
-                return;
+                return null;
             }
 
             String content = editorModel.getFileContent(file);
-            Tab    tab     = fxUtils.addTab(file.getName(), content, syntaxHighlighter, tabPane);
+            Tab    tab     = fxUtils.isMarkdownFileName(file.getName())
+                ? fxUtils.addMarkdownTab(file.getName(), content, syntaxHighlighter, tabPane)
+                : fxUtils.addTab(file.getName(), content, syntaxHighlighter, tabPane);
 
             tabFileMap.put(tab, file);
+            if (file.getParentFile() != null) {
+                defaultOpenDirectory = file.getParentFile();
+                defaultSaveDirectory = file.getParentFile();
+            }
 
             // Limpieza cuando el usuario cierra el tab con la X integrada
             tab.setOnClosed(e -> {
@@ -74,6 +92,8 @@ public class FileOptionsController {
                 UserActionMonitor.fileClosed(file.getName());
             });
         }
+
+        return file;
     }
 
     /**
@@ -118,14 +138,15 @@ public class FileOptionsController {
         if (tab == null) return false;
 
         FileChooser fileChooser = new FileChooser();
-        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("C Files", "*.c", "*.h"));
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("C / Assembly / Markdown", "*.c", "*.h", "*.asm", "*.s", "*.md", "*.markdown"));
         String defaultName = fxUtils.getDefaultFileName(tab);
         fileChooser.setInitialFileName(defaultName);
 
         // Establecer el directorio inicial si es válido
-        if (defaultSaveDirectory != null && defaultSaveDirectory.exists() && defaultSaveDirectory.isDirectory()) {
+        File initialDirectory = defaultSaveDirectory != null ? defaultSaveDirectory : defaultOpenDirectory;
+        if (initialDirectory != null && initialDirectory.exists() && initialDirectory.isDirectory()) {
             try {
-                fileChooser.setInitialDirectory(defaultSaveDirectory);
+                fileChooser.setInitialDirectory(initialDirectory);
             } catch (Exception ex) {
                 // Ignorar excepciones relacionadas con permisos o accesos no válidos
             }
@@ -140,6 +161,12 @@ public class FileOptionsController {
                 editorModel.saveFile(file, codeArea.getText());
                 fxUtils.markTabSaved(tab, file.getName(), codeArea.getText());
                 tabFileMap.put(tab, file);
+                if (file.getParentFile() != null) {
+                    defaultSaveDirectory = file.getParentFile();
+                    if (defaultOpenDirectory == null) {
+                        defaultOpenDirectory = file.getParentFile();
+                    }
+                }
                 return true;
             } catch (IOException e) {
                 UserActionMonitor.errorOccurred("FILE_SAVE_AS", e.getMessage());

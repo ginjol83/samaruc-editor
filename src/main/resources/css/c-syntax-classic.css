@@ -1,0 +1,95 @@
+/* Classic editor styling for RichTextFX */
+.code-area {
+    -fx-background-color: #f8fafc;
+    -fx-control-inner-background: #f8fafc;
+    -fx-highlight-fill: #bfdbfe;
+    -fx-highlight-text-fill: #0f172a;
+    -fx-caret-color: #111827;
+    -fx-font-family: "Source Code Pro", Consolas, "DejaVu Sans Mono", monospace;
+    -fx-font-size: 13px;
+}
+
+.code-area .content {
+    -fx-background-color: #f8fafc;
+}
+
+.code-area .text,
+.code-area .paragraph-box,
+.code-area .paragraph-text {
+    -fx-background-color: #f8fafc;
+    -fx-fill: #111827;
+}
+
+.code-area .lineno,
+.code-area .paragraph-box .lineno,
+.code-area .paragraph-text .lineno {
+    -fx-text-fill: #6b7280;
+    -fx-background-color: #e5e7eb;
+    -fx-padding: 0 10 0 10;
+    -fx-font-family: "Source Code Pro", Consolas, "DejaVu Sans Mono", monospace;
+    -fx-font-size: 12px;
+}
+
+.code-area .selection {
+    -fx-fill: rgba(59, 130, 246, 0.25);
+}
+
+.code-area .current-line {
+    -fx-background-color: rgba(15, 23, 42, 0.05);
+}
+
+.code-area .caret {
+    -fx-stroke: #111827;
+}
+
+/* Syntax token colors */
+.code-area .preprocessor { -fx-fill: #0369a1; -fx-font-weight: bold; }
+.code-area .keyword { -fx-fill: #7c3aed; -fx-font-weight: bold; }
+.code-area .comment { -fx-fill: #64748b; -fx-font-style: italic; }
+.code-area .string { -fx-fill: #b45309; }
+.code-area .character { -fx-fill: #b45309; }
+.code-area .operator { -fx-fill: #1d4ed8; }
+.code-area .zx-function { -fx-fill: #2563eb; -fx-font-weight: bold; }
+.code-area .gbdk-function { -fx-fill: #0284c7; -fx-font-weight: bold; }
+.code-area .asm-label { -fx-fill: #7c2d12; -fx-font-weight: bold; }
+.code-area .asm-directive { -fx-fill: #7e22ce; }
+.code-area .asm-instruction { -fx-fill: #1d4ed8; -fx-font-weight: bold; }
+.code-area .asm-register { -fx-fill: #c2410c; }
+.code-area .asm-number { -fx-fill: #0891b2; }
+.code-area .md-heading { -fx-fill: #1e40af; -fx-font-weight: bold; }
+.code-area .md-blockquote { -fx-fill: #475569; -fx-font-style: italic; }
+.code-area .md-list { -fx-fill: #1f2937; }
+.code-area .md-checklist { -fx-fill: #475569; }
+.code-area .md-checklist-pending { -fx-fill: #b45309; }
+.code-area .md-checklist-done { -fx-fill: #166534; -fx-font-weight: bold; }
+.code-area .md-table { -fx-fill: #0f172a; }
+.code-area .md-link { -fx-fill: #1d4ed8; -fx-underline: true; }
+.code-area .md-bold { -fx-font-weight: bold; -fx-fill: #0f172a; }
+.code-area .md-italic { -fx-font-style: italic; -fx-fill: #334155; }
+.code-area .md-code { -fx-fill: #7c2d12; -fx-font-family: Consolas, "DejaVu Sans Mono", monospace; }
+.code-area .md-code-block { -fx-fill: #7c2d12; -fx-font-family: Consolas, "DejaVu Sans Mono", monospace; }
+
+.code-area .paragraph-box.compile-error-line,
+.code-area .paragraph-text.compile-error-line {
+    -fx-background-color: rgba(239, 68, 68, 0.12);
+    -fx-border-color: rgba(239, 68, 68, 0.45);
+    -fx-border-width: 0 0 0 2;
+}
+
+.code-area .paragraph-box.compile-warning-line,
+.code-area .paragraph-text.compile-warning-line {
+    -fx-background-color: rgba(245, 158, 11, 0.12);
+    -fx-border-color: rgba(245, 158, 11, 0.45);
+    -fx-border-width: 0 0 0 2;
+}
+
+.code-area .diag-gutter-marker {
+    -fx-background-radius: 999px;
+    -fx-min-width: 8px;
+    -fx-min-height: 8px;
+    -fx-pref-width: 8px;
+    -fx-pref-height: 8px;
+}
+
+.code-area .diag-gutter-marker-error { -fx-background-color: #dc2626; }
+.code-area .diag-gutter-marker-warning { -fx-background-color: #d97706; }

@@ -71,6 +71,7 @@ logs/
 /tools/
 /.trash/
 
+
 # Project temporary extraction/check folders
 /tmp-check/
 /tmp-check2/
@@ -94,3 +95,6 @@ jarlist.txt
 /tv/
 /z80core/
 
+
+AGENTS.md
+/.agents

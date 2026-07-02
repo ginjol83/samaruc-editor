@@ -1,71 +1,142 @@
-/* Simple C syntax highlighting for RichTextFX */
+/* Dark editor styling for RichTextFX */
+.code-area {
+    -fx-background-color: #0f172a;
+    -fx-control-inner-background: #0f172a;
+    -fx-highlight-fill: #1e3a8a;
+    -fx-highlight-text-fill: #f8fafc;
+    -fx-caret-color: #f8fafc;
+    -fx-font-family: "JetBrains Mono", "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+    -fx-font-size: 13px;
+}
+
+.code-area .content {
+    -fx-background-color: #0f172a;
+}
+
+.code-area .text,
+.code-area .paragraph-box,
+.code-area .paragraph-text {
+    -fx-background-color: #0f172a;
+    -fx-fill: #e5e7eb;
+}
+
+.code-area .lineno,
+.code-area .paragraph-box .lineno,
+.code-area .paragraph-text .lineno {
+    -fx-text-fill: #94a3b8;
+    -fx-background-color: #111827;
+    -fx-padding: 0 10 0 10;
+    -fx-font-family: "JetBrains Mono", "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+    -fx-font-size: 12px;
+}
+
+.code-area .selection {
+    -fx-fill: rgba(59, 130, 246, 0.35);
+}
+
+.code-area .current-line {
+    -fx-background-color: rgba(255, 255, 255, 0.03);
+}
+
+.code-area .caret {
+    -fx-stroke: #f8fafc;
+}
+
+/* Syntax token colors */
 .code-area .preprocessor {
-    -fx-fill: #007700;
+    -fx-fill: #7dd3fc;
     -fx-font-weight: bold;
 }
+
 .code-area .keyword {
-    -fx-fill: #0000ff;
+    -fx-fill: #c084fc;
     -fx-font-weight: bold;
 }
+
 .code-area .comment {
-    -fx-fill: #008000;
+    -fx-fill: #94a3b8;
     -fx-font-style: italic;
 }
+
 .code-area .string {
-    -fx-fill: #b22222;
+    -fx-fill: #fda4af;
 }
 
 .code-area .character {
-    -fx-fill: #b22222;
+    -fx-fill: #fda4af;
 }
 
 .code-area .operator {
-    -fx-fill: #8b008b;
+    -fx-fill: #f59e0b;
 }
 
 .code-area .zx-function {
-    -fx-fill: #8a2be2;
+    -fx-fill: #60a5fa;
     -fx-font-weight: bold;
 }
 
 .code-area .gbdk-function {
-    -fx-fill: #005cc5;
+    -fx-fill: #38bdf8;
     -fx-font-weight: bold;
 }
 
+.code-area .asm-label {
+    -fx-fill: #f97316;
+    -fx-font-weight: bold;
+}
+
+.code-area .asm-directive {
+    -fx-fill: #c084fc;
+    -fx-font-weight: bold;
+}
+
+.code-area .asm-instruction {
+    -fx-fill: #60a5fa;
+    -fx-font-weight: bold;
+}
+
+.code-area .asm-register {
+    -fx-fill: #f87171;
+    -fx-font-weight: bold;
+}
+
+.code-area .asm-number {
+    -fx-fill: #fbbf24;
+}
+
 .code-area .md-heading {
-    -fx-fill: #1f4e79;
+    -fx-fill: #93c5fd;
     -fx-font-weight: bold;
 }
 
 .code-area .md-blockquote {
-    -fx-fill: #6a737d;
+    -fx-fill: #94a3b8;
     -fx-font-style: italic;
 }
 
 .code-area .md-list {
-    -fx-fill: #005cc5;
+    -fx-fill: #60a5fa;
 }
 
 .code-area .md-checklist {
-    -fx-fill: #22863a;
+    -fx-fill: #4ade80;
 }
 
 .code-area .md-checklist-pending {
-    -fx-fill: #b08800;
+    -fx-fill: #fbbf24;
 }
 
 .code-area .md-checklist-done {
-    -fx-fill: #22863a;
+    -fx-fill: #4ade80;
     -fx-font-style: italic;
 }
 
 .code-area .md-table {
-    -fx-fill: #6f42c1;
+    -fx-fill: #c084fc;
 }
 
 .code-area .md-link {
-    -fx-fill: #0366d6;
+    -fx-fill: #38bdf8;
     -fx-underline: true;
 }
 
@@ -78,25 +149,25 @@
 }
 
 .code-area .md-code {
-    -fx-fill: #b31d28;
+    -fx-fill: #fda4af;
 }
 
 .code-area .md-code-block {
-    -fx-fill: #b31d28;
+    -fx-fill: #fda4af;
 }
 
 /* Marca visual de error/warning por linea (RichTextFX puede aplicar clase al paragraph-box o paragraph-text) */
 .code-area .paragraph-box.compile-error-line,
 .code-area .paragraph-text.compile-error-line {
-    -fx-background-color: #ffe8e6;
-    -fx-border-color: transparent transparent #ff3b30 transparent;
+    -fx-background-color: rgba(239, 68, 68, 0.12);
+    -fx-border-color: transparent transparent #f87171 transparent;
     -fx-border-width: 0 0 2 0;
 }
 
 .code-area .paragraph-box.compile-warning-line,
 .code-area .paragraph-text.compile-warning-line {
-    -fx-background-color: #fffbe6;
-    -fx-border-color: transparent transparent #e6ac00 transparent;
+    -fx-background-color: rgba(245, 158, 11, 0.12);
+    -fx-border-color: transparent transparent #fbbf24 transparent;
     -fx-border-width: 0 0 2 0;
 }
 
@@ -109,10 +180,9 @@
 }
 
 .code-area .diag-gutter-marker-error {
-    -fx-text-fill: #ff3b30;
+    -fx-text-fill: #f87171;
 }
 
 .code-area .diag-gutter-marker-warning {
-    -fx-text-fill: #f1c40f;
+    -fx-text-fill: #fbbf24;
 }
-

@@ -475,7 +475,11 @@ public class BuildController {
     private boolean shouldUseMakeBuild(String selectedCompiler, File selectedFile, File projectRootDir) {
         return isMakeCompiler(selectedCompiler)
             || isMakefileFile(selectedFile)
-            || (selectedFile == null && findMakefile(projectRootDir) != null);
+            || hasMakefile(projectRootDir);
+    }
+
+    private boolean hasMakefile(File directory) {
+        return findMakefile(directory) != null;
     }
 
     private boolean isMakeCompiler(String compiler) {

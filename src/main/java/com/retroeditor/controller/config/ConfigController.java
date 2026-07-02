@@ -85,6 +85,7 @@ public class ConfigController {
     @FXML private TextField        txtMakeRunTarget;
     @FXML private TextField        txtMakeExtraArgs;
     @FXML private Tab              tabIdioma;
+    @FXML private Tab              tabAppearance;
     @FXML private Tab              tabCompilador;
     @FXML private Tab              tabCompilerGbdk;
     @FXML private Tab              tabCompilerZ88dkSpectrum;
@@ -93,6 +94,7 @@ public class ConfigController {
     @FXML private Tab              tabPlugins;
     @FXML private Label            lblError;
     @FXML private Label            lblIdioma;
+    @FXML private Label            lblEditorAppearance;
     @FXML private Label            lblReadmeLanguage;
     @FXML private Label            lblCompilador;
     @FXML private Label            lblGbdkBin;
@@ -122,10 +124,12 @@ public class ConfigController {
     @FXML private Label            lblMakeExtraArgs;
     @FXML private Label            lblTituloConfig;
     @FXML private Button           btnGuardarIdioma;
+    @FXML private Button           btnGuardarAppearance;
     @FXML private Button           btnCerrarConfig;
     @FXML private Button           btnGuardarCompilador;
     @FXML private Button           btnSaveMakeOpts;
     @FXML private ComboBox<String> comboIdioma;
+    @FXML private ComboBox<String> comboEditorAppearance;
     @FXML private ComboBox<String> comboReadmeLanguage;
     @FXML private ComboBox<String> comboCompilador;
 
@@ -160,6 +164,7 @@ public class ConfigController {
     private Runnable onLanguageChanged;
     private boolean syncingCompilerUi = false;
     private final Map<String, String> readmeLanguageCodeByLabel = new HashMap<>();
+    private final Map<String, String> editorAppearanceCodeByLabel = new HashMap<>();
 
     private ConfigModel configModel = new ConfigModel();
     private ConfigRepository configRepository = new PropertiesConfigRepository();
@@ -271,6 +276,7 @@ public class ConfigController {
         }
 
         loadLanguageSelectionsFromConfig();
+        loadEditorAppearanceFromConfig();
 
         if (txtGbdkBin != null) {
             txtGbdkBin.setText(configModel.getConfigProperty("gbdk_bin", ""));
@@ -330,6 +336,7 @@ public class ConfigController {
         }
 
         loadLanguageSelectionsFromConfig();
+        loadEditorAppearanceFromConfig();
 
         if (txtGbdkBin != null) {
             txtGbdkBin.setText(configModel.getConfigProperty("gbdk_bin", ""));
@@ -1503,6 +1510,16 @@ public class ConfigController {
         if (onLanguageChanged != null) onLanguageChanged.run();
     }
 
+    @FXML
+    public void onSaveEditorAppearance(ActionEvent event) {
+        String selectedAppearance = comboEditorAppearance != null
+            ? comboEditorAppearance.getSelectionModel().getSelectedItem()
+            : null;
+        configModel.setConfigProperty("editor_appearance", toEditorAppearanceCode(selectedAppearance));
+        persistConfig();
+        showError("");
+    }
+
     /**
      * Refrescar textos de la aplicación según el idioma seleccionado.
      * @param tabIdioma
@@ -1529,7 +1546,9 @@ public class ConfigController {
         ResourceBundle bundle = ResourceBundle.getBundle("i18n.MessagesBundle", locale);
 
         if (tabIdioma            != null) tabIdioma            .setText(bundle.getString("label.languageTab"));
+        if (tabAppearance        != null) tabAppearance        .setText(bundle.getString("label.appearanceTab"));
         if (lblIdioma            != null) lblIdioma            .setText(bundle.getString("label.language"));
+        if (lblEditorAppearance  != null) lblEditorAppearance  .setText(bundle.getString("label.editorAppearance"));
         if (lblReadmeLanguage    != null) lblReadmeLanguage    .setText(bundle.getString("config.readmeLanguage"));
         if (tabCompilador        != null) tabCompilador        .setText(bundle.getString("label.compilerTab"));
         if (tabCompilerGbdk      != null) tabCompilerGbdk      .setText(bundle.getString("label.compiler.gbdkTab"));
@@ -1570,6 +1589,7 @@ public class ConfigController {
         if (btnCerrarConfig      != null) btnCerrarConfig      .setText(bundle.getString("button.close"));
         if (lblTituloConfig      != null) lblTituloConfig      .setText(bundle.getString("label.configTitle"));
         if (btnGuardarIdioma     != null) btnGuardarIdioma     .setText(bundle.getString("button.saveLanguage"));
+        if (btnGuardarAppearance != null) btnGuardarAppearance .setText(bundle.getString("button.saveAppearance"));
         if (btnGuardarCompilador != null) btnGuardarCompilador .setText(bundle.getString("button.saveConfig"));
         if (btnSaveMakeOpts      != null) btnSaveMakeOpts      .setText(bundle.getString("button.saveMake"));
         if (btnGuardarGbdkBin    != null) btnGuardarGbdkBin    .setText(bundle.getString("button.saveGbdk"));
@@ -1596,6 +1616,7 @@ public class ConfigController {
         }
 
         loadLanguageSelectionsFromConfig();
+        loadEditorAppearanceFromConfig();
         refreshCompilerComboItems();
     }
 
@@ -1634,6 +1655,42 @@ public class ConfigController {
         if (mapped != null) return mapped;
 
         return displayValue.equalsIgnoreCase("español") || displayValue.equalsIgnoreCase("spanish") ? "es" : "en";
+    }
+
+    private void loadEditorAppearanceFromConfig() {
+        if (comboEditorAppearance == null) return;
+
+        ResourceBundle bundle = getCurrentBundle();
+        String modernLabel = bundle.containsKey("config.editorAppearance.option.modernDark")
+            ? bundle.getString("config.editorAppearance.option.modernDark")
+            : "Moderno oscuro";
+        String classicLabel = bundle.containsKey("config.editorAppearance.option.classic")
+            ? bundle.getString("config.editorAppearance.option.classic")
+            : "Clasico";
+
+        comboEditorAppearance.getItems().clear();
+        comboEditorAppearance.getItems().addAll(modernLabel, classicLabel);
+        editorAppearanceCodeByLabel.clear();
+        editorAppearanceCodeByLabel.put(modernLabel, ConfigModel.EDITOR_APPEARANCE_MODERN_DARK);
+        editorAppearanceCodeByLabel.put(classicLabel, ConfigModel.EDITOR_APPEARANCE_CLASSIC);
+
+        String appearance = configModel.getConfigProperty("editor_appearance", ConfigModel.EDITOR_APPEARANCE_MODERN_DARK);
+        if (ConfigModel.EDITOR_APPEARANCE_CLASSIC.equalsIgnoreCase(appearance)) {
+            comboEditorAppearance.getSelectionModel().select(classicLabel);
+        } else {
+            comboEditorAppearance.getSelectionModel().select(modernLabel);
+        }
+    }
+
+    private String toEditorAppearanceCode(String displayValue) {
+        if (displayValue == null || displayValue.isBlank()) {
+            return ConfigModel.EDITOR_APPEARANCE_MODERN_DARK;
+        }
+        String mapped = editorAppearanceCodeByLabel.get(displayValue);
+        if (mapped != null) return mapped;
+        return displayValue.toLowerCase(Locale.ROOT).contains("classic")
+            ? ConfigModel.EDITOR_APPEARANCE_CLASSIC
+            : ConfigModel.EDITOR_APPEARANCE_MODERN_DARK;
     }
 
     private ResourceBundle getCurrentBundle() {

@@ -195,6 +195,39 @@ class SyntaxHighlighterTest {
     }
 
     @Test
+    void highlightsAssemblySyntaxForAsmFiles() {
+        String text = "start:\n"
+            + "    ld a, $10 ; load value\n"
+            + "    jp loop\n"
+            + "loop:\n"
+            + "    db \"A\", 0\n";
+
+        StyleSpans<Collection<String>> spans = highlighter.computeHighlighting(text, "main.asm");
+
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("start:"), "asm-label"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("ld"), "asm-instruction"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("a, $10"), "asm-register"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("$10"), "asm-number"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("db"), "asm-directive"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("; load"), "comment"));
+    }
+
+    @Test
+    void highlightsAssemblySyntaxForSFiles() {
+        String text = "org $4000\n"
+            + "main:\n"
+            + "    call init\n"
+            + "    ret\n";
+
+        StyleSpans<Collection<String>> spans = highlighter.computeHighlighting(text, "boot.s");
+
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("org"), "asm-directive"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("main:"), "asm-label"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("call"), "asm-instruction"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("ret"), "asm-instruction"));
+    }
+
+    @Test
     void highlightsMarkdownTablesAndChecklists() {
         String text = "| Name | Value |\n"
             + "| ---- | ----- |\n"
@@ -240,4 +273,3 @@ class SyntaxHighlighterTest {
         return total;
     }
 }
-

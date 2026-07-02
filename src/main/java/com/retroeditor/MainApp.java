@@ -68,7 +68,8 @@ public class MainApp extends Application {
     }
 
     /**
-     * Punto de entrada de la aplicación.
+     * Punto de entrada de la aplciación
+     * Entry point.
      */
     public static void main(String[] args) {
         launch(args);
@@ -86,6 +87,7 @@ public class MainApp extends Application {
 
     /**
      * Devuelve el gestor de plugins de la aplicación.
+     * Return plugin manager
      */
     public static com.retroeditor.plugin.PluginManager getPluginManager() { return pluginManager; }
 }

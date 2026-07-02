@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Collections;
 
 import java.awt.Desktop;
 import java.net.URI;
@@ -88,6 +89,12 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private static final Set<String> NON_TEXT_EXTENSIONS = Set.of(
         "tap", "tzx", "z80", "sna", "gb", "gbc", "rom", "bin", "cdt", "wav", "dsk", "edsk", "class", "jar", "png", "jpg", "jpeg", "gif", "ico", "exe", "dll"
     );
+    private static final String RECENT_FILES_PROPERTY = "recent_files";
+    private static final String RECENT_PROJECTS_PROPERTY = "recent_projects";
+    private static final String LAST_OPEN_FILE_DIR_PROPERTY = "last_open_file_directory";
+    private static final String LAST_OPEN_PROJECT_DIR_PROPERTY = "last_open_project_directory";
+    private static final String EDITOR_APPEARANCE_PROPERTY = "editor_appearance";
+    private static final int MAX_RECENT_ITEMS = 8;
 
     private final File        userConfigFile = new File(System.getProperty("user.home"), ".retroeditor.properties");
 
@@ -172,6 +179,12 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private MenuItem menuItemEjecutar;
     @FXML private MenuItem menuItemDeshacer;
     @FXML private MenuItem menuItemGuardarComo;
+
+    private Menu menuRecentes;
+    private Menu menuRecentFiles;
+    private Menu menuRecentProjects;
+    private MenuItem menuClearRecentFiles;
+    private MenuItem menuClearRecentProjects;
     @FXML private AnchorPane projectExplorerAnchor;
     @FXML private TabPane outputTabPane;
     @FXML private StyleClassedTextArea consoleOutputArea;
@@ -271,6 +284,10 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         editorModel         = new EditorModel();
         syntaxHighlighter   = new SyntaxHighlighter();
         fxUtils             = new FXUtils();
+        fxUtils.setEditorAppearance(configModel.getConfigProperty(EDITOR_APPEARANCE_PROPERTY, ConfigModel.EDITOR_APPEARANCE_MODERN_DARK));
+        restoreDialogDirectories();
+        setupRecentMenus();
+        refreshRecentMenus();
 
         // Configurar listener para cambios de idioma en la configuración
         configModel.idiomaProperty().addListener((obs, oldV, newV) -> {
@@ -287,6 +304,10 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
+        });
+        configModel.editorAppearanceProperty().addListener((obs, oldV, newV) -> {
+            fxUtils.setEditorAppearance(newV);
+            Platform.runLater(this::applyEditorAppearanceToOpenTabs);
         });
 
         buildController.compilationRunningProperty().addListener((obs, wasRunning, isRunning) -> updateCompileStatusUI());
@@ -547,7 +568,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     @FXML
     private void onNuevoProyecto(ActionEvent event) {
-        File creado = fxUtils.createNewProject(getStage(), bundle);
+        File creado = fxUtils.createNewProject(getStage(), bundle, resolveInitialProjectDirectory());
         if (creado != null) {
             if (fxUtils.wasLastCreatedProjectGameBoyTemplate()) {
                 configModel.applyGameBoyProfile();
@@ -580,7 +601,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     @FXML
     private void onAbrirProyecto(ActionEvent event) {
-        File carpeta = fxUtils.openExistingProject(getStage(), bundle);
+        File carpeta = fxUtils.openExistingProject(getStage(), bundle, resolveInitialProjectDirectory());
         if (carpeta != null) {
             UserActionMonitor.projectOpened(carpeta.getAbsolutePath());
             setProyectoActual(carpeta);
@@ -664,7 +685,18 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         this.currentProjectDir = carpeta;
         UserActionMonitor.projectSet(carpeta != null ? carpeta.getName() : null);
         if (projectExplorerController != null) projectExplorerController.setRootDirectory(carpeta);
-        try { if (carpeta != null) fileOptionsController.setDefaultSaveDirectory(carpeta); } catch (Exception ex) { ex.printStackTrace(); }
+        try {
+            if (carpeta != null) {
+                fileOptionsController.setDefaultOpenDirectory(carpeta);
+                fileOptionsController.setDefaultSaveDirectory(carpeta);
+                configModel.setConfigProperty(LAST_OPEN_PROJECT_DIR_PROPERTY, carpeta.getAbsolutePath());
+                configModel.setConfigProperty(LAST_OPEN_FILE_DIR_PROPERTY, carpeta.getAbsolutePath());
+                configRepository.save(userConfigFile, configModel.toProperties());
+                    rememberRecentProject(carpeta);
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
     }
 
     public boolean isSupportedRomFile(File file) {
@@ -679,6 +711,11 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (file == null || !file.isFile()) {
             UserActionMonitor.errorOccurred("FILE_OPEN", "Intento de abrir archivo inválido o nulo");
             return;
+        }
+        rememberRecentFile(file);
+        if (file.getParentFile() != null) {
+            fileOptionsController.setDefaultOpenDirectory(file.getParentFile());
+            fileOptionsController.setDefaultSaveDirectory(file.getParentFile());
         }
         for (Map.Entry<Tab, File> entry : tabFileMap.entrySet()) {
             if (file.equals(entry.getValue())) { 
@@ -728,7 +765,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         }
 
         String content = editorModel.getFileContent(file);
-        Tab tab = fxUtils.addTab(file.getName(), content, syntaxHighlighter, tabPane);
+        Tab tab = fxUtils.isMarkdownFileName(file.getName())
+            ? fxUtils.addMarkdownTab(file.getName(), content, syntaxHighlighter, tabPane)
+            : fxUtils.addTab(file.getName(), content, syntaxHighlighter, tabPane);
         tabFileMap.put(tab, file);
         applyDiagnosticsForTab(tab);
 
@@ -922,9 +961,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     private CodeArea getCodeAreaFromTab(Tab tab) {
-        if (tab == null) return null;
-        if (!(tab.getContent() instanceof CodeArea)) return null;
-        return (CodeArea) tab.getContent();
+        return fxUtils.getCodeArea(tab);
     }
 
     private File toFileKey(File file) {
@@ -1027,7 +1064,12 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     @FXML
-    private void onOpenFile(ActionEvent event)   { fileOptionsController.onOpenFile(event, tabPane, tabFileMap, editorModel, syntaxHighlighter); }
+    private void onOpenFile(ActionEvent event) {
+        File opened = fileOptionsController.onOpenFile(event, tabPane, tabFileMap, editorModel, syntaxHighlighter);
+        if (opened != null) {
+            rememberRecentFile(opened);
+        }
+    }
 
     @FXML
     private void onSaveFile(ActionEvent event) {
@@ -1269,10 +1311,293 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemPluginManual != null) menuItemPluginManual.setText(bundle.getString("menu.help.pluginsManual"));
         if (menuItemLicenses    != null) menuItemLicenses.setText(bundle.getString("menu.help.licenses"));
         if (menuItemCreditos    != null) menuItemCreditos.setText(bundle.getString("menu.help.credits"));
+        refreshRecentMenus();
         applyDiagnosticLegendI18n();
         applyMenuAccelerators();
         applyShortcutTooltips();
         refreshHomeTabLanguage();
+    }
+
+    private void setupRecentMenus() {
+        if (menuArchivo == null || menuRecentes != null) {
+            return;
+        }
+
+        menuRecentes = new Menu();
+        menuRecentFiles = new Menu();
+        menuRecentProjects = new Menu();
+        menuClearRecentFiles = new MenuItem();
+        menuClearRecentProjects = new MenuItem();
+
+        menuClearRecentFiles.setOnAction(e -> clearRecentFiles());
+        menuClearRecentProjects.setOnAction(e -> clearRecentProjects());
+
+        menuRecentes.getItems().add(menuRecentProjects);
+        menuRecentes.getItems().add(menuRecentFiles);
+
+        if (!menuArchivo.getItems().contains(menuRecentes)) {
+            int insertIndex = Math.min(3, menuArchivo.getItems().size());
+            menuArchivo.getItems().add(insertIndex, menuRecentes);
+        }
+    }
+
+    private void refreshRecentMenus() {
+        if (menuRecentes == null) {
+            return;
+        }
+
+        String recentLabel = msg("menu.recent", "Recientes");
+        String recentFilesLabel = msg("menu.recent.files", "Archivos recientes");
+        String recentProjectsLabel = msg("menu.recent.projects", "Proyectos recientes");
+        String emptyLabel = msg("menu.recent.empty", "Vacío");
+        String clearFilesLabel = msg("menu.recent.clearFiles", "Limpiar archivos recientes");
+        String clearProjectsLabel = msg("menu.recent.clearProjects", "Limpiar proyectos recientes");
+
+        menuRecentes.setText(recentLabel);
+        menuRecentProjects.setText(recentProjectsLabel);
+        menuRecentFiles.setText(recentFilesLabel);
+        menuClearRecentFiles.setText(clearFilesLabel);
+        menuClearRecentProjects.setText(clearProjectsLabel);
+
+        populateRecentMenu(menuRecentFiles, loadRecentEntries(RECENT_FILES_PROPERTY, false), emptyLabel, this::openRecentFile);
+        populateRecentMenu(menuRecentProjects, loadRecentEntries(RECENT_PROJECTS_PROPERTY, true), emptyLabel, this::openRecentProject);
+    }
+
+    private void populateRecentMenu(Menu menu, List<File> entries, String emptyLabel, java.util.function.Consumer<File> action) {
+        if (menu == null) return;
+
+        menu.getItems().clear();
+        if (entries == null || entries.isEmpty()) {
+            MenuItem emptyItem = new MenuItem(emptyLabel);
+            emptyItem.setDisable(true);
+            menu.getItems().add(emptyItem);
+            return;
+        }
+
+        for (File entry : entries) {
+            if (entry == null) continue;
+            MenuItem item = new MenuItem(formatRecentEntryLabel(entry));
+            item.setOnAction(e -> action.accept(entry));
+            menu.getItems().add(item);
+        }
+
+        menu.getItems().add(new javafx.scene.control.SeparatorMenuItem());
+        MenuItem clearItem = menu == menuRecentFiles ? menuClearRecentFiles : menuClearRecentProjects;
+        if (clearItem != null) {
+            menu.getItems().add(clearItem);
+        }
+    }
+
+    private String formatRecentEntryLabel(File entry) {
+        if (entry == null) return "";
+        String name = entry.getName();
+        String parent = entry.getParent();
+        if (parent == null || parent.isBlank()) {
+            return name;
+        }
+        return name + " — " + parent;
+    }
+
+    private List<File> loadRecentEntries(String propertyKey, boolean directoryOnly) {
+        String raw = configModel.getConfigProperty(propertyKey, "");
+        if (raw == null || raw.isBlank()) {
+            return Collections.emptyList();
+        }
+
+        List<File> entries = new ArrayList<>();
+        String[] tokens = raw.split("\\R");
+        for (String token : tokens) {
+            if (token == null) continue;
+            String path = token.trim();
+            if (path.isEmpty()) continue;
+
+            File candidate = new File(path).getAbsoluteFile();
+            if (directoryOnly) {
+                if (!candidate.exists() || !candidate.isDirectory()) continue;
+            } else {
+                if (!candidate.exists() || !candidate.isFile()) continue;
+            }
+
+            if (!containsFile(entries, candidate)) {
+                entries.add(candidate);
+            }
+        }
+
+        return entries;
+    }
+
+    private void rememberRecentFile(File file) {
+        updateRecentEntries(RECENT_FILES_PROPERTY, file, false);
+        if (file != null && file.getParentFile() != null) {
+            setLastDirectory(LAST_OPEN_FILE_DIR_PROPERTY, file.getParentFile());
+        }
+    }
+
+    private void rememberRecentProject(File projectDir) {
+        updateRecentEntries(RECENT_PROJECTS_PROPERTY, projectDir, true);
+        if (projectDir != null) {
+            setLastDirectory(LAST_OPEN_PROJECT_DIR_PROPERTY, projectDir);
+        }
+    }
+
+    private void clearRecentFiles() {
+        configModel.setConfigProperty(RECENT_FILES_PROPERTY, "");
+        configRepository.save(userConfigFile, configModel.toProperties());
+        refreshRecentMenus();
+    }
+
+    private void removeRecentEntry(String propertyKey, File entry, boolean directoryOnly) {
+        if (entry == null) return;
+
+        List<File> entries = new ArrayList<>(loadRecentEntries(propertyKey, directoryOnly));
+        removeFile(entries, entry.getAbsoluteFile());
+        configModel.setConfigProperty(propertyKey, joinRecentEntries(entries));
+        configRepository.save(userConfigFile, configModel.toProperties());
+        refreshRecentMenus();
+    }
+
+    private void clearRecentProjects() {
+        configModel.setConfigProperty(RECENT_PROJECTS_PROPERTY, "");
+        configRepository.save(userConfigFile, configModel.toProperties());
+        refreshRecentMenus();
+    }
+
+    private void updateRecentEntries(String propertyKey, File entry, boolean directoryOnly) {
+        if (entry == null) return;
+        File normalizedEntry = entry.getAbsoluteFile();
+        if (directoryOnly) {
+            if (!normalizedEntry.exists() || !normalizedEntry.isDirectory()) return;
+        } else {
+            if (!normalizedEntry.exists() || !normalizedEntry.isFile()) return;
+        }
+
+        List<File> entries = new ArrayList<>(loadRecentEntries(propertyKey, directoryOnly));
+        removeFile(entries, normalizedEntry);
+        entries.add(0, normalizedEntry);
+        while (entries.size() > MAX_RECENT_ITEMS) {
+            entries.remove(entries.size() - 1);
+        }
+
+        configModel.setConfigProperty(propertyKey, joinRecentEntries(entries));
+        configRepository.save(userConfigFile, configModel.toProperties());
+        refreshRecentMenus();
+    }
+
+    private String joinRecentEntries(List<File> entries) {
+        if (entries == null || entries.isEmpty()) return "";
+
+        StringBuilder sb = new StringBuilder();
+        for (File entry : entries) {
+            if (entry == null) continue;
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(entry.getAbsolutePath());
+        }
+        return sb.toString();
+    }
+
+    private void removeFile(List<File> entries, File target) {
+        if (entries == null || entries.isEmpty() || target == null) return;
+        entries.removeIf(entry -> sameFile(entry, target));
+    }
+
+    private boolean containsFile(List<File> entries, File target) {
+        if (entries == null || entries.isEmpty() || target == null) return false;
+        for (File entry : entries) {
+            if (sameFile(entry, target)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean sameFile(File left, File right) {
+        if (left == null || right == null) return false;
+        try {
+            return left.getAbsoluteFile().toPath().normalize().equals(right.getAbsoluteFile().toPath().normalize());
+        } catch (Exception ex) {
+            return left.getAbsolutePath().equalsIgnoreCase(right.getAbsolutePath());
+        }
+    }
+
+    private void setLastDirectory(String propertyKey, File directory) {
+        if (directory == null || !directory.exists() || !directory.isDirectory()) return;
+        configModel.setConfigProperty(propertyKey, directory.getAbsolutePath());
+        configRepository.save(userConfigFile, configModel.toProperties());
+    }
+
+    private File resolveStoredDirectory(String propertyKey) {
+        String path = configModel.getConfigProperty(propertyKey, "");
+        if (path == null || path.isBlank()) {
+            return null;
+        }
+
+        File dir = new File(path);
+        return dir.exists() && dir.isDirectory() ? dir : null;
+    }
+
+    private File resolveInitialProjectDirectory() {
+        File current = currentProjectDir;
+        if (current != null && current.exists() && current.isDirectory()) {
+            return current;
+        }
+
+        File storedProject = resolveStoredDirectory(LAST_OPEN_PROJECT_DIR_PROPERTY);
+        if (storedProject != null) {
+            return storedProject;
+        }
+
+        return resolveStoredDirectory(LAST_OPEN_FILE_DIR_PROPERTY);
+    }
+
+    private void restoreDialogDirectories() {
+        File projectDir = resolveStoredDirectory(LAST_OPEN_PROJECT_DIR_PROPERTY);
+        if (projectDir != null) {
+            fileOptionsController.setDefaultOpenDirectory(projectDir);
+            fileOptionsController.setDefaultSaveDirectory(projectDir);
+            return;
+        }
+
+        File fileDir = resolveStoredDirectory(LAST_OPEN_FILE_DIR_PROPERTY);
+        if (fileDir != null) {
+            fileOptionsController.setDefaultOpenDirectory(fileDir);
+            fileOptionsController.setDefaultSaveDirectory(fileDir);
+        }
+    }
+
+    private void openRecentFile(File file) {
+        if (file == null || !file.isFile()) {
+            showRecentItemMissing("FILE_OPEN", file, msg("menu.recent.files", "Archivos recientes"));
+            return;
+        }
+
+        openFileFromExplorer(file);
+    }
+
+    private void openRecentProject(File projectDir) {
+        if (projectDir == null || !projectDir.isDirectory()) {
+            showRecentItemMissing("PROJECT_OPEN", projectDir, msg("menu.recent.projects", "Proyectos recientes"));
+            return;
+        }
+
+        UserActionMonitor.projectOpened(projectDir.getAbsolutePath());
+        setProyectoActual(projectDir);
+        maybeApplyDetectedProfileForOpenedProject(projectDir);
+    }
+
+    private void showRecentItemMissing(String action, File file, String fallbackContext) {
+        String path = file != null ? file.getAbsolutePath() : "(null)";
+        String message = "El elemento reciente ya no existe: " + path;
+        UserActionMonitor.errorOccurred(action, message);
+        if ("FILE_OPEN".equals(action)) {
+            removeRecentEntry(RECENT_FILES_PROPERTY, file, false);
+        } else if ("PROJECT_OPEN".equals(action)) {
+            removeRecentEntry(RECENT_PROJECTS_PROPERTY, file, true);
+        }
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setTitle(msg("menu.recent", "Recientes"));
+        alert.setHeaderText(fallbackContext);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
     private void applyDiagnosticLegendI18n() {
@@ -1389,6 +1714,16 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 ex.printStackTrace();
             }
             return;
+        }
+    }
+
+    private void applyEditorAppearanceToOpenTabs() {
+        if (tabPane == null) return;
+        for (Tab tab : tabPane.getTabs()) {
+            CodeArea codeArea = fxUtils.getCodeArea(tab);
+            if (codeArea != null) {
+                fxUtils.applyEditorAppearance(codeArea);
+            }
         }
     }
 
@@ -1559,4 +1894,3 @@ public class MainController implements ProjectContextPort, FileOpenPort {
      */
     private Stage getStage() { return (Stage) tabPane.getScene().getWindow(); }
 }
-

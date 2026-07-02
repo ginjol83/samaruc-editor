@@ -1,6 +1,7 @@
 package com.retroeditor.controller.search;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -87,17 +88,23 @@ public class SearchController {
             txt.setPromptText("Texto a buscar");
             txt.setMinWidth(300);
 
+            TextField txtReplace = new TextField();
+            txtReplace.setPromptText("Texto a reemplazar");
+            txtReplace.setMinWidth(300);
+
             javafx.scene.control.CheckBox chkCase   = new javafx.scene.control.CheckBox("Mayúsculas");
             javafx.scene.control.CheckBox chkRegex  = new javafx.scene.control.CheckBox("Regex");
 
             javafx.scene.control.Button btnNext     = new javafx.scene.control.Button("Siguiente");
             javafx.scene.control.Button btnPrev     = new javafx.scene.control.Button("Anterior");
+            javafx.scene.control.Button btnReplace  = new javafx.scene.control.Button("Reemplazar");
+            javafx.scene.control.Button btnReplaceAll = new javafx.scene.control.Button("Reemplazar todo");
             javafx.scene.control.Button btnFindAll  = new javafx.scene.control.Button("Buscar todo");
             javafx.scene.control.Button btnClose    = new javafx.scene.control.Button("Cerrar");
 
             javafx.scene.layout.HBox options        = new javafx.scene.layout.HBox(8, chkCase, chkRegex);
-            javafx.scene.layout.HBox actions        = new javafx.scene.layout.HBox(8, btnPrev, btnNext, btnFindAll, btnClose);
-            javafx.scene.layout.VBox root           = new javafx.scene.layout.VBox(8, txt, options, actions);
+            javafx.scene.layout.HBox actions        = new javafx.scene.layout.HBox(8, btnPrev, btnNext, btnReplace, btnReplaceAll, btnFindAll, btnClose);
+            javafx.scene.layout.VBox root           = new javafx.scene.layout.VBox(8, txt, txtReplace, options, actions);
             
             root.setStyle("-fx-padding:10; -fx-background-color: #f5f5f5; -fx-border-color: #ccc;");
 
@@ -110,6 +117,8 @@ public class SearchController {
             // Handlers
             btnNext.setOnAction(e -> findNextInFileWithOptions(txt.getText(), chkCase.isSelected(), chkRegex.isSelected()));
             btnPrev.setOnAction(e -> findPreviousInFileWithOptions(txt.getText(), chkCase.isSelected(), chkRegex.isSelected()));
+            btnReplace.setOnAction(e -> replaceNextInFileWithOptions(txt.getText(), txtReplace.getText(), chkCase.isSelected(), chkRegex.isSelected()));
+            btnReplaceAll.setOnAction(e -> replaceAllInFileWithOptions(txt.getText(), txtReplace.getText(), chkCase.isSelected(), chkRegex.isSelected()));
             btnFindAll.setOnAction(e -> {
                 String term = txt.getText();
                 List<IndexSnippet> all = findAllInFile(term, chkCase.isSelected(), chkRegex.isSelected());
@@ -224,6 +233,17 @@ public class SearchController {
         }
     }
 
+    private void replaceNextInFileWithOptions(String term, String replacement, boolean caseSensitive, boolean regex) {
+        CodeArea area = getCurrentCodeArea();
+        if (area == null || term == null || term.isEmpty()) return;
+
+        int start = area.getSelection().getEnd();
+        String updated = textSearchService.replaceFirst(area.getText(), term, replacement, start, caseSensitive, regex);
+        if (!updated.equals(area.getText())) {
+            Platform.runLater(() -> area.replaceText(updated));
+        }
+    }
+
     /**
      * Reemplaza todas las ocurrencias del término en el archivo actual.
      * @param term Término a buscar.
@@ -241,6 +261,16 @@ public class SearchController {
         Platform.runLater(() -> {
             area.replaceText(r);
         });
+    }
+
+    private void replaceAllInFileWithOptions(String term, String replacement, boolean caseSensitive, boolean regex) {
+        CodeArea area = getCurrentCodeArea();
+        if (area == null || term == null || term.isEmpty()) return;
+
+        String updated = textSearchService.replaceAll(area.getText(), term, replacement, caseSensitive, regex);
+        if (!updated.equals(area.getText())) {
+            Platform.runLater(() -> area.replaceText(updated));
+        }
     }
 
     /**
@@ -403,11 +433,19 @@ public class SearchController {
             txt.setPromptText("Texto a buscar en el proyecto");
             txt.setMinWidth(400);
 
+            TextField txtReplace = new TextField();
+            txtReplace.setPromptText("Texto a reemplazar");
+            txtReplace.setMinWidth(400);
+
+            javafx.scene.control.CheckBox chkCase  = new javafx.scene.control.CheckBox("Mayúsculas");
+            javafx.scene.control.CheckBox chkRegex = new javafx.scene.control.CheckBox("Regex");
+
             ButtonType search = new ButtonType("Buscar", ButtonBar.ButtonData.OK_DONE);
+            ButtonType replaceAll = new ButtonType("Reemplazar todo", ButtonBar.ButtonData.YES);
             ButtonType close  = new ButtonType("Cerrar", ButtonBar.ButtonData.CANCEL_CLOSE);
 
-            dialog.getDialogPane().getButtonTypes().addAll(search, close);
-            dialog.getDialogPane().setContent(txt);
+            dialog.getDialogPane().getButtonTypes().addAll(search, replaceAll, close);
+            dialog.getDialogPane().setContent(new javafx.scene.layout.VBox(8, txt, txtReplace, new javafx.scene.layout.HBox(8, chkCase, chkRegex)));
 
             Optional<ButtonType> result = dialog.showAndWait();
 
@@ -417,6 +455,12 @@ public class SearchController {
                 if (term != null && !term.trim().isEmpty()) {
                     List<SearchMatch> matches = searchProject(term.trim());
                     showProjectSearchResults(matches, term.trim());
+                }
+            } else if (result.isPresent() && result.get() == replaceAll) {
+                String term = txt.getText();
+                String replacement = txtReplace.getText();
+                if (term != null && !term.trim().isEmpty()) {
+                    replaceAllInProject(term.trim(), replacement, chkCase.isSelected(), chkRegex.isSelected());
                 }
             }
         });
@@ -436,6 +480,51 @@ public class SearchController {
         }
 
         return matches;
+    }
+
+    private void replaceAllInProject(String term, String replacement, boolean caseSensitive, boolean regex) {
+        File root = projectContextPort != null ? projectContextPort.getCurrentProjectDir() : null;
+        if (root == null || !root.isDirectory()) return;
+
+        int updatedFiles = projectSearchService.replaceInProject(root, term, replacement, caseSensitive, regex);
+        if (updatedFiles > 0) {
+            refreshOpenTabsFromDisk(root);
+        }
+
+        UserActionMonitor.searchExecuted(term, "project-replace");
+    }
+
+    private void refreshOpenTabsFromDisk(File projectRoot) {
+        if (projectRoot == null || tabFileMap == null) return;
+
+        for (Map.Entry<Tab, File> entry : tabFileMap.entrySet()) {
+            File mappedFile = entry.getValue();
+            if (mappedFile == null || !isInsideProject(projectRoot, mappedFile)) continue;
+
+            try {
+                editorModel.openFile(mappedFile);
+                String content = editorModel.getFileContent(mappedFile);
+                CodeArea area = fxUtils.getCodeArea(entry.getKey());
+                if (area != null) {
+                    Tab tab = entry.getKey();
+                    Platform.runLater(() -> {
+                        area.replaceText(content);
+                        fxUtils.markTabSaved(tab, mappedFile.getName(), content);
+                    });
+                }
+            } catch (IOException ex) {
+                UserActionMonitor.errorOccurred("PROJECT_REPLACE_REFRESH", ex.getMessage());
+            }
+        }
+    }
+
+    private boolean isInsideProject(File projectRoot, File file) {
+        if (projectRoot == null || file == null) return false;
+        try {
+            return file.getAbsoluteFile().toPath().normalize().startsWith(projectRoot.getAbsoluteFile().toPath().normalize());
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
 
@@ -515,4 +604,3 @@ public class SearchController {
     }
 
 }
-

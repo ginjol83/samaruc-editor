@@ -1,6 +1,8 @@
 # Samaruc
 
-Samaruc es un editor para C retro en JavaFX con compilacion integrada para GBDK y Z88DK.
+Samaruc es un editor para C retro en JavaFX con compilacion integrada para GBDK y Z88DK, incluyendo soporte para proyectos mixtos C + Assembly y visor Markdown.
+
+Soporta resaltado de sintaxis para `.c`, `.h`, `.asm` y `.s`, y compila archivos Assembly con los toolchains de GBDK y z88dk.
 
 ## Requisitos
 

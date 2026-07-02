@@ -9,7 +9,7 @@ import org.fxmisc.richtext.model.StyleSpans;
 import org.fxmisc.richtext.model.StyleSpansBuilder;
 
 /**
- * Servicio para resaltado de sintaxis para C.
+ * Servicio para resaltado de sintaxis para C, Assembly y Markdown.
  */
 public class SyntaxHighlighter {
     private static final String[] KEYWORDS = new String[] {
@@ -32,9 +32,34 @@ public class SyntaxHighlighter {
         "set_bkg_submap", "set_win_submap", "waitpad", "waitpadup"
     };
 
+    private static final String[] ASM_INSTRUCTIONS = new String[] {
+        "adc", "add", "and", "bit", "call", "ccf", "cp", "cpl", "daa", "dec",
+        "di", "ei", "ex", "exx", "halt", "inc", "in", "jp", "jr", "ld", "ldd",
+        "ldi", "ldh", "nop", "or", "out", "pop", "push", "res", "ret", "reti",
+        "rl", "rla", "rlc", "rr", "rra", "rrc", "rst", "sbc", "scf", "set",
+        "sla", "sra", "srl", "sub", "swap", "xor"
+    };
+
+    private static final String[] ASM_DIRECTIVES = new String[] {
+        "db", "dw", "ds", "defb", "defw", "defm", "equ", "global",
+        "include", "incbin", "macro", "org", "public", "section", "set",
+        "if", "ifdef", "ifndef", "elif", "else", "endif", "endm", "rept", "endr"
+    };
+
+    private static final String[] ASM_REGISTERS = new String[] {
+        "a", "b", "c", "d", "e", "h", "l", "af", "bc", "de", "hl", "ix", "iy", "sp", "i", "r"
+    };
+
     private static final String  KEYWORD_PATTERN      = "\\b(" + String.join("|", KEYWORDS) + ")\\b";
     private static final String  ZX_FUNCTION_PATTERN  = "\\b(" + String.join("|", ZX_FUNCTIONS) + ")\\b(?=\\s*\\()";
     private static final String  GBDK_FUNCTION_PATTERN = "\\b(" + String.join("|", GBDK_FUNCTIONS) + ")\\b(?=\\s*\\()";
+    private static final String  ASM_INSTRUCTION_PATTERN = "\\b(" + String.join("|", ASM_INSTRUCTIONS) + ")\\b";
+    private static final String  ASM_DIRECTIVE_PATTERN   = "\\b(" + String.join("|", ASM_DIRECTIVES) + ")\\b";
+    private static final String  ASM_REGISTER_PATTERN    = "\\b(" + String.join("|", ASM_REGISTERS) + ")\\b";
+    private static final String  ASM_LABEL_PATTERN       = "(?m)^\\s*[A-Za-z_.$?][A-Za-z0-9_.$?]*:";
+    private static final String  ASM_NUMBER_PATTERN      = "(?:0x[0-9A-Fa-f]+|\\$[0-9A-Fa-f]+|%[01]+|\\b[0-9]+\\b)";
+    private static final String  ASM_COMMENT_PATTERN     = ";[^\\r\\n]*|//[^\\r\\n]*";
+    private static final String  ASM_STRING_PATTERN      = "\"([^\\\\\"\\\\]|\\\\.)*\"";
     // [\\s\\S]*? en lugar de (.|\\R)*? para evitar retroceso exponencial en comentarios multilínea no cerrados
     private static final String  COMMENT_PATTERN      = "//[^\\r\\n]*|/\\*[\\s\\S]*?\\*/";
     private static final String  STRING_PATTERN       = "\"([^\\\\\"\\\\]|\\\\.)*\"";
@@ -66,6 +91,17 @@ public class SyntaxHighlighter {
                                                      Pattern.MULTILINE
                                                      );
 
+    private static final Pattern ASM_PATTERN = Pattern.compile(
+                                                   "(?<ASMLABEL>" + ASM_LABEL_PATTERN + ")"
+                                                 + "|(?<ASMDIRECTIVE>" + ASM_DIRECTIVE_PATTERN + ")"
+                                                 + "|(?<ASMINSTRUCTION>" + ASM_INSTRUCTION_PATTERN + ")"
+                                                 + "|(?<ASMREGISTER>" + ASM_REGISTER_PATTERN + ")"
+                                                 + "|(?<ASMNUMBER>" + ASM_NUMBER_PATTERN + ")"
+                                                 + "|(?<ASMCOMMENT>" + ASM_COMMENT_PATTERN + ")"
+                                                 + "|(?<ASMSTRING>" + ASM_STRING_PATTERN + ")",
+                                               Pattern.MULTILINE
+                                               );
+
     private static final Pattern MARKDOWN_PATTERN = Pattern.compile(
                                                            "(?<MDFENCE>" + MD_FENCED_CODE_PATTERN + ")"
                                                          + "|(?<MDHEADING>" + MD_HEADING_PATTERN + ")"
@@ -93,6 +129,10 @@ public class SyntaxHighlighter {
     public StyleSpans<Collection<String>> computeHighlighting(String text, String fileName) {
         if (isMarkdownFile(fileName)) {
             return computeMarkdownHighlighting(text);
+        }
+
+        if (isAssemblyFile(fileName)) {
+            return computeAssemblyHighlighting(text);
         }
 
         return computeCHighlighting(text);
@@ -172,9 +212,48 @@ public class SyntaxHighlighter {
         return spansBuilder.create();
     }
 
+    private StyleSpans<Collection<String>> computeAssemblyHighlighting(String text) {
+        if (text == null || text.isEmpty()) {
+            StyleSpansBuilder<Collection<String>> emptyBuilder = new StyleSpansBuilder<>();
+            emptyBuilder.add(Collections.emptyList(), 0);
+            return emptyBuilder.create();
+        }
+
+        Matcher matcher = ASM_PATTERN.matcher(text);
+        int lastEnd = 0;
+        StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
+
+        while (matcher.find()) {
+            String styleClass =
+                matcher.group("ASMLABEL") != null ? "asm-label" :
+                matcher.group("ASMDIRECTIVE") != null ? "asm-directive" :
+                matcher.group("ASMINSTRUCTION") != null ? "asm-instruction" :
+                matcher.group("ASMREGISTER") != null ? "asm-register" :
+                matcher.group("ASMNUMBER") != null ? "asm-number" :
+                matcher.group("ASMCOMMENT") != null ? "comment" :
+                matcher.group("ASMSTRING") != null ? "string" :
+                null;
+
+            assert styleClass != null;
+
+            spansBuilder.add(Collections.emptyList(), matcher.start() - lastEnd);
+            spansBuilder.add(Collections.singleton(styleClass), matcher.end() - matcher.start());
+            lastEnd = matcher.end();
+        }
+
+        spansBuilder.add(Collections.emptyList(), text.length() - lastEnd);
+        return spansBuilder.create();
+    }
+
     private boolean isMarkdownFile(String fileName) {
         if (fileName == null || fileName.isBlank()) return false;
         String normalized = fileName.toLowerCase();
         return normalized.endsWith(".md") || normalized.endsWith(".markdown");
+    }
+
+    private boolean isAssemblyFile(String fileName) {
+        if (fileName == null || fileName.isBlank()) return false;
+        String normalized = fileName.toLowerCase();
+        return normalized.endsWith(".asm") || normalized.endsWith(".s");
     }
 }

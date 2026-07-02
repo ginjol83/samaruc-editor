@@ -64,5 +64,18 @@ class ProjectSearchServiceTest {
         List<ProjectSearchService.Match> matches = service.searchProject(tempDir.toFile(), "  ");
         Assertions.assertTrue(matches.isEmpty());
     }
-}
 
+    @Test
+    void replaceInProjectUpdatesMatchingTextFiles() throws IOException {
+        Path file1 = tempDir.resolve("main.c");
+        Path file2 = tempDir.resolve("notes.md");
+        Files.writeString(file1, "main old old");
+        Files.writeString(file2, "old value");
+
+        int updated = service.replaceInProject(tempDir.toFile(), "old", "new", true, false);
+
+        Assertions.assertEquals(2, updated);
+        Assertions.assertEquals("main new new", Files.readString(file1));
+        Assertions.assertEquals("new value", Files.readString(file2));
+    }
+}
