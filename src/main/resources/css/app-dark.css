@@ -35,12 +35,95 @@
     -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.08), 8, 0, 0, 2);
 }
 
+.output-tab-pane {
+    -fx-background-color: #0f1721;
+}
+
+.output-tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: #0b1220;
+    -fx-border-color: #1f2937;
+    -fx-border-width: 0 0 1 0;
+}
+
+.output-tab-pane .tab {
+    -fx-background-color: #111827;
+}
+
+.output-tab-pane .tab:selected {
+    -fx-background-color: #1f2937;
+}
+
+.output-tab-pane .tab .tab-label {
+    -fx-text-fill: #cbd5e1;
+}
+
+.output-tab-pane .tab:selected .tab-label {
+    -fx-text-fill: #f8fafc;
+}
+
+.output-header-bar {
+    -fx-padding: 2 4 2 4;
+    -fx-background-color: #111827;
+    -fx-border-color: #1f2937;
+    -fx-border-width: 0 0 1 0;
+}
+
+.output-header-button {
+    -fx-padding: 2 6 2 6;
+    -fx-background-radius: 3;
+    -fx-cursor: hand;
+    -fx-background-color: transparent;
+    -fx-text-fill: #e6eef8;
+}
+
+.output-header-button:hover {
+    -fx-background-color: rgba(255,255,255,0.08);
+}
+
 .button .font-icon {
     -fx-font-size: 20px;
+    -fx-fill: #e6eef8;
+    -fx-icon-color: #e6eef8;
+}
+
+.button .ikonli-font-icon {
+    -fx-icon-color: #e6eef8;
+    -fx-fill: #e6eef8;
+}
+
+.output-header-button .font-icon,
+.output-header-button .ikonli-font-icon {
+    -fx-icon-color: #e6eef8;
+    -fx-fill: #e6eef8;
 }
 
 .styled-text-area {
     -fx-font-family: "Source Code Pro", monospace;
+}
+
+.output-tab-pane #consoleOutputArea,
+.output-tab-pane #debuggerOutputArea,
+.output-tab-pane #terminalOutputArea {
+    -fx-font-family: "JetBrains Mono", "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+    -fx-font-size: 13px;
+    -fx-background-color: #0f1721;
+    -fx-control-inner-background: #0f1721;
+    -fx-text-fill: #e2e8f0;
+}
+
+.output-tab-pane .styled-text-area {
+    -fx-background-color: #0f1721;
+    -fx-control-inner-background: #0f1721;
+    -fx-text-fill: #e2e8f0;
+}
+
+.output-tab-pane #consoleOutputArea .text,
+.output-tab-pane #consoleOutputArea .paragraph-text,
+.output-tab-pane #debuggerOutputArea .text,
+.output-tab-pane #debuggerOutputArea .paragraph-text,
+.output-tab-pane #terminalOutputArea .text,
+.output-tab-pane #terminalOutputArea .paragraph-text {
+    -fx-fill: #e2e8f0;
 }
 
 .styled-text-area .console-line-error {
@@ -49,6 +132,24 @@
 
 .styled-text-area .console-line-warning {
     -fx-fill: #fde68a;
+}
+
+.output-tab-pane #consoleOutputArea .text.console-line-error,
+.output-tab-pane #consoleOutputArea .console-line-error,
+.output-tab-pane #debuggerOutputArea .text.console-line-error,
+.output-tab-pane #debuggerOutputArea .console-line-error {
+    -fx-fill: #fca5a5;
+}
+
+.output-tab-pane #consoleOutputArea .text.console-line-warning,
+.output-tab-pane #consoleOutputArea .console-line-warning,
+.output-tab-pane #debuggerOutputArea .text.console-line-warning,
+.output-tab-pane #debuggerOutputArea .console-line-warning {
+    -fx-fill: #fde68a;
+}
+
+.styled-text-area .terminal-line-error {
+    -fx-fill: #fca5a5;
 }
 
 .footer-box {
@@ -117,4 +218,3 @@
 .diag-legend-dot-warning {
     -fx-text-fill: #facc15;
 }
-

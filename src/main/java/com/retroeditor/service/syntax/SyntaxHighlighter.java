@@ -78,6 +78,11 @@ public class SyntaxHighlighter {
     private static final String  MD_BOLD_PATTERN        = "\\*\\*[^*\\r\\n]+\\*\\*|__[^_\\r\\n]+__";
     private static final String  MD_ITALIC_PATTERN      = "(?<!\\*)\\*[^*\\r\\n]+\\*(?!\\*)|(?<!_)_[^_\\r\\n]+_(?!_)";
     private static final String  MD_INLINE_CODE_PATTERN = "`[^`\\r\\n]+`";
+    private static final String  JSON_KEY_PATTERN       = "\"([^\"\\\\]|\\\\.)*\"\\s*(?=:)";
+    private static final String  JSON_STRING_PATTERN    = "\"([^\"\\\\]|\\\\.)*\"";
+    private static final String  JSON_NUMBER_PATTERN    = "-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?";
+    private static final String  JSON_LITERAL_PATTERN   = "\\b(?:true|false|null)\\b";
+    private static final String  JSON_PUNCT_PATTERN     = "[\\{\\}\\[\\]:,]";
 
     private static final Pattern PATTERN         = Pattern.compile(
                                                            "(?<PREPROCESSOR>" + PREPROCESSOR_PATTERN + ")"
@@ -117,6 +122,15 @@ public class SyntaxHighlighter {
                                                       Pattern.MULTILINE
                                                       );
 
+    private static final Pattern JSON_PATTERN = Pattern.compile(
+                                                      "(?<JSONKEY>" + JSON_KEY_PATTERN + ")"
+                                                     + "|(?<JSONSTRING>" + JSON_STRING_PATTERN + ")"
+                                                     + "|(?<JSONNUMBER>" + JSON_NUMBER_PATTERN + ")"
+                                                     + "|(?<JSONLITERAL>" + JSON_LITERAL_PATTERN + ")"
+                                                     + "|(?<JSONPUNCT>" + JSON_PUNCT_PATTERN + ")",
+                                                   Pattern.MULTILINE
+                                                   );
+
     /**
      * Computa el resaltado de sintaxis para el texto dado.
      * @param text Texto a resaltar.
@@ -133,6 +147,10 @@ public class SyntaxHighlighter {
 
         if (isAssemblyFile(fileName)) {
             return computeAssemblyHighlighting(text);
+        }
+
+        if (isJsonFile(fileName)) {
+            return computeJsonHighlighting(text);
         }
 
         return computeCHighlighting(text);
@@ -245,6 +263,37 @@ public class SyntaxHighlighter {
         return spansBuilder.create();
     }
 
+    private StyleSpans<Collection<String>> computeJsonHighlighting(String text) {
+        if (text == null || text.isEmpty()) {
+            StyleSpansBuilder<Collection<String>> emptyBuilder = new StyleSpansBuilder<>();
+            emptyBuilder.add(Collections.emptyList(), 0);
+            return emptyBuilder.create();
+        }
+
+        Matcher matcher = JSON_PATTERN.matcher(text);
+        int lastEnd = 0;
+        StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
+
+        while (matcher.find()) {
+            String styleClass =
+                matcher.group("JSONKEY") != null ? "json-key" :
+                matcher.group("JSONSTRING") != null ? "string" :
+                matcher.group("JSONNUMBER") != null ? "json-number" :
+                matcher.group("JSONLITERAL") != null ? "json-literal" :
+                matcher.group("JSONPUNCT") != null ? "operator" :
+                null;
+
+            assert styleClass != null;
+
+            spansBuilder.add(Collections.emptyList(), matcher.start() - lastEnd);
+            spansBuilder.add(Collections.singleton(styleClass), matcher.end() - matcher.start());
+            lastEnd = matcher.end();
+        }
+
+        spansBuilder.add(Collections.emptyList(), text.length() - lastEnd);
+        return spansBuilder.create();
+    }
+
     private boolean isMarkdownFile(String fileName) {
         if (fileName == null || fileName.isBlank()) return false;
         String normalized = fileName.toLowerCase();
@@ -255,5 +304,11 @@ public class SyntaxHighlighter {
         if (fileName == null || fileName.isBlank()) return false;
         String normalized = fileName.toLowerCase();
         return normalized.endsWith(".asm") || normalized.endsWith(".s");
+    }
+
+    private boolean isJsonFile(String fileName) {
+        if (fileName == null || fileName.isBlank()) return false;
+        String normalized = fileName.toLowerCase();
+        return normalized.endsWith(".json");
     }
 }

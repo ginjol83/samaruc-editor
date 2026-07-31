@@ -69,6 +69,47 @@
     -fx-background-color: transparent;
 }
 
+.output-tab-pane {
+    -fx-background-color: #ffffff;
+}
+
+.output-tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: #f8fafc;
+    -fx-border-color: #d1d5db;
+    -fx-border-width: 0 0 1 0;
+}
+
+.output-tab-pane .tab {
+    -fx-background-color: #e5e7eb;
+}
+
+.output-tab-pane .tab:selected {
+    -fx-background-color: #ffffff;
+}
+
+.output-tab-pane .tab .tab-label {
+    -fx-text-fill: #1f2937;
+}
+
+.output-header-bar {
+    -fx-padding: 2 4 2 4;
+    -fx-background-color: #f5f5f5;
+    -fx-border-color: #ddd;
+    -fx-border-width: 0 0 1 0;
+}
+
+.output-header-button {
+    -fx-padding: 2 6 2 6;
+    -fx-background-radius: 3;
+    -fx-cursor: hand;
+}
+
+.button .ikonli-font-icon,
+.button .font-icon {
+    -fx-icon-color: #111827;
+    -fx-fill: #111827;
+}
+
 /* Console */
 .text-area {
     -fx-font-family: "Source Code Pro", monospace;
@@ -78,12 +119,49 @@
     -fx-font-family: "Source Code Pro", monospace;
 }
 
+.output-tab-pane #consoleOutputArea,
+.output-tab-pane #debuggerOutputArea,
+.output-tab-pane #terminalOutputArea {
+    -fx-font-family: "JetBrains Mono", "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+    -fx-font-size: 13px;
+    -fx-background-color: #ffffff;
+    -fx-control-inner-background: #ffffff;
+    -fx-text-fill: #0f1721;
+}
+
+.output-tab-pane #consoleOutputArea .text,
+.output-tab-pane #consoleOutputArea .paragraph-text,
+.output-tab-pane #debuggerOutputArea .text,
+.output-tab-pane #debuggerOutputArea .paragraph-text,
+.output-tab-pane #terminalOutputArea .text,
+.output-tab-pane #terminalOutputArea .paragraph-text {
+    -fx-fill: #0f1721;
+}
+
 .styled-text-area .console-line-error {
     -fx-fill: #b91c1c;
 }
 
 .styled-text-area .console-line-warning {
     -fx-fill: #b45309;
+}
+
+.output-tab-pane #consoleOutputArea .text.console-line-error,
+.output-tab-pane #consoleOutputArea .console-line-error,
+.output-tab-pane #debuggerOutputArea .text.console-line-error,
+.output-tab-pane #debuggerOutputArea .console-line-error {
+    -fx-fill: #b91c1c;
+}
+
+.output-tab-pane #consoleOutputArea .text.console-line-warning,
+.output-tab-pane #consoleOutputArea .console-line-warning,
+.output-tab-pane #debuggerOutputArea .text.console-line-warning,
+.output-tab-pane #debuggerOutputArea .console-line-warning {
+    -fx-fill: #b45309;
+}
+
+.styled-text-area .terminal-line-error {
+    -fx-fill: #b91c1c;
 }
 
 /* Toast label */
@@ -166,4 +244,3 @@
 .diag-legend-dot-warning {
     -fx-text-fill: #f1c40f;
 }
-

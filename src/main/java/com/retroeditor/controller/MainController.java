@@ -28,6 +28,9 @@ import com.retroeditor.controller.projectExplorer.ProjectExplorerController;
 import com.retroeditor.controller.config.ConfigDialogCoordinator;
 import com.retroeditor.controller.editor.EditOptionsController;
 import com.retroeditor.controller.editor.FileOptionsController;
+import com.retroeditor.controller.tools.TileEditorController;
+import com.retroeditor.controller.tools.PngToZxConverterController;
+import com.retroeditor.controller.tools.PngToGameBoyConverterController;
 import com.retroeditor.controller.terminal.TerminalController;
 import com.retroeditor.controller.search.ProjectContextPort;
 import com.retroeditor.controller.search.SearchController;
@@ -39,11 +42,15 @@ import com.retroeditor.service.CompilationDiagnosticParserService;
 import com.retroeditor.service.ProjectPlatformDetectionService;
 import com.retroeditor.service.PropertiesConfigRepository;
 import com.retroeditor.service.syntax.SyntaxHighlighter;
+import com.retroeditor.service.HomeReleaseNotesService;
 import com.retroeditor.service.PluginApplicationService;
 import com.retroeditor.service.ProjectSearchService;
 import com.retroeditor.service.TextSearchService;
 import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.service.ConfigRepository;
+import com.retroeditor.service.WorkspaceService;
+import com.retroeditor.model.WorkspaceModel;
+import com.retroeditor.service.LanguageService;
 import com.retroeditor.service.AppLogger;
 
 import com.retroeditor.model.ConfigModel;
@@ -73,6 +80,7 @@ import javafx.scene.control.ToolBar;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.TextField;
 
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.ClipboardContent;
@@ -93,7 +101,12 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private static final String RECENT_PROJECTS_PROPERTY = "recent_projects";
     private static final String LAST_OPEN_FILE_DIR_PROPERTY = "last_open_file_directory";
     private static final String LAST_OPEN_PROJECT_DIR_PROPERTY = "last_open_project_directory";
+    private static final String LAST_SESSION_PROJECT_PROPERTY = "last_session_project";
+    private static final String LAST_SESSION_OPEN_FILES_PROPERTY = "last_session_open_files";
+    private static final String LAST_SESSION_ACTIVE_FILE_PROPERTY = "last_session_active_file";
     private static final String EDITOR_APPEARANCE_PROPERTY = "editor_appearance";
+    private static final String APP_STYLESHEET_CLASSIC = "/css/app.css";
+    private static final String APP_STYLESHEET_DARK = "/css/app-dark.css";
     private static final int MAX_RECENT_ITEMS = 8;
 
     private final File        userConfigFile = new File(System.getProperty("user.home"), ".retroeditor.properties");
@@ -103,6 +116,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     private final EditOptionsController   editOptionsController   = new EditOptionsController();
     private final FileOptionsController   fileOptionsController   = new FileOptionsController();
+    private final TileEditorController    tileEditorController    = new TileEditorController();
+    private final PngToZxConverterController pngToZxConverterController = new PngToZxConverterController();
+    private final PngToGameBoyConverterController pngToGameBoyConverterController = new PngToGameBoyConverterController();
     private final TerminalController      terminalController      = new TerminalController();
     private final BuildController         buildController         = new BuildController();
     private final HelpController          helpController          = new HelpController();
@@ -110,10 +126,12 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private final CompilationDiagnosticParserService compilationDiagnosticParserService = new CompilationDiagnosticParserService();
     private final CompilationDiagnosticsUiHelper compilationDiagnosticsUiHelper = new CompilationDiagnosticsUiHelper();
     private final ConfigRepository configRepository = new PropertiesConfigRepository();
+    private final WorkspaceService workspaceService = new WorkspaceService();
     private final PluginApplicationService pluginApplicationService = new PluginApplicationService();
     private final ProjectPlatformDetectionService projectPlatformDetectionService = new ProjectPlatformDetectionService();
     private final ProjectSearchService projectSearchService = new ProjectSearchService();
     private final TextSearchService textSearchService = new TextSearchService();
+    private final HomeReleaseNotesService homeReleaseNotesService = new HomeReleaseNotesService();
 
     private int newFileCounter = 1;
 
@@ -132,6 +150,8 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private javafx.scene.control.ProgressIndicator progressCompile;
     @FXML private Menu menuArchivo;
     @FXML private Menu menuEdicion;
+    @FXML private Menu menuRefactor;
+    @FXML private Menu menuHerramientas;
     @FXML private Menu menuCompilacion;
     @FXML private Menu menuAyuda;
     @FXML private ToolBar toolBar;
@@ -156,10 +176,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private Button btnAbrirProyecto;
     @FXML private Button btnManual;
     @FXML private MenuItem menuItemPegar;
+    @FXML private MenuItem menuItemRename;
+    @FXML private MenuItem menuItemTileEditor;
+    @FXML private MenuItem menuItemPngToZx;
     @FXML private MenuItem menuItemGoToLine;
     @FXML private MenuItem menuItemFind;
     @FXML private MenuItem menuItemFindProject;
     @FXML private MenuItem menuItemManual;
+    @FXML private MenuItem menuItemGbdkDocs;
+    @FXML private MenuItem menuItemZ88dkDocs;
     @FXML private MenuItem menuItemPluginManual;
     @FXML private MenuItem menuItemLicenses;
     @FXML private MenuItem menuItemCreditos;
@@ -187,11 +212,19 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private MenuItem menuClearRecentProjects;
     @FXML private AnchorPane projectExplorerAnchor;
     @FXML private TabPane outputTabPane;
+    @FXML private Tab tabTerminal;
     @FXML private StyleClassedTextArea consoleOutputArea;
     @FXML private StyleClassedTextArea debuggerOutputArea;
+    @FXML private StyleClassedTextArea terminalOutputArea;
+    @FXML private TextField txtTerminalInput;
+    @FXML private Button btnConsoleTop;
+    @FXML private Button btnConsoleBottom;
     @FXML private Button btnClearConsole;
     @FXML private Button btnCopyConsole;
     @FXML private Button btnClearMonitor;
+    @FXML private Button btnTerminalSend;
+    @FXML private Button btnTerminalRestart;
+    @FXML private Button btnTerminalClear;
     @FXML private Label lblConsoleDotError;
     @FXML private Label lblConsoleDotWarning;
     @FXML private Label lblMonitorDotError;
@@ -265,6 +298,8 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private static final KeyCombination ACCEL_GOTO_LINE    = new KeyCodeCombination(KeyCode.L, KeyCombination.CONTROL_DOWN);
     private static final KeyCombination ACCEL_FIND_FILE    = new KeyCodeCombination(KeyCode.F, KeyCombination.CONTROL_DOWN);
     private static final KeyCombination ACCEL_FIND_PROJECT = new KeyCodeCombination(KeyCode.H, KeyCombination.CONTROL_DOWN);
+    private static final KeyCombination ACCEL_MOVE_UP      = new KeyCodeCombination(KeyCode.UP, KeyCombination.ALT_DOWN);
+    private static final KeyCombination ACCEL_MOVE_DOWN    = new KeyCodeCombination(KeyCode.DOWN, KeyCombination.ALT_DOWN);
     private static final KeyCombination ACCEL_BUILD        = new KeyCodeCombination(KeyCode.F5);
     private static final KeyCombination ACCEL_RUN          = new KeyCodeCombination(KeyCode.F6);
 
@@ -275,8 +310,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
         // Leer idioma desde configModel (ya cargado por getDefaultLanguage)
         String lang     = configModel.getConfigProperty("idioma", "es");
-        Locale locale   = java.util.Locale.forLanguageTag(lang);
-        bundle          = ResourceBundle.getBundle("i18n.MessagesBundle", locale);
+        File i18nDir    = new File(System.getProperty("user.home"), ".samaruc-editor/i18n");
+        LanguageService langService = new LanguageService(i18nDir);
+        bundle          = langService.getBundleForCode(lang);
 
         AppLogger.setBundle(bundle);
 
@@ -307,13 +343,35 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         });
         configModel.editorAppearanceProperty().addListener((obs, oldV, newV) -> {
             fxUtils.setEditorAppearance(newV);
-            Platform.runLater(this::applyEditorAppearanceToOpenTabs);
+            Platform.runLater(() -> {
+                applyEditorAppearanceToOpenTabs();
+                if (tabPane != null && tabPane.getScene() != null) {
+                    applyApplicationAppearance(tabPane.getScene(), newV);
+                }
+            });
+        });
+        configModel.enableLogsProperty().addListener((obs, oldV, newV) -> {
+            if (terminalController != null) {
+                terminalController.setEnableLogging(newV);
+            }
         });
 
         buildController.compilationRunningProperty().addListener((obs, wasRunning, isRunning) -> updateCompileStatusUI());
 
         if (tabPane != null) {
-            tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> applyDiagnosticsForTab(newTab));
+            tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+                applyDiagnosticsForTab(newTab);
+                persistSessionState();
+            });
+
+            // Listener para cuando se cierran pestañas
+            tabPane.getTabs().addListener((javafx.collections.ListChangeListener<Tab>) c -> {
+                while (c.next()) {
+                    if (c.wasRemoved() || c.wasAdded()) {
+                        persistSessionState();
+                    }
+                }
+            });
         }
 
         // Cargar ProjectExplorer solo una vez
@@ -326,6 +384,18 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+        // Restaurar estado de la última sesión
+        Platform.runLater(() -> {
+            restoreSessionState();
+            
+            // Si después de restaurar la sesión NO hay pestañas abiertas
+            // y la opción de mostrar Home está activada, la abrimos.
+            // Si está desactivada, el editor empezará vacío.
+            if (tabPane.getTabs().isEmpty() && configModel.isShowHomeOnStartup()) {
+                onNewTab(null); // Esto abre la Home Tab por defecto si no hay archivos
+            }
+        });
 
     // Deferir la inicialización del SearchController y el registro de atajos hasta que la Scene esté lista
     Platform.runLater(() -> {
@@ -351,6 +421,11 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                     navigateToFileLineFromConsole();
                 }
             });
+        }
+
+        if (terminalOutputArea != null) {
+            terminalController.setEnableLogging(configModel.isEnableLogs());
+            terminalController.startWindowsTerminal(terminalOutputArea);
         }
 
         if (lblCompileStatus != null) {
@@ -433,6 +508,21 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             btnPaste.setGraphic(new FontIcon("fas-paste"));
             btnPaste.setTooltip(new Tooltip(bundle.getString("button.paste")));
         }
+        if (btnConsoleTop != null) {
+            btnConsoleTop.setTooltip(new Tooltip(bundle.getString("tooltip.console.top")));
+        }
+        if (btnConsoleBottom != null) {
+            btnConsoleBottom.setTooltip(new Tooltip(bundle.getString("tooltip.console.bottom")));
+        }
+        if (btnTerminalSend != null) {
+            btnTerminalSend.setTooltip(new Tooltip(msg("tooltip.terminal.send", "Enviar comando a la terminal")));
+        }
+        if (btnTerminalRestart != null) {
+            btnTerminalRestart.setTooltip(new Tooltip(msg("tooltip.terminal.restart", "Reiniciar terminal")));
+        }
+        if (btnTerminalClear != null) {
+            btnTerminalClear.setTooltip(new Tooltip(msg("tooltip.terminal.clear", "Limpiar terminal")));
+        }
 
         // Improve toolbar visual: larger toolbar, bigger icons and nicer background
         try {
@@ -455,6 +545,8 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuArchivo           != null) menuArchivo.setText(bundle.getString("menu.file"));
         if (menuCompilacion       != null) menuCompilacion.setText(bundle.getString("menu.project"));
         if (menuEdicion           != null) menuEdicion.setText(bundle.getString("menu.edit"));
+        if (menuRefactor          != null) menuRefactor.setText(bundle.getString("menu.refactor"));
+        if (menuHerramientas      != null) menuHerramientas.setText(bundle.getString("menu.tools"));
         if (menuAyuda             != null) menuAyuda.setText(bundle.getString("menu.help"));
         if (menuItemNuevoProyecto != null) menuItemNuevoProyecto.setText(bundle.getString("button.newProject"));
         if (menuItemAbrirProyecto != null) menuItemAbrirProyecto.setText(bundle.getString("button.openProject"));
@@ -472,13 +564,18 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemCortar        != null) menuItemCortar.setText(bundle.getString("button.cut"));
         if (menuItemCopiar        != null) menuItemCopiar.setText(bundle.getString("button.copy"));
         if (menuItemPegar         != null) menuItemPegar.setText(bundle.getString("button.paste"));
+        if (menuItemRename        != null) menuItemRename.setText(bundle.getString("menu.rename"));
+        if (menuItemTileEditor    != null) menuItemTileEditor.setText(bundle.getString("menu.tools.tileEditor"));
         if (menuItemGoToLine      != null) menuItemGoToLine.setText(bundle.getString("menu.goto.line"));
         if (menuItemFind          != null) menuItemFind.setText(bundle.getString("menu.find.file"));
         if (menuItemFindProject   != null) menuItemFindProject.setText(bundle.getString("menu.find.project"));
         if (menuItemManual        != null) menuItemManual.setText(bundle.getString("menu.help.manual"));
+        if (menuItemGbdkDocs      != null) menuItemGbdkDocs.setText(bundle.getString("menu.help.gbdkDocs"));
+        if (menuItemZ88dkDocs     != null) menuItemZ88dkDocs.setText(bundle.getString("menu.help.z88dkDocs"));
         if (menuItemPluginManual  != null) menuItemPluginManual.setText(bundle.getString("menu.help.pluginsManual"));
         if (menuItemLicenses      != null) menuItemLicenses.setText(bundle.getString("menu.help.licenses"));
         if (menuItemCreditos      != null) menuItemCreditos.setText(bundle.getString("menu.help.credits"));
+        updateOutputTabsI18n();
         applyDiagnosticLegendI18n();
 
         applyMenuAccelerators();
@@ -493,18 +590,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             fxUtils.addNewTab(null, "", tabFileMap, syntaxHighlighter, tabPane, newFileCounter);
         }
 
-        // Attach default stylesheet to the Scene when available
+        // Attach stylesheet to the Scene according to the configured appearance
         Platform.runLater(() -> {
             try {
                 if (tabPane != null && tabPane.getScene() != null) {
-                    Scene scene = tabPane.getScene();
-                    String cssLight = getClass().getResource("/css/app.css").toExternalForm();
-                    if (!scene.getStylesheets().contains(cssLight)) {
-                        scene.getStylesheets().add(cssLight);
-                    }
+                    applyApplicationAppearance(tabPane.getScene(), configModel.getConfigProperty(EDITOR_APPEARANCE_PROPERTY, ConfigModel.EDITOR_APPEARANCE_MODERN_DARK));
                 }
             } catch (Exception ignored) {}
         });
+        Platform.runLater(this::restoreLastSessionState);
 
         if (menuItemCompilar != null) {
             menuItemCompilar.disableProperty().bind(buildController.compilationRunningProperty());
@@ -684,6 +778,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     public void setProyectoActual(File carpeta) {
         this.currentProjectDir = carpeta;
         UserActionMonitor.projectSet(carpeta != null ? carpeta.getName() : null);
+
+        // Cargar workspace si existe
+        if (carpeta != null) {
+            WorkspaceModel workspace = workspaceService.loadWorkspace(carpeta);
+            configModel.setActiveWorkspace(workspace);
+        } else {
+            configModel.setActiveWorkspace(null);
+        }
+
         if (projectExplorerController != null) projectExplorerController.setRootDirectory(carpeta);
         try {
             if (carpeta != null) {
@@ -693,6 +796,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 configModel.setConfigProperty(LAST_OPEN_FILE_DIR_PROPERTY, carpeta.getAbsolutePath());
                 configRepository.save(userConfigFile, configModel.toProperties());
                     rememberRecentProject(carpeta);
+                    persistSessionState();
                 }
             } catch (Exception ex) {
                 ex.printStackTrace();
@@ -770,11 +874,14 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             : fxUtils.addTab(file.getName(), content, syntaxHighlighter, tabPane);
         tabFileMap.put(tab, file);
         applyDiagnosticsForTab(tab);
+        persistSessionState();
 
         // Limpieza cuando el usuario cierra el tab con la X integrada
         tab.setOnClosed(e -> {
             tabFileMap.remove(tab);
             editorModel.closeFile(file);
+            UserActionMonitor.fileClosed(file.getName());
+            persistSessionState();
         });
     }
 
@@ -885,6 +992,227 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             }
             tabPane.getTabs().remove(tab);
         }
+        persistSessionState();
+    }
+
+    public void onProjectExplorerTargetRenamed(File previousTarget, File renamedTarget, boolean targetWasDirectory) {
+        if (previousTarget == null || renamedTarget == null || tabPane == null) return;
+
+        Path previousPath;
+        Path renamedPath;
+        try {
+            previousPath = previousTarget.toPath().toAbsolutePath().normalize();
+            renamedPath = renamedTarget.toPath().toAbsolutePath().normalize();
+        } catch (Exception ex) {
+            return;
+        }
+
+        List<Map.Entry<Tab, File>> entries = new ArrayList<>(tabFileMap.entrySet());
+        for (Map.Entry<Tab, File> entry : entries) {
+            Tab tab = entry.getKey();
+            File mappedFile = entry.getValue();
+            if (tab == null || mappedFile == null) continue;
+
+            Path mappedPath;
+            try {
+                mappedPath = mappedFile.toPath().toAbsolutePath().normalize();
+            } catch (Exception ex) {
+                continue;
+            }
+
+            final File updatedFile;
+            if (targetWasDirectory) {
+                if (!mappedPath.startsWith(previousPath)) continue;
+                Path relative = previousPath.relativize(mappedPath);
+                updatedFile = renamedPath.resolve(relative).toFile();
+            } else {
+                if (!mappedPath.equals(previousPath)) continue;
+                updatedFile = renamedPath.toFile();
+            }
+
+            tabFileMap.put(tab, updatedFile);
+            if (editorModel != null) {
+                editorModel.renameOpenFile(mappedFile, updatedFile);
+            }
+            updateTabTitleAfterRename(tab, updatedFile.getName());
+
+            File oldDiagnosticsKey = mappedFile.getAbsoluteFile();
+            if (compileDiagnosticsByFile.containsKey(oldDiagnosticsKey)) {
+                CompileLineDiagnostics diagnostics = compileDiagnosticsByFile.remove(oldDiagnosticsKey);
+                compileDiagnosticsByFile.put(updatedFile.getAbsoluteFile(), diagnostics);
+            }
+        }
+
+        if (renamedTarget.isFile()) {
+            removeRecentEntry(RECENT_FILES_PROPERTY, previousTarget, false);
+            updateRecentEntries(RECENT_FILES_PROPERTY, renamedTarget, false);
+        }
+
+        persistSessionState();
+    }
+
+    private void updateTabTitleAfterRename(Tab tab, String newFileName) {
+        if (tab == null || newFileName == null || newFileName.isBlank()) return;
+
+        String currentTitle = tab.getText();
+        boolean dirty = currentTitle != null && currentTitle.startsWith("*");
+        tab.setText((dirty ? "*" : "") + newFileName);
+    }
+
+    private void restoreLastSessionState() {
+        File sessionProject = resolveStoredSessionProject();
+        if (sessionProject != null) {
+            setProyectoActual(sessionProject);
+        }
+
+        List<File> filesToRestore = loadSessionOpenFiles();
+        if (filesToRestore.isEmpty()) {
+            return;
+        }
+
+        closeHomeTabIfPresent();
+
+        for (File file : filesToRestore) {
+            if (file == null || !file.isFile()) continue;
+            if (currentProjectDir == null) {
+                File parent = file.getParentFile();
+                if (parent != null && parent.isDirectory()) {
+                    setProyectoActual(parent);
+                }
+            }
+            try {
+                openFileInEditorTab(file, false);
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        }
+
+        String activeFilePath = configModel.getConfigProperty(LAST_SESSION_ACTIVE_FILE_PROPERTY, "");
+        if (activeFilePath == null || activeFilePath.isBlank()) return;
+
+        File activeFile = new File(activeFilePath).getAbsoluteFile();
+        for (Map.Entry<Tab, File> entry : tabFileMap.entrySet()) {
+            if (sameFile(entry.getValue(), activeFile)) {
+                tabPane.getSelectionModel().select(entry.getKey());
+                break;
+            }
+        }
+    }
+
+    private void closeHomeTabIfPresent() {
+        if (tabPane == null) return;
+        Tab homeTab = null;
+        for (Tab tab : tabPane.getTabs()) {
+            if (HOME_TAB_ID.equals(tab.getId())) {
+                homeTab = tab;
+                break;
+            }
+        }
+        if (homeTab != null) {
+            tabPane.getTabs().remove(homeTab);
+        }
+    }
+
+    private File resolveStoredSessionProject() {
+        String raw = configModel.getConfigProperty(LAST_SESSION_PROJECT_PROPERTY, "");
+        if (raw == null || raw.isBlank()) return null;
+        File candidate = new File(raw).getAbsoluteFile();
+        return candidate.exists() && candidate.isDirectory() ? candidate : null;
+    }
+
+    private List<File> loadSessionOpenFiles() {
+        String raw = configModel.getConfigProperty(LAST_SESSION_OPEN_FILES_PROPERTY, "");
+        if (raw == null || raw.isBlank()) return Collections.emptyList();
+
+        List<File> files = new ArrayList<>();
+        String[] lines = raw.split("\\R");
+        for (String line : lines) {
+            if (line == null || line.isBlank()) continue;
+            File file = new File(line.trim()).getAbsoluteFile();
+            if (!file.exists() || !file.isFile()) continue;
+            if (!containsFile(files, file)) {
+                files.add(file);
+            }
+        }
+        return files;
+    }
+
+    private void restoreSessionState() {
+        try {
+            // 1. Restaurar proyecto
+            String lastProject = configModel.getConfigProperty(LAST_SESSION_PROJECT_PROPERTY, "");
+            if (lastProject != null && !lastProject.isBlank()) {
+                File projectDir = new File(lastProject);
+                if (projectDir.exists() && projectDir.isDirectory()) {
+                    setProyectoActual(projectDir);
+                    maybeApplyDetectedProfileForOpenedProject(projectDir);
+                }
+            }
+
+            // 2. Restaurar archivos abiertos
+            String openFilesRaw = configModel.getConfigProperty(LAST_SESSION_OPEN_FILES_PROPERTY, "");
+            if (openFilesRaw != null && !openFilesRaw.isBlank()) {
+                List<File> filesToOpen = loadRecentEntries(LAST_SESSION_OPEN_FILES_PROPERTY, false);
+                for (File file : filesToOpen) {
+                    if (file.exists() && file.isFile()) {
+                        try {
+                            openFileInEditorTab(file, false);
+                        } catch (IOException ex) {
+                            ex.printStackTrace();
+                        }
+                    }
+                }
+            }
+
+            // 3. Restaurar archivo activo
+            String activeFilePath = configModel.getConfigProperty(LAST_SESSION_ACTIVE_FILE_PROPERTY, "");
+            if (activeFilePath != null && !activeFilePath.isBlank()) {
+                File activeFile = new File(activeFilePath).getAbsoluteFile();
+                for (Map.Entry<Tab, File> entry : tabFileMap.entrySet()) {
+                    if (sameFile(entry.getValue(), activeFile)) {
+                        tabPane.getSelectionModel().select(entry.getKey());
+                        break;
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+
+    private void persistSessionState() {
+        try {
+            if (currentProjectDir != null && currentProjectDir.exists() && currentProjectDir.isDirectory()) {
+                configModel.setConfigProperty(LAST_SESSION_PROJECT_PROPERTY, currentProjectDir.getAbsolutePath());
+            } else {
+                configModel.setConfigProperty(LAST_SESSION_PROJECT_PROPERTY, "");
+            }
+
+            List<File> openFiles = new ArrayList<>();
+            if (tabPane != null) {
+                for (Tab tab : tabPane.getTabs()) {
+                    File mapped = tabFileMap.get(tab);
+                    if (mapped == null || !mapped.exists() || !mapped.isFile()) continue;
+                    if (!containsFile(openFiles, mapped)) {
+                        openFiles.add(mapped.getAbsoluteFile());
+                    }
+                }
+            }
+            configModel.setConfigProperty(LAST_SESSION_OPEN_FILES_PROPERTY, joinRecentEntries(openFiles));
+
+            String activeFilePath = "";
+            if (tabPane != null) {
+                Tab selectedTab = tabPane.getSelectionModel().getSelectedItem();
+                File selectedFile = selectedTab != null ? tabFileMap.get(selectedTab) : null;
+                if (selectedFile != null && selectedFile.exists() && selectedFile.isFile()) {
+                    activeFilePath = selectedFile.getAbsolutePath();
+                }
+            }
+            configModel.setConfigProperty(LAST_SESSION_ACTIVE_FILE_PROPERTY, activeFilePath);
+            configRepository.save(userConfigFile, configModel.toProperties());
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
     }
 
     private void onCompilerOutputLine(File sourceFile, String outputLine) {
@@ -976,13 +1304,19 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         configDialogCoordinator.open(
             getStage(),
             configModel,
+            currentProjectDir,
             configRepository,
             pluginApplicationService,
             bundle,
             () -> {
                 String langCode = configModel.getConfigProperty("idioma", "es");
                 Locale newLocale = java.util.Locale.forLanguageTag(langCode);
-                bundle = ResourceBundle.getBundle("i18n.MessagesBundle", newLocale);
+                
+                // Cargar el bundle usando LanguageService para soportar idiomas externos
+                File i18nDir = new File(System.getProperty("user.home"), ".samaruc-editor/i18n");
+                LanguageService langService = new LanguageService(i18nDir);
+                bundle = langService.getBundleForCode(langCode);
+                
                 AppLogger.setBundle(bundle);
                 Platform.runLater(() -> {
                     fxUtils.refreshLanguage(getUIElements(), bundle);
@@ -1030,8 +1364,13 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     public void shutdown() {
+        persistSessionState();
         try {
             buildController.stopActiveCompilation();
+        } catch (Exception ignored) {
+        }
+        try {
+            terminalController.stopWindowsTerminal(terminalOutputArea);
         } catch (Exception ignored) {
         }
     }
@@ -1053,6 +1392,24 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     @FXML
+    private void onTerminalSend(ActionEvent event) {
+        if (txtTerminalInput == null) return;
+        String command = txtTerminalInput.getText() != null ? txtTerminalInput.getText() : "";
+        terminalController.sendTerminalCommand(command, terminalOutputArea);
+        txtTerminalInput.clear();
+    }
+
+    @FXML
+    private void onTerminalClear(ActionEvent event) {
+        terminalController.clearTerminalOutput(terminalOutputArea);
+    }
+
+    @FXML
+    private void onTerminalRestart(ActionEvent event) {
+        terminalController.restartWindowsTerminal(terminalOutputArea);
+    }
+
+    @FXML
     private void onCopyConsole(ActionEvent event) {
         if (consoleOutputArea == null) {
             return;
@@ -1064,10 +1421,29 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     @FXML
+    private void onConsoleGoTop(ActionEvent event) {
+        moveConsoleCaret(0);
+    }
+
+    @FXML
+    private void onConsoleGoBottom(ActionEvent event) {
+        if (consoleOutputArea == null) return;
+        moveConsoleCaret(consoleOutputArea.getLength());
+    }
+
+    private void moveConsoleCaret(int offset) {
+        if (consoleOutputArea == null) return;
+        int safeOffset = Math.max(0, Math.min(offset, consoleOutputArea.getLength()));
+        consoleOutputArea.moveTo(safeOffset);
+        consoleOutputArea.requestFollowCaret();
+    }
+
+    @FXML
     private void onOpenFile(ActionEvent event) {
         File opened = fileOptionsController.onOpenFile(event, tabPane, tabFileMap, editorModel, syntaxHighlighter);
         if (opened != null) {
             rememberRecentFile(opened);
+            persistSessionState();
         }
     }
 
@@ -1112,6 +1488,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
         if (savedAny && projectExplorerController != null) {
             projectExplorerController.refreshTree();
+            persistSessionState();
         }
     }
 
@@ -1143,11 +1520,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         boolean saved = fileOptionsController.onSaveAsFile(event, tabPane, tabFileMap, editorModel);
         if (saved && projectExplorerController != null) {
             projectExplorerController.refreshTree();
+            persistSessionState();
         }
     }
 
     @FXML
-    private void onCloseFile(ActionEvent event)  { fileOptionsController.onCloseFile(event, tabPane, tabFileMap, editorModel); }
+    private void onCloseFile(ActionEvent event)  {
+        fileOptionsController.onCloseFile(event, tabPane, tabFileMap, editorModel);
+        persistSessionState();
+    }
 
     @FXML
     private void onUndo(ActionEvent event)       { editOptionsController.onUndo(event, tabPane); }
@@ -1168,7 +1549,68 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private void onSelectAll(ActionEvent event)  { editOptionsController.onSelectAll(event, tabPane); }
 
     @FXML
+    private void onRenameFromProjectExplorer(ActionEvent event) {
+        if (projectExplorerController != null) {
+            projectExplorerController.renameSelectedTreeItem();
+        }
+    }
+
+    @FXML
+    private void onOpenTileEditor(ActionEvent event) {
+        tileEditorController.open(
+            getStage(),
+            currentProjectDir,
+            bundle,
+            exportedFile -> {
+                if (projectExplorerController != null) {
+                    projectExplorerController.refreshTree();
+                }
+                openFileFromExplorer(exportedFile);
+                persistSessionState();
+            }
+        );
+    }
+
+    @FXML
+    private void onOpenPngToZxConverter(ActionEvent event) {
+        pngToZxConverterController.open(
+            getStage(),
+            currentProjectDir,
+            bundle,
+            exportedFile -> {
+                if (projectExplorerController != null) {
+                    projectExplorerController.refreshTree();
+                }
+                openFileFromExplorer(exportedFile);
+                persistSessionState();
+            }
+        );
+    }
+
+    @FXML
+    private void onOpenPngToGameBoyConverter(ActionEvent event) {
+        pngToGameBoyConverterController.open(
+            getStage(),
+            currentProjectDir,
+            bundle,
+            exportedFile -> {
+                if (projectExplorerController != null) {
+                    projectExplorerController.refreshTree();
+                }
+                openFileFromExplorer(exportedFile);
+                persistSessionState();
+            }
+        );
+    }
+
+    @FXML
     private void onOpenManual()                               { helpController.onOpenManual(); }
+
+    @FXML
+    private void onOpenGbdkDocs()                             { helpController.onOpenGbdkDocs(); }
+    
+    @FXML
+    private void onOpenZ88dkDocs()                            { helpController.onOpenZ88dkDocs(); }
 
     @FXML
     private void onOpenPluginManual()                         { helpController.onOpenPluginManual(); }
@@ -1282,11 +1724,20 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (btnCut              != null) btnCut.setTooltip(new Tooltip(bundle.getString("button.cut")));
         if (btnCopy             != null) btnCopy.setTooltip(new Tooltip(bundle.getString("button.copy")));
         if (btnPaste            != null) btnPaste.setTooltip(new Tooltip(bundle.getString("button.paste")));
+        if (btnConsoleTop       != null) btnConsoleTop.setTooltip(new Tooltip(bundle.getString("tooltip.console.top")));
+        if (btnConsoleBottom    != null) btnConsoleBottom.setTooltip(new Tooltip(bundle.getString("tooltip.console.bottom")));
+        if (btnTerminalSend     != null) btnTerminalSend.setText(msg("terminal.button.send", "Enviar"));
+        if (btnTerminalSend     != null) btnTerminalSend.setTooltip(new Tooltip(msg("tooltip.terminal.send", "Enviar comando a la terminal")));
+        if (btnTerminalRestart  != null) btnTerminalRestart.setTooltip(new Tooltip(msg("tooltip.terminal.restart", "Reiniciar terminal")));
+        if (btnTerminalClear    != null) btnTerminalClear.setTooltip(new Tooltip(msg("tooltip.terminal.clear", "Limpiar terminal")));
+        if (txtTerminalInput    != null) txtTerminalInput.setPromptText(msg("terminal.input.prompt", "Escribe un comando y pulsa Enter"));
         updateCompileStatusUI();
 
         if (menuArchivo         != null) menuArchivo.setText(bundle.getString("menu.file"));
         if (menuCompilacion     != null) menuCompilacion.setText(bundle.getString("menu.project"));
         if (menuEdicion         != null) menuEdicion.setText(bundle.getString("menu.edit"));
+        if (menuRefactor        != null) menuRefactor.setText(bundle.getString("menu.refactor"));
+        if (menuHerramientas    != null) menuHerramientas.setText(bundle.getString("menu.tools"));
         if (menuAyuda           != null) menuAyuda.setText(bundle.getString("menu.help"));
         if (menuItemNuevoProyecto != null) menuItemNuevoProyecto.setText(bundle.getString("button.newProject"));
         if (menuItemAbrirProyecto != null) menuItemAbrirProyecto.setText(bundle.getString("button.openProject"));
@@ -1304,18 +1755,38 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemCortar      != null) menuItemCortar.setText(bundle.getString("button.cut"));
         if (menuItemCopiar      != null) menuItemCopiar.setText(bundle.getString("button.copy"));
         if (menuItemPegar       != null) menuItemPegar.setText(bundle.getString("button.paste"));
+        if (menuItemRename      != null) menuItemRename.setText(bundle.getString("menu.rename"));
+        if (menuItemTileEditor  != null) menuItemTileEditor.setText(bundle.getString("menu.tools.tileEditor"));
         if (menuItemGoToLine    != null) menuItemGoToLine.setText(bundle.getString("menu.goto.line"));
         if (menuItemFind        != null) menuItemFind.setText(bundle.getString("menu.find.file"));
         if (menuItemFindProject != null) menuItemFindProject.setText(bundle.getString("menu.find.project"));
         if (menuItemManual      != null) menuItemManual.setText(bundle.getString("menu.help.manual"));
+        if (menuItemGbdkDocs    != null) menuItemGbdkDocs.setText(bundle.getString("menu.help.gbdkDocs"));
+        if (menuItemZ88dkDocs   != null) menuItemZ88dkDocs.setText(bundle.getString("menu.help.z88dkDocs"));
         if (menuItemPluginManual != null) menuItemPluginManual.setText(bundle.getString("menu.help.pluginsManual"));
         if (menuItemLicenses    != null) menuItemLicenses.setText(bundle.getString("menu.help.licenses"));
         if (menuItemCreditos    != null) menuItemCreditos.setText(bundle.getString("menu.help.credits"));
+        updateOutputTabsI18n();
         refreshRecentMenus();
         applyDiagnosticLegendI18n();
         applyMenuAccelerators();
         applyShortcutTooltips();
         refreshHomeTabLanguage();
+    }
+
+    private void updateOutputTabsI18n() {
+        if (outputTabPane == null) return;
+        if (outputTabPane.getTabs().size() > 0) {
+            outputTabPane.getTabs().get(0).setText(msg("tab.console", "Consola"));
+        }
+        if (outputTabPane.getTabs().size() > 1) {
+            outputTabPane.getTabs().get(1).setText(msg("tab.monitor", "Monitor"));
+        }
+        if (tabTerminal != null) {
+            tabTerminal.setText(msg("tab.terminal", "Terminal"));
+        } else if (outputTabPane.getTabs().size() > 2) {
+            outputTabPane.getTabs().get(2).setText(msg("tab.terminal", "Terminal"));
+        }
     }
 
     private void setupRecentMenus() {
@@ -1336,8 +1807,17 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         menuRecentes.getItems().add(menuRecentFiles);
 
         if (!menuArchivo.getItems().contains(menuRecentes)) {
-            int insertIndex = Math.min(3, menuArchivo.getItems().size());
+            // Buscamos un separador para insertar antes o al final si no hay
+            int insertIndex = -1;
+            for (int i = 0; i < menuArchivo.getItems().size(); i++) {
+                if (menuArchivo.getItems().get(i) instanceof javafx.scene.control.SeparatorMenuItem) {
+                    insertIndex = i + 1; // Después del primer separador ("Abrir proyecto" / "Abrir")
+                    break;
+                }
+            }
+            if (insertIndex == -1) insertIndex = Math.min(2, menuArchivo.getItems().size());
             menuArchivo.getItems().add(insertIndex, menuRecentes);
+            menuArchivo.getItems().add(insertIndex + 1, new javafx.scene.control.SeparatorMenuItem());
         }
     }
 
@@ -1565,8 +2045,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     private void openRecentFile(File file) {
-        if (file == null || !file.isFile()) {
+        if (file == null || !file.exists() || !file.isFile()) {
             showRecentItemMissing("FILE_OPEN", file, msg("menu.recent.files", "Archivos recientes"));
+            removeRecentEntry(RECENT_FILES_PROPERTY, file, false);
             return;
         }
 
@@ -1574,8 +2055,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     private void openRecentProject(File projectDir) {
-        if (projectDir == null || !projectDir.isDirectory()) {
+        if (projectDir == null || !projectDir.exists() || !projectDir.isDirectory()) {
             showRecentItemMissing("PROJECT_OPEN", projectDir, msg("menu.recent.projects", "Proyectos recientes"));
+            removeRecentEntry(RECENT_PROJECTS_PROPERTY, projectDir, true);
             return;
         }
 
@@ -1586,17 +2068,12 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     private void showRecentItemMissing(String action, File file, String fallbackContext) {
         String path = file != null ? file.getAbsolutePath() : "(null)";
-        String message = "El elemento reciente ya no existe: " + path;
-        UserActionMonitor.errorOccurred(action, message);
-        if ("FILE_OPEN".equals(action)) {
-            removeRecentEntry(RECENT_FILES_PROPERTY, file, false);
-        } else if ("PROJECT_OPEN".equals(action)) {
-            removeRecentEntry(RECENT_PROJECTS_PROPERTY, file, true);
-        }
+        UserActionMonitor.errorOccurred(action, "Recent item missing: " + path);
+
         Alert alert = new Alert(Alert.AlertType.WARNING);
-        alert.setTitle(msg("menu.recent", "Recientes"));
+        alert.setTitle(msg("menu.recent.missingTitle", "Elemento no encontrado"));
         alert.setHeaderText(fallbackContext);
-        alert.setContentText(message);
+        alert.setContentText(msg("menu.recent.missingMessage", "El siguiente elemento no se ha podido encontrar y será eliminado de la lista:") + "\n\n" + path);
         alert.showAndWait();
     }
 
@@ -1668,13 +2145,18 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             "home.shortcut.openProject",
             "home.shortcut.findFile",
             "home.shortcut.findProject",
+            "home.whatsNewTitle",
+            "home.versionTitle",
             "home.pluginsTitle",
             "home.pluginsText",
             "home.toolchainsTitle",
             "home.toolchainsText",
             "home.toolchain.z88dk",
             "home.toolchain.gbdk",
-            "home.footerText"
+            "home.footerText",
+            "home.recentProjectsTitle",
+            "home.recentFilesTitle",
+            "home.noShowAgain"
         };
 
         for (String key : keys) {
@@ -1687,7 +2169,81 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             html = html.replace("{{" + key + "}}", value);
         }
 
+        HomeReleaseNotesService.ReleaseNotes notes = homeReleaseNotesService.load(
+            Path.of(System.getProperty("user.dir")),
+            msg("home.whatsNew.fallback", "No hay changelog disponible para esta versión.")
+        );
+
+        String sourceText = notes.fromChangelog()
+            ? msg("home.whatsNew.source.changelog", "Fuente: CHANGELOG.md")
+                + (notes.changelogSection() != null && !notes.changelogSection().isBlank() ? " (" + notes.changelogSection() + ")" : "")
+            : msg("home.whatsNew.source.fallback", "Fuente: contenido integrado");
+
+        html = html.replace("{{home.versionValue}}", escapeHtml(notes.version()));
+        html = html.replace("{{home.whatsNewSource}}", escapeHtml(sourceText));
+        html = html.replace("{{home.whatsNewItemsHtml}}", renderHomeReleaseNotesItems(notes.items()));
+        html = html.replace("{{home.recentProjectsHtml}}", renderRecentEntries(RECENT_PROJECTS_PROPERTY, true));
+        html = html.replace("{{home.recentFilesHtml}}", renderRecentEntries(RECENT_FILES_PROPERTY, false));
+
         return html;
+    }
+
+    private String renderRecentEntries(String propertyKey, boolean directoryOnly) {
+        List<File> entries = loadRecentEntries(propertyKey, directoryOnly);
+        if (entries == null || entries.isEmpty()) {
+            return "<li class='empty-recent'>" + escapeHtml(msg("menu.recent.empty", "Vacío")) + "</li>";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        int count = 0;
+        for (File file : entries) {
+            if (file == null || !file.exists()) continue;
+            String name = file.getName();
+            String path = file.getAbsolutePath();
+            
+            // Usamos un onclick para navegar desde el WebView (si lo soportamos) o simplemente mostramos
+            // Por ahora solo visual.
+            sb.append("<li title='").append(escapeHtml(path)).append("'>");
+            sb.append("<span class='recent-name'>").append(escapeHtml(name)).append("</span>");
+            sb.append("<span class='recent-path'>").append(escapeHtml(path)).append("</span>");
+            sb.append("</li>");
+            
+            count++;
+            if (count >= 5) break; // Máximo 5 elementos recientes
+        }
+        
+        if (sb.length() == 0) {
+            return "<li class='empty-recent'>" + escapeHtml(msg("menu.recent.empty", "Vacío")) + "</li>";
+        }
+
+        return sb.toString();
+    }
+
+    private String renderHomeReleaseNotesItems(List<String> items) {
+        if (items == null || items.isEmpty()) {
+            return "<li>" + escapeHtml(msg("home.whatsNew.fallback", "No hay changelog disponible para esta versión.")) + "</li>";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (String item : items) {
+            if (item == null || item.isBlank()) continue;
+            sb.append("<li>").append(escapeHtml(item)).append("</li>");
+        }
+
+        if (sb.length() == 0) {
+            sb.append("<li>").append(escapeHtml(msg("home.whatsNew.fallback", "No hay changelog disponible para esta versión."))).append("</li>");
+        }
+        return sb.toString();
+    }
+
+    private String escapeHtml(String value) {
+        if (value == null) return "";
+        return value
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&#39;");
     }
 
     private String getHomeTabTitle() {
@@ -1727,6 +2283,31 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         }
     }
 
+    private void applyApplicationAppearance(Scene scene, String appearance) {
+        if (scene == null) return;
+        String classicCss = resolveStylesheet(APP_STYLESHEET_CLASSIC);
+        String darkCss = resolveStylesheet(APP_STYLESHEET_DARK);
+        if (classicCss != null) scene.getStylesheets().remove(classicCss);
+        if (darkCss != null) scene.getStylesheets().remove(darkCss);
+
+        String activeCssPath = ConfigModel.EDITOR_APPEARANCE_CLASSIC.equalsIgnoreCase(appearance)
+            ? APP_STYLESHEET_CLASSIC
+            : APP_STYLESHEET_DARK;
+        String activeCss = resolveStylesheet(activeCssPath);
+        if (activeCss != null && !scene.getStylesheets().contains(activeCss)) {
+            scene.getStylesheets().add(activeCss);
+        }
+    }
+
+    private String resolveStylesheet(String resourcePath) {
+        try {
+            java.net.URL resource = getClass().getResource(resourcePath);
+            return resource != null ? resource.toExternalForm() : null;
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
     private void hookHomeExternalLinks(Tab homeTab) {
         if (homeTab == null) return;
         if (!(homeTab.getContent() instanceof javafx.scene.web.WebView)) return;
@@ -1736,6 +2317,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (Boolean.TRUE.equals(alreadyHooked)) return;
 
         webView.getProperties().put(HOME_LINK_HOOKED, Boolean.TRUE);
+        
+        // Registrar el conector Java para JS
+        webView.getEngine().getLoadWorker().stateProperty().addListener((obs, oldState, newState) -> {
+            if (newState == javafx.concurrent.Worker.State.SUCCEEDED) {
+                netscape.javascript.JSObject window = (netscape.javascript.JSObject) webView.getEngine().executeScript("window");
+                window.setMember("javaConnector", new HomeConnector());
+            }
+        });
+
         webView.getEngine().locationProperty().addListener((obs, oldLocation, newLocation) -> {
             if (newLocation == null) return;
             String lower = newLocation.toLowerCase(Locale.ROOT);
@@ -1744,6 +2334,19 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             openInSystemBrowser(newLocation);
             Platform.runLater(() -> webView.getEngine().loadContent(buildHomeHtml(), "text/html"));
         });
+    }
+
+    /**
+     * Clase interna para recibir llamadas desde el JS de la página Home.
+     */
+    public class HomeConnector {
+        public void setShowHomeOnStartup(boolean show) {
+            Platform.runLater(() -> {
+                configModel.setShowHomeOnStartup(show);
+                persistSessionState(); // Forzar guardado inmediato
+                AppLogger.logConsole("HOME", "Preferencia de inicio actualizada: " + show);
+            });
+        }
     }
 
     private void openInSystemBrowser(String url) {
@@ -1815,6 +2418,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
         scene.getAccelerators().put(ACCEL_FIND_FILE, () -> onFindInFile(null));
         scene.getAccelerators().put(ACCEL_FIND_PROJECT, () -> onFindInProject(null));
+
+        scene.getAccelerators().put(ACCEL_MOVE_UP, () -> editOptionsController.moveLinesUp(tabPane));
+        scene.getAccelerators().put(ACCEL_MOVE_DOWN, () -> editOptionsController.moveLinesDown(tabPane));
 
         scene.getAccelerators().put(ACCEL_BUILD, () -> onCompilar(null));
         scene.getAccelerators().put(ACCEL_RUN, () -> onEjecutar(null));

@@ -61,6 +61,32 @@ public class HelpController {
         );
     }
 
+    /**
+     * Abre la documentación oficial de GBDK-2020 en una ventana WebView.
+     */
+    public void onOpenGbdkDocs() {
+        UserActionMonitor.gbdkDocsOpened();
+        openUrlWindow(
+            "https://gbdk.org/docs/api/index.html",
+            "Documentación GBDK-2020",
+            1100,
+            800
+        );
+    }
+
+    /**
+     * Abre la documentación oficial de Z88DK en una ventana WebView.
+     */
+    public void onOpenZ88dkDocs() {
+        // Podríamos añadir una acción específica en UserActionMonitor si fuera necesario
+        openUrlWindow(
+            "https://github.com/z88dk/z88dk/wiki",
+            "Documentación Z88DK",
+            1200,
+            800
+        );
+    }
+
     private void openHtmlWindow(String resourcePath, String title, String fallbackHtml, int width, int height) {
         javafx.scene.web.WebView webView = new javafx.scene.web.WebView();
         URL url = getClass().getResource(resourcePath);
@@ -74,6 +100,17 @@ public class HelpController {
         javafx.scene.Scene scene = new javafx.scene.Scene(webView, width, height);
         javafx.stage.Stage stage = new javafx.stage.Stage();
 
+        stage.setTitle(title);
+        stage.setScene(scene);
+        stage.show();
+    }
+
+    private void openUrlWindow(String url, String title, int width, int height) {
+        javafx.scene.web.WebView webView = new javafx.scene.web.WebView();
+        webView.getEngine().load(url);
+
+        javafx.scene.Scene scene = new javafx.scene.Scene(webView, width, height);
+        javafx.stage.Stage stage = new javafx.stage.Stage();
         stage.setTitle(title);
         stage.setScene(scene);
         stage.show();

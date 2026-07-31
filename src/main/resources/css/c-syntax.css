@@ -156,6 +156,20 @@
     -fx-fill: #fda4af;
 }
 
+.code-area .json-key {
+    -fx-fill: #93c5fd;
+    -fx-font-weight: bold;
+}
+
+.code-area .json-number {
+    -fx-fill: #fbbf24;
+}
+
+.code-area .json-literal {
+    -fx-fill: #4ade80;
+    -fx-font-weight: bold;
+}
+
 /* Marca visual de error/warning por linea (RichTextFX puede aplicar clase al paragraph-box o paragraph-text) */
 .code-area .paragraph-box.compile-error-line,
 .code-area .paragraph-text.compile-error-line {

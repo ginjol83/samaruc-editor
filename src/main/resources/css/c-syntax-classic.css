@@ -68,6 +68,9 @@
 .code-area .md-italic { -fx-font-style: italic; -fx-fill: #334155; }
 .code-area .md-code { -fx-fill: #7c2d12; -fx-font-family: Consolas, "DejaVu Sans Mono", monospace; }
 .code-area .md-code-block { -fx-fill: #7c2d12; -fx-font-family: Consolas, "DejaVu Sans Mono", monospace; }
+.code-area .json-key { -fx-fill: #1d4ed8; -fx-font-weight: bold; }
+.code-area .json-number { -fx-fill: #0891b2; }
+.code-area .json-literal { -fx-fill: #166534; -fx-font-weight: bold; }
 
 .code-area .paragraph-box.compile-error-line,
 .code-area .paragraph-text.compile-error-line {

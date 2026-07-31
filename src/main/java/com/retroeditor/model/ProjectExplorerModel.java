@@ -87,4 +87,39 @@ public class ProjectExplorerModel {
         return true;
     }
 
+    /**
+     * Renombra un archivo o carpeta dentro del mismo directorio padre.
+     * @param target Archivo o carpeta a renombrar.
+     * @param newName Nuevo nombre (sin ruta).
+     * @return Archivo/carpeta resultante tras el renombrado.
+     * @throws java.io.IOException si no se puede renombrar.
+     */
+    public java.io.File renameFileOrDirectory(java.io.File target, String newName) throws java.io.IOException {
+        if (target == null) throw new java.io.IOException("Elemento inválido");
+        if (!target.exists()) throw new java.io.IOException("El elemento no existe: " + target.getName());
+
+        String normalizedName = newName != null ? newName.trim() : "";
+        if (normalizedName.isEmpty()) throw new java.io.IOException("Nombre inválido.");
+        if (normalizedName.contains(java.io.File.separator) || normalizedName.contains("/")) {
+            throw new java.io.IOException("El nombre no puede contener separadores de ruta.");
+        }
+
+        if (target.getName().equals(normalizedName)) {
+            return target;
+        }
+
+        java.io.File parent = target.getParentFile();
+        if (parent == null || !parent.exists() || !parent.isDirectory()) {
+            throw new java.io.IOException("Directorio padre inválido.");
+        }
+
+        java.io.File destination = new java.io.File(parent, normalizedName);
+        if (destination.exists()) {
+            throw new java.io.IOException("Ya existe un elemento con ese nombre: " + normalizedName);
+        }
+
+        java.nio.file.Files.move(target.toPath(), destination.toPath());
+        return destination;
+    }
+
 }

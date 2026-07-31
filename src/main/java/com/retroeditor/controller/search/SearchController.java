@@ -2,6 +2,7 @@ package com.retroeditor.controller.search;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -10,6 +11,7 @@ import java.util.Optional;
 import org.fxmisc.richtext.CodeArea;
 
 import com.retroeditor.service.ProjectSearchService;
+import com.retroeditor.service.ProjectSearchService.SearchOptions;
 import com.retroeditor.service.TextSearchService;
 import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.util.FXUtils;
@@ -54,7 +56,6 @@ public class SearchController {
      * @param tabPane Pestañas del editor de texto.
      * @param tabFileMap Mapa de pestañas a archivos abiertos.
      * @param editorModel Modelo del editor de texto.
-     * @param mainController Controlador principal de la aplicación.
      * @param fxUtils Utilidades para JavaFX.
      */
     public SearchController(Stage owner, TabPane tabPane, Map<Tab, File> tabFileMap,
@@ -427,15 +428,23 @@ public class SearchController {
         Platform.runLater(() -> {
             Dialog<ButtonType> dialog = new Dialog<>();
             dialog.initOwner(owner);
-            dialog.setTitle("Buscar en proyecto");
+            dialog.setTitle("Búsqueda Avanzada en Proyecto");
 
             TextField txt = new TextField();
-            txt.setPromptText("Texto a buscar en el proyecto");
+            txt.setPromptText("Texto a buscar");
             txt.setMinWidth(400);
 
             TextField txtReplace = new TextField();
             txtReplace.setPromptText("Texto a reemplazar");
             txtReplace.setMinWidth(400);
+
+            TextField txtTypes = new TextField();
+            txtTypes.setPromptText("Tipos de archivo (ej: .c, .asm)");
+            txtTypes.setMinWidth(400);
+
+            javafx.scene.control.DatePicker datePicker = new javafx.scene.control.DatePicker();
+            datePicker.setPromptText("Modificado después de...");
+            datePicker.setMinWidth(400);
 
             javafx.scene.control.CheckBox chkCase  = new javafx.scene.control.CheckBox("Mayúsculas");
             javafx.scene.control.CheckBox chkRegex = new javafx.scene.control.CheckBox("Regex");
@@ -445,25 +454,61 @@ public class SearchController {
             ButtonType close  = new ButtonType("Cerrar", ButtonBar.ButtonData.CANCEL_CLOSE);
 
             dialog.getDialogPane().getButtonTypes().addAll(search, replaceAll, close);
-            dialog.getDialogPane().setContent(new javafx.scene.layout.VBox(8, txt, txtReplace, new javafx.scene.layout.HBox(8, chkCase, chkRegex)));
+            
+            javafx.scene.layout.VBox layout = new javafx.scene.layout.VBox(10);
+            layout.getChildren().addAll(
+                new javafx.scene.control.Label("Texto a buscar:"), txt,
+                new javafx.scene.control.Label("Reemplazar por (opcional):"), txtReplace,
+                new javafx.scene.control.Label("Extensiones (separadas por coma):"), txtTypes,
+                new javafx.scene.control.Label("Fecha de modificación:"), datePicker,
+                new javafx.scene.layout.HBox(10, chkCase, chkRegex)
+            );
+            
+            dialog.getDialogPane().setContent(layout);
 
             Optional<ButtonType> result = dialog.showAndWait();
 
-            if (result.isPresent() && result.get() == search) {
-                String term = txt.getText();
-
-                if (term != null && !term.trim().isEmpty()) {
-                    List<SearchMatch> matches = searchProject(term.trim());
-                    showProjectSearchResults(matches, term.trim());
-                }
-            } else if (result.isPresent() && result.get() == replaceAll) {
+            if (result.isPresent() && (result.get() == search || result.get() == replaceAll)) {
                 String term = txt.getText();
                 String replacement = txtReplace.getText();
+                String types = txtTypes.getText();
+                LocalDate date = datePicker.getValue();
+
                 if (term != null && !term.trim().isEmpty()) {
-                    replaceAllInProject(term.trim(), replacement, chkCase.isSelected(), chkRegex.isSelected());
+                    SearchOptions options = new SearchOptions(term.trim(), types, date, chkCase.isSelected(), chkRegex.isSelected());
+                    
+                    if (result.get() == search) {
+                        List<SearchMatch> matches = searchProjectWithOptions(options);
+                        showProjectSearchResults(matches, term.trim());
+                    } else {
+                        replaceAllInProjectWithOptions(term.trim(), replacement, options);
+                    }
                 }
             }
         });
+    }
+
+    private List<SearchMatch> searchProjectWithOptions(SearchOptions options) {
+        File root = projectContextPort != null ? projectContextPort.getCurrentProjectDir() : null;
+        List<SearchMatch> matches = new ArrayList<>();
+
+        for (ProjectSearchService.Match match : projectSearchService.searchProject(root, options)) {
+            matches.add(new SearchMatch(match.getFile(), match.getIndex(), match.getSnippet()));
+        }
+
+        return matches;
+    }
+
+    private void replaceAllInProjectWithOptions(String term, String replacement, SearchOptions options) {
+        File root = projectContextPort != null ? projectContextPort.getCurrentProjectDir() : null;
+        if (root == null || !root.isDirectory()) return;
+
+        int updatedFiles = projectSearchService.replaceInProject(root, term, replacement, options);
+        if (updatedFiles > 0) {
+            refreshOpenTabsFromDisk(root);
+        }
+
+        UserActionMonitor.searchExecuted(term, "project-replace");
     }
 
     /**

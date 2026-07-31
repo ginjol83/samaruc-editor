@@ -30,6 +30,17 @@
                     <HBox spacing="8" alignment="CENTER_LEFT">
                         <Button fx:id="btnGuardarIdioma" text="Guardar" onAction="#onSaveLanguage" prefWidth="170" />
                     </HBox>
+                    
+                    <Label fx:id="lblMarketplaceIdiomas" text="Marketplace de Idiomas:" style="-fx-font-weight: bold; -fx-padding: 10 0 0 0;" />
+                    <HBox spacing="12" alignment="TOP_LEFT">
+                        <ListView fx:id="lstMarketplaceIdiomas" prefWidth="360" prefHeight="180" />
+                        <VBox spacing="6">
+                            <Button fx:id="btnRefreshIdiomas" text="Actualizar Lista" onAction="#onRefreshMarketplaceIdiomas" prefWidth="140" />
+                            <Button fx:id="btnInstallIdioma" text="Instalar Idioma" onAction="#onInstallMarketplaceIdioma" prefWidth="140" />
+                            <ProgressIndicator fx:id="progressIdiomas" prefWidth="20" prefHeight="20" visible="false" managed="false" />
+                        </VBox>
+                    </HBox>
+                    <Label fx:id="lblMarketplaceIdiomasInfo" text="Selecciona un idioma para ver detalles." wrapText="true" />
                 </VBox>
             </AnchorPane>
         </Tab>
@@ -38,8 +49,10 @@
                 <VBox spacing="10" alignment="TOP_LEFT" style="-fx-padding: 14;" AnchorPane.topAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0">
                     <Label fx:id="lblEditorAppearance" text="Apariencia del editor:" />
                     <ComboBox fx:id="comboEditorAppearance" prefWidth="260" />
+                    <CheckBox fx:id="chkEnableLogs" text="Habilitar guardado de logs en archivo (samaruc.log)" />
+                    <CheckBox fx:id="chkShowHomeOnStartup" text="Mostrar página de inicio al arrancar" />
                     <HBox spacing="8" alignment="CENTER_LEFT">
-                        <Button fx:id="btnGuardarAppearance" text="Guardar apariencia" onAction="#onSaveEditorAppearance" prefWidth="170" />
+                        <Button fx:id="btnGuardarAppearance" text="Guardar cambios" onAction="#onSaveEditorAppearance" prefWidth="170" />
                     </HBox>
                 </VBox>
             </AnchorPane>
@@ -49,8 +62,10 @@
             <BorderPane style="-fx-padding: 14;" AnchorPane.topAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.bottomAnchor="0.0">
                 <top>
                     <VBox spacing="12" alignment="TOP_LEFT">
-                        <Label fx:id="lblCompilador" text="Selecciona el compilador:" />
-                        <ComboBox fx:id="comboCompilador" prefWidth="220" />
+                        <HBox spacing="10" alignment="CENTER_LEFT">
+                            <Label fx:id="lblCompilador" text="Selecciona el compilador:" />
+                            <ComboBox fx:id="comboCompilador" prefWidth="260" />
+                        </HBox>
                         <TextField fx:id="txtCompilador" visible="false" managed="false" />
                     </VBox>
                 </top>
@@ -64,15 +79,14 @@
                             <HBox spacing="6" alignment="CENTER_LEFT">
                                 <TextField fx:id="txtGbdkBin" prefWidth="220" promptText="/ruta/a/gbdk/bin" />
                                 <Button fx:id="btnSeleccionarGbdkBin" text="..." onAction="#onSeleccionarGbdkBin" />
-                                <Button fx:id="btnGuardarGbdkBin" text="Guardar GBDK" onAction="#onSaveGbdkBin" />
                             </HBox>
                             <Label fx:id="lblGbdkOpts" text="Opciones de optimización GBDK:" />
                             <HBox spacing="6" alignment="CENTER_LEFT">
                                 <Label fx:id="lblGbdkOptLevel" text="Nivel de optimización:" />
-                                <ComboBox fx:id="comboGbdkOptLevel" prefWidth="100" onAction="#onSaveGbdkOpts" />
+                                <ComboBox fx:id="comboGbdkOptLevel" prefWidth="100" />
                             </HBox>
-                            <CheckBox fx:id="chkGbdkOptSpeed" text="--opt-code-speed  (optimizar para velocidad)" onAction="#onSaveGbdkOpts" />
-                            <CheckBox fx:id="chkGbdkOptSize"  text="--opt-code-size   (optimizar para tamaño)"    onAction="#onSaveGbdkOpts" />
+                            <CheckBox fx:id="chkGbdkOptSpeed" text="--opt-code-speed  (optimizar para velocidad)" />
+                            <CheckBox fx:id="chkGbdkOptSize"  text="--opt-code-size   (optimizar para tamaño)" />
                             <Label fx:id="lblGbdkDefines" text="Defines (-D), separados por coma o espacio:" />
                             <TextField fx:id="txtGbdkDefines" prefWidth="420" promptText="DEBUG, USE_FAST_IRQ" />
                             <Label fx:id="lblGbdkIncludes" text="Includes (-I), separados por ; o coma:" />
@@ -91,19 +105,18 @@
                             <HBox spacing="6" alignment="CENTER_LEFT">
                                 <TextField fx:id="txtSpectrumBin" prefWidth="220" promptText="/ruta/a/Z88DK/bin" />
                                 <Button fx:id="btnSeleccionarSpectrumBin" text="..." onAction="#onSeleccionarSpectrumBin" />
-                                <Button fx:id="btnGuardarSpectrumBin" text="Guardar Z88DK" onAction="#onSaveSpectrumBin" />
                             </HBox>
                             <Label fx:id="lblZ88dkSpectrumOpts" text="Opciones de compilacion Z88DK (Spectrum):" />
                             <HBox spacing="6" alignment="CENTER_LEFT">
                                 <Label fx:id="lblZ88dkSpectrumClib" text="Opcion -clib:" />
-                                <ComboBox fx:id="comboZ88dkSpectrumClib" prefWidth="120" onAction="#onSaveZ88dkFlags" />
+                                <ComboBox fx:id="comboZ88dkSpectrumClib" prefWidth="120" />
                             </HBox>
-                            <CheckBox fx:id="chkZ88dkSpectrumCrtOrgCode" text="Usar -pragma-define:CRT_ORG_CODE=32768" onAction="#onSaveZ88dkFlags" />
+                            <CheckBox fx:id="chkZ88dkSpectrumCrtOrgCode" text="Usar -pragma-define:CRT_ORG_CODE=32768" />
                             <HBox spacing="6" alignment="CENTER_LEFT">
                                 <Label fx:id="lblZ88dkSpectrumTarget" text="Target Z88DK:" />
                                 <TextField fx:id="txtZ88dkSpectrumTarget" prefWidth="120" promptText="+zx" />
                             </HBox>
-                            <CheckBox fx:id="chkZ88dkSpectrumCreateApp" text="Usar -create-app" onAction="#onSaveZ88dkFlags" />
+                            <CheckBox fx:id="chkZ88dkSpectrumCreateApp" text="Usar -create-app" />
                             <Label fx:id="lblZ88dkSpectrumDefines" text="Defines (-D), separados por coma o espacio:" />
                             <TextField fx:id="txtZ88dkSpectrumDefines" prefWidth="420" promptText="DEBUG, USE_ULA" />
                             <Label fx:id="lblZ88dkSpectrumIncludes" text="Includes (-I), separados por ; o coma:" />
@@ -122,19 +135,18 @@
                             <HBox spacing="6" alignment="CENTER_LEFT">
                                 <TextField fx:id="txtCpcBin" prefWidth="220" promptText="/ruta/a/Z88DK/bin" />
                                 <Button fx:id="btnSeleccionarCpcBin" text="..." onAction="#onSeleccionarCpcBin" />
-                                <Button fx:id="btnGuardarCpcBin" text="Guardar Z88DK" onAction="#onSaveCpcBin" />
                             </HBox>
                             <Label fx:id="lblZ88dkCpcOpts" text="Opciones de compilacion Z88DK (CPC):" />
                             <HBox spacing="6" alignment="CENTER_LEFT">
                                 <Label fx:id="lblZ88dkCpcClib" text="Opcion -clib:" />
-                                <ComboBox fx:id="comboZ88dkCpcClib" prefWidth="120" onAction="#onSaveZ88dkFlags" />
+                                <ComboBox fx:id="comboZ88dkCpcClib" prefWidth="120" />
                             </HBox>
-                            <CheckBox fx:id="chkZ88dkCpcCrtOrgCode" text="Usar -pragma-define:CRT_ORG_CODE=32768" onAction="#onSaveZ88dkFlags" />
+                            <CheckBox fx:id="chkZ88dkCpcCrtOrgCode" text="Usar -pragma-define:CRT_ORG_CODE=32768" />
                             <HBox spacing="6" alignment="CENTER_LEFT">
                                 <Label fx:id="lblZ88dkCpcTarget" text="Target Z88DK:" />
                                 <TextField fx:id="txtZ88dkCpcTarget" prefWidth="120" promptText="+cpc" />
                             </HBox>
-                            <CheckBox fx:id="chkZ88dkCpcCreateApp" text="Usar -create-app" onAction="#onSaveZ88dkFlags" />
+                            <CheckBox fx:id="chkZ88dkCpcCreateApp" text="Usar -create-app" />
                             <Label fx:id="lblZ88dkCpcDefines" text="Defines (-D), separados por coma o espacio:" />
                             <TextField fx:id="txtZ88dkCpcDefines" prefWidth="420" promptText="DEBUG, CPC_MODE" />
                             <Label fx:id="lblZ88dkCpcIncludes" text="Includes (-I), separados por ; o coma:" />
@@ -150,14 +162,13 @@
                         <content>
                         <VBox spacing="12" alignment="CENTER_LEFT" style="-fx-padding: 8 0 0 0;">
                             <Label fx:id="lblMakeExecutable" text="Ejecutable make (opcional):" />
-                            <TextField fx:id="txtMakeExecutable" prefWidth="420" promptText="mingw32-make" onAction="#onSaveMakeOpts" />
+                            <TextField fx:id="txtMakeExecutable" prefWidth="420" promptText="mingw32-make" />
                             <Label fx:id="lblMakeBuildTarget" text="Target para compilar (vacío = target por defecto):" />
-                            <TextField fx:id="txtMakeBuildTarget" prefWidth="420" promptText="all" onAction="#onSaveMakeOpts" />
+                            <TextField fx:id="txtMakeBuildTarget" prefWidth="420" promptText="all" />
                             <Label fx:id="lblMakeRunTarget" text="Target para ejecutar:" />
-                            <TextField fx:id="txtMakeRunTarget" prefWidth="420" promptText="run" onAction="#onSaveMakeOpts" />
+                            <TextField fx:id="txtMakeRunTarget" prefWidth="420" promptText="run" />
                             <Label fx:id="lblMakeExtraArgs" text="Argumentos extra para make:" />
-                            <TextField fx:id="txtMakeExtraArgs" prefWidth="420" promptText="-j4" onAction="#onSaveMakeOpts" />
-                            <Button fx:id="btnSaveMakeOpts" text="Guardar Makefile" onAction="#onSaveMakeOpts" prefWidth="170" />
+                            <TextField fx:id="txtMakeExtraArgs" prefWidth="420" promptText="-j4" />
                         </VBox>
                         </content>
                         </ScrollPane>
@@ -166,12 +177,13 @@
                 </center>
                 <bottom>
                     <VBox spacing="8" alignment="TOP_LEFT" style="-fx-padding: 10 0 0 0;">
-                        <CheckBox fx:id="chkProjectDetectAutoApply" text="Autoaplicar perfil detectado al abrir proyecto" onAction="#onSaveProjectDetectionPrefs" />
+                        <CheckBox fx:id="chkProjectDetectAutoApply" text="Autoaplicar perfil detectado al abrir proyecto" onAction="#onProjectDetectionAutoApplyChanged" />
                         <HBox spacing="6" alignment="CENTER_LEFT">
                             <Label fx:id="lblProjectDetectThreshold" text="Umbral de confianza (%):" />
-                            <TextField fx:id="txtProjectDetectThreshold" prefWidth="90" promptText="75" onAction="#onSaveProjectDetectionPrefs" />
+                            <TextField fx:id="txtProjectDetectThreshold" prefWidth="90" promptText="75" />
                         </HBox>
-                        <Button fx:id="btnGuardarCompilador" text="Guardar configuración" onAction="#onSaveCompilador" prefWidth="170" />
+                        <Button fx:id="btnGuardarCompilador" text="Guardar y aplicar cambios" onAction="#onSaveCompilador" prefWidth="220" />
+                        <Button fx:id="btnGuardarWorkspace" text="Guardar en Workspace (Proyecto)" onAction="#onSaveWorkspace" prefWidth="220" visible="false" managed="false" />
                         <Label fx:id="lblError" style="-fx-text-fill: #c62828;" wrapText="true" />
                     </VBox>
                 </bottom>

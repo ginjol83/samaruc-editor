@@ -199,6 +199,10 @@ public final class UserActionMonitor {
         AppLogger.logMonitor("HELP_PLUGIN_MANUAL", tr("log.monitor.help.plugins.manual", "Manual de plugins abierto"));
     }
 
+    public static void gbdkDocsOpened() {
+        AppLogger.logMonitor("HELP_GBDK_DOCS", tr("log.monitor.help.gbdk.docs", "Documentación GBDK-2020 abierta"));
+    }
+
     // ============ ERRORES ============
     
     public static void errorOccurred(String errorType, String message) {
@@ -209,4 +213,3 @@ public final class UserActionMonitor {
         return AppLogger.i18n(key, fallback, args);
     }
 }
-

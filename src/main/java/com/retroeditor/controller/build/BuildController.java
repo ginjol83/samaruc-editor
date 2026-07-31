@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
@@ -47,6 +49,8 @@ public class BuildController {
     private static final String COMPILER_Z88DK = "z88dk";
     private static final String COMPILER_MAKEFILE = "Makefile";
     private static final String LEGACY_SPECTRUM = "Spectrum";
+    private static final String Z88DK_PROFILE_SPECTRUM = "spectrum";
+    private static final String Z88DK_PROFILE_CPC = "cpc";
     private static final String EMULATOR_EMULICIOUS = "Emulicious";
     private static final String EMULATOR_JSPECCY    = "JSpeccy";
     private static final String EMULATOR_CPCBOX_WEB = "CPCBoxWeb";
@@ -56,6 +60,8 @@ public class BuildController {
     private static final List<String> CPC_AUTORUN_PRIORITY = Collections.unmodifiableList(Arrays.asList(
         "DISC", "DISK", "MENU", "START", "RUN", "RUNME", "LOADER", "BOOT", "GAME"
     ));
+    private static final int CPC_OUTPUT_NAME_LIMIT = 4;
+    private static final Pattern CPC_Z88DK_EXECUTABLE_PATTERN = Pattern.compile("\\b([A-Z0-9_]{1,8})\\.(B0|BAS|BIN|COM)\\b");
     private static final Set<String> MAKE_OUTPUT_EXTENSIONS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
         "gb", "gbc", "tap", "tzx", "sna", "z80", "cdt", "wav", "dsk", "edsk", "rom", "bin", "ihx", "map", "sym", "noi"
     )));
@@ -135,37 +141,65 @@ public class BuildController {
         }
 
         if (isSpectrumCompiler(selectedCompiler)) {
-            String spectrumBin = configModel.getConfigProperty("spectrum_bin", "");
+            String z88dkProfile = normalizeZ88dkProfile(configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM));
+            boolean cpcProfile = Z88DK_PROFILE_CPC.equalsIgnoreCase(z88dkProfile);
+            String z88dkBin = resolveZ88dkBinForProfile(configModel, selectedCompiler);
 
-            if (spectrumBin == null || spectrumBin.isEmpty()) {
+            if (z88dkBin == null || z88dkBin.isBlank()) {
                 Alert alert = new Alert(AlertType.ERROR);
 
                 alert.setTitle      ("Error de compilación");
-                alert.setHeaderText ("No se ha configurado la ruta de Z88DK");
-                alert.setContentText("Por favor, configura la ruta del bin de Z88DK en las opciones de configuracion.");
+                alert.setHeaderText (cpcProfile ? "No se ha configurado la ruta de Z88DK para CPC" : "No se ha configurado la ruta de Z88DK");
+                alert.setContentText(cpcProfile
+                    ? "Por favor, configura la ruta del bin de Z88DK para CPC en las opciones de configuracion."
+                    : "Por favor, configura la ruta del bin de Z88DK en las opciones de configuracion.");
                 alert.showAndWait   ();
 
-                terminalController.appendConsoleOutput("ERROR: No se ha configurado la ruta del bin de Z88DK.",consoleOutputArea);
+                terminalController.appendConsoleOutput(
+                    cpcProfile
+                        ? "ERROR: No se ha configurado la ruta del bin de Z88DK para CPC."
+                        : "ERROR: No se ha configurado la ruta del bin de Z88DK.",
+                    consoleOutputArea
+                );
 
                 return;
             }
 
-            String compiler = resolveCompilerExecutable(spectrumBin, "zcc");
-            String clibOption = configModel.getConfigProperty("z88dk_clib_option", ConfigModel.Z88DK_CLIB_NEW);
-            boolean useCrtOrgCode = Boolean.parseBoolean(configModel.getConfigProperty("z88dk_use_pragma_crt_org_code_32768", "true"));
-            boolean useCreateApp = Boolean.parseBoolean(configModel.getConfigProperty("z88dk_create_app", "true"));
-            String spectrumOutputBase = new File(outputDir, outputBaseName).getAbsolutePath();
-            String z88dkTarget = normalizeZ88dkTarget(configModel.getConfigProperty("z88dk_target", "+zx"));
+            String compiler = resolveCompilerExecutable(z88dkBin, "zcc");
+            String clibOption = configModel.getConfigProperty(
+                cpcProfile ? "z88dk_cpc_clib_option" : "z88dk_clib_option",
+                ConfigModel.Z88DK_CLIB_NEW
+            );
+            boolean useCrtOrgCode = Boolean.parseBoolean(configModel.getConfigProperty(
+                cpcProfile ? "z88dk_cpc_use_pragma_crt_org_code_32768" : "z88dk_use_pragma_crt_org_code_32768",
+                cpcProfile ? "false" : "true"
+            ));
+            boolean useCreateApp = Boolean.parseBoolean(configModel.getConfigProperty(
+                cpcProfile ? "z88dk_cpc_create_app" : "z88dk_create_app",
+                "true"
+            ));
+            String spectrumOutputBase = new File(
+                outputDir,
+                cpcProfile ? resolveCpcOutputBaseName(sourceFileName) : outputBaseName
+            ).getAbsolutePath();
+            String z88dkTarget = normalizeZ88dkTarget(configModel.getConfigProperty(
+                cpcProfile ? "z88dk_cpc_target" : "z88dk_target",
+                cpcProfile ? "+cpc" : "+zx"
+            ));
+            String z88dkExtraArgs = configModel.getConfigProperty(cpcProfile ? "z88dk_cpc_extra_args" : "z88dk_extra_args", "");
 
             List<String> spectrumCmd = new ArrayList<>();
             spectrumCmd.add(compiler);
             spectrumCmd.add(z88dkTarget);
+            if (cpcProfile && !containsSubtypeArgument(z88dkExtraArgs)) {
+                spectrumCmd.add("-subtype=dsk");
+            }
             String clibArgument = resolveZ88dkClibArgument(clibOption);
             if (clibArgument != null) spectrumCmd.add(clibArgument);
             if (useCrtOrgCode) spectrumCmd.add("-pragma-define:CRT_ORG_CODE=32768");
-            addMacroFlags(spectrumCmd, configModel.getConfigProperty("z88dk_defines", ""));
-            addIncludeFlags(spectrumCmd, configModel.getConfigProperty("z88dk_includes", ""));
-            addExtraArgs(spectrumCmd, configModel.getConfigProperty("z88dk_extra_args", ""));
+            addMacroFlags(spectrumCmd, configModel.getConfigProperty(cpcProfile ? "z88dk_cpc_defines" : "z88dk_defines", ""));
+            addIncludeFlags(spectrumCmd, configModel.getConfigProperty(cpcProfile ? "z88dk_cpc_includes" : "z88dk_includes", ""));
+            addExtraArgs(spectrumCmd, z88dkExtraArgs);
             spectrumCmd.add("-o");
             spectrumCmd.add(spectrumOutputBase);
             spectrumCmd.add(sourceFilePath);
@@ -286,14 +320,13 @@ public class BuildController {
                 pb.redirectErrorStream(true);
 
                 if (isSpectrumCompiler(selectedCompiler)) {
-                    String spectrumBin = configModel.getConfigProperty("spectrum_bin", "");
-                    prependToPath(pb.environment(), spectrumBin);
+                    prependToPath(pb.environment(), resolveZ88dkBinForProfile(configModel, selectedCompiler));
                 }
 
                 if (isMakeCompiler(selectedCompiler)) {
                     // Para Makefile añadimos bins de toolchains para que comandos como zcc/lcc se resuelvan.
                     prependToPath(pb.environment(), configModel.getConfigProperty("gbdk_bin", ""));
-                    prependToPath(pb.environment(), configModel.getConfigProperty("spectrum_bin", ""));
+                    prependToPath(pb.environment(), resolveZ88dkBinForProfile(configModel, selectedCompiler));
                 }
 
                 if (extraEnvironment != null && !extraEnvironment.isEmpty()) {
@@ -303,10 +336,18 @@ public class BuildController {
                 proc = pb.start();
                 activeCompilationProcess.set(proc);
 
+                boolean missingMainHintShown = false;
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
                     String line;
                     while ((line = reader.readLine()) != null) {
                         terminalController.appendConsoleOutput(line, consoleOutputArea);
+                        if (!missingMainHintShown && line.contains("undefined symbol: _main")) {
+                            terminalController.appendConsoleOutput(
+                                "Pista: no se detecta la función main en el .c compilado. Revisa que el archivo no esté vacío y que defina 'void main(void)' o 'int main(void)'.",
+                                consoleOutputArea
+                            );
+                            missingMainHintShown = true;
+                        }
                         if (compilerOutputListener != null) {
                             compilerOutputListener.accept(buildSubject, line);
                         }
@@ -409,25 +450,25 @@ public class BuildController {
             return;
         }
 
+        String selectedProfile = normalizeZ88dkProfile(configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM));
         String selectedEmulator = configModel.getConfigProperty(
             "emulador_seleccionado",
-            getEmulatorForCompiler(selectedCompiler)
+            getEmulatorForCompiler(selectedCompiler, selectedProfile)
         );
-        
-        UserActionMonitor.executionStarted(selectedEmulator, file.getName());
 
-        if (EMULATOR_EMULICIOUS.equalsIgnoreCase(selectedEmulator)) {
-            launchCoffeeGb(file, projectRootDir, consoleOutputArea, ownerStage);
-        } else if (EMULATOR_JSPECCY.equalsIgnoreCase(selectedEmulator)) {
-            launchJSpeccy(file, projectRootDir, consoleOutputArea, ownerStage);
-        } else if (EMULATOR_CPCBOX_WEB.equalsIgnoreCase(selectedEmulator)) {
-            launchCpc(file, projectRootDir, consoleOutputArea, ownerStage);
-        } else {
-            terminalController.appendConsoleOutput(
-                "Emulador no soportado o no configurado: " + selectedEmulator,
-                consoleOutputArea
-            );
-        }
+        // F6/Play compila primero y, si termina OK, lanza el emulador.
+        onCompilar(
+            event,
+            consoleOutputArea,
+            tabPane,
+            tabFileMap,
+            configModel,
+            projectRootDir,
+            (buildSubject, line) -> {
+                if (!isSuccessfulCompilationLine(line)) return;
+                Platform.runLater(() -> launchWithEmulator(selectedEmulator, file, projectRootDir, consoleOutputArea, ownerStage));
+            }
+        );
     }
 
     /**
@@ -548,7 +589,7 @@ public class BuildController {
         Map<String, String> extraEnvironment = new HashMap<>();
         extraEnvironment.put("OUT_DIR", outputDir.getAbsolutePath());
 
-        String configuredSpectrumBin = configModel.getConfigProperty("spectrum_bin", "");
+        String configuredSpectrumBin = resolveZ88dkBinForProfile(configModel, selectedCompiler);
         File zccCfgDir = resolveZ88dkConfigDir(configuredSpectrumBin);
         if (zccCfgDir != null) {
             extraEnvironment.put("ZCCCFG", zccCfgDir.getAbsolutePath());
@@ -856,10 +897,17 @@ public class BuildController {
         File cpcArtifact = resolveCpcArtifact(sourceFile, projectRootDir);
 
         if (cpcArtifact == null) {
+            File cpcContainer = buildOutputFile(sourceFile, ".cpc", projectRootDir);
             terminalController.appendConsoleOutput(
                 "No se encontró un archivo compatible para CPCBox (.dsk, .edsk, .wav o .cdt).",
                 consoleOutputArea
             );
+            if (cpcContainer.exists()) {
+                terminalController.appendConsoleOutput(
+                    "Se generó un .cpc, pero CPCBox necesita .dsk/.edsk/.wav/.cdt. Activa -create-app y usa -subtype=dsk o -subtype=wav.",
+                    consoleOutputArea
+                );
+            }
             terminalController.appendConsoleOutput(
                 "Compila el proyecto para CPC antes de ejecutar en el emulador web.",
                 consoleOutputArea
@@ -937,12 +985,32 @@ public class BuildController {
         }
     }
 
-    private String getEmulatorForCompiler(String compiler) {
-        return isSpectrumCompiler(compiler) ? EMULATOR_JSPECCY : EMULATOR_EMULICIOUS;
+    private String getEmulatorForCompiler(String compiler, String z88dkProfile) {
+        if (isSpectrumCompiler(compiler)) {
+            return Z88DK_PROFILE_CPC.equalsIgnoreCase(normalizeZ88dkProfile(z88dkProfile))
+                ? EMULATOR_CPCBOX_WEB
+                : EMULATOR_JSPECCY;
+        }
+        return EMULATOR_EMULICIOUS;
     }
 
     private boolean isSpectrumCompiler(String compiler) {
         return COMPILER_Z88DK.equalsIgnoreCase(compiler) || LEGACY_SPECTRUM.equalsIgnoreCase(compiler);
+    }
+
+    private String resolveZ88dkBinForProfile(ConfigModel configModel, String selectedCompiler) {
+        if (!isSpectrumCompiler(selectedCompiler)) {
+            return configModel.getConfigProperty("spectrum_bin", "");
+        }
+
+        String profile = normalizeZ88dkProfile(configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM));
+        if (Z88DK_PROFILE_CPC.equalsIgnoreCase(profile)) {
+            String cpcBin = configModel.getConfigProperty("cpc_bin", "");
+            if (cpcBin != null && !cpcBin.isBlank()) {
+                return cpcBin;
+            }
+        }
+        return configModel.getConfigProperty("spectrum_bin", "");
     }
 
 
@@ -975,6 +1043,12 @@ public class BuildController {
         for (String extension : new String[] { ".dsk", ".edsk", ".wav", ".cdt" }) {
             File artifact = buildOutputFile(sourceFile, extension, projectRootDir);
             if (artifact.exists()) return artifact;
+        }
+
+        File outputDir = resolveOutputDirectory(sourceFile, projectRootDir);
+        File fallbackArtifact = findNewestArtifact(outputDir, CPC_ROM_EXTENSIONS);
+        if (fallbackArtifact != null) {
+            return fallbackArtifact;
         }
 
         return null;
@@ -1028,7 +1102,8 @@ public class BuildController {
     private String resolveCpcDiskAutoCommand(File romFile, byte[] data) {
         List<CpcDirectoryEntry> entries = extractCpcDirectoryEntries(data);
         if (entries.isEmpty()) {
-            return "CAT\n";
+            String fallback = extractCpcLoaderCommand(romFile, data);
+            return fallback != null ? fallback : "CAT\n";
         }
 
         boolean hasBasicLoader = entries.stream().anyMatch(entry -> "BAS".equals(entry.extension) || "BIN".equals(entry.extension));
@@ -1065,6 +1140,11 @@ public class BuildController {
             if ("BIN".equals(entry.extension)) {
                 return "RUN\"" + entry.baseName + "\n";
             }
+        }
+
+        String fallback = extractCpcLoaderCommand(romFile, data);
+        if (fallback != null) {
+            return fallback;
         }
 
         return "CAT\n";
@@ -1192,6 +1272,37 @@ public class BuildController {
         return true;
     }
 
+    private String extractCpcLoaderCommand(File romFile, byte[] data) {
+        String fromImage = extractCpcBasicLoaderFromImage(data);
+        if (fromImage != null) {
+            return fromImage;
+        }
+
+        String sourceName = romFile != null ? normalizeCpcName(stripExtension(romFile.getName())) : "";
+        if (!sourceName.isBlank()) {
+            return "RUN\"" + sourceName + "\n";
+        }
+
+        return null;
+    }
+
+    private String extractCpcBasicLoaderFromImage(byte[] data) {
+        if (data == null || data.length == 0) {
+            return null;
+        }
+
+        String ascii = new String(data, java.nio.charset.StandardCharsets.ISO_8859_1);
+        Matcher matcher = CPC_Z88DK_EXECUTABLE_PATTERN.matcher(ascii);
+        if (matcher.find()) {
+            if ("B0".equals(matcher.group(2))) {
+                return "RUN\"" + matcher.group(1) + "\n";
+            }
+            return "RUN\"" + matcher.group(1) + "." + matcher.group(2) + "\n";
+        }
+
+        return null;
+    }
+
     private String decodeCpcDirectoryName(byte[] data, int offset, int length) {
         StringBuilder sb = new StringBuilder(length);
         for (int i = 0; i < length && offset + i < data.length; i++) {
@@ -1212,7 +1323,16 @@ public class BuildController {
 
     private String normalizeCpcName(String value) {
         if (value == null) return "";
-        return value.replaceAll("[^A-Za-z0-9]", "").toUpperCase(Locale.ROOT);
+        String normalized = value.replaceAll("[^A-Za-z0-9]", "").toUpperCase(Locale.ROOT);
+        return normalized.length() > CPC_OUTPUT_NAME_LIMIT ? normalized.substring(0, CPC_OUTPUT_NAME_LIMIT) : normalized;
+    }
+
+    private String resolveCpcOutputBaseName(String sourceFileName) {
+        if (sourceFileName == null || sourceFileName.isBlank()) {
+            return "CPC";
+        }
+
+        return normalizeCpcName(stripExtension(sourceFileName));
     }
 
     private static final class CpcDirectoryEntry {
@@ -1225,7 +1345,10 @@ public class BuildController {
         }
 
         private boolean isRunnable() {
-            return "BAS".equals(extension) || "BIN".equals(extension);
+            return extension == null
+                || extension.isBlank()
+                || "BAS".equals(extension)
+                || "BIN".equals(extension);
         }
     }
 
@@ -1253,8 +1376,17 @@ public class BuildController {
         String sourceName = sourceFile != null ? sourceFile.getName() : "program.c";
         int dotIndex = sourceName.lastIndexOf('.');
         String baseName = dotIndex >= 0 ? sourceName.substring(0, dotIndex) : sourceName;
+        if (CPC_ROM_EXTENSIONS.contains(getExtensionName(extension))) {
+            baseName = resolveCpcOutputBaseName(sourceName);
+        }
         File outputDir = resolveOutputDirectory(sourceFile, projectRootDir);
         return new File(outputDir, baseName + extension);
+    }
+
+    private String getExtensionName(String extension) {
+        if (extension == null) return "";
+        String cleaned = extension.startsWith(".") ? extension.substring(1) : extension;
+        return cleaned.toLowerCase(Locale.ROOT);
     }
 
     private File resolveOutputDirectory(File sourceFile, File projectRootDir) {
@@ -1268,6 +1400,62 @@ public class BuildController {
         }
 
         return new File(new File(System.getProperty("user.dir")), "out");
+    }
+
+    private boolean isSuccessfulCompilationLine(String line) {
+        return line != null && line.startsWith("Compilación finalizada. Código de salida: 0");
+    }
+
+    private void launchWithEmulator(String selectedEmulator,
+                                    File sourceFile,
+                                    File projectRootDir,
+                                    StyleClassedTextArea consoleOutputArea,
+                                    Stage ownerStage) {
+        UserActionMonitor.executionStarted(selectedEmulator, sourceFile != null ? sourceFile.getName() : "(sin archivo)");
+
+        if (EMULATOR_EMULICIOUS.equalsIgnoreCase(selectedEmulator)) {
+            launchCoffeeGb(sourceFile, projectRootDir, consoleOutputArea, ownerStage);
+            return;
+        }
+
+        if (EMULATOR_JSPECCY.equalsIgnoreCase(selectedEmulator)) {
+            launchJSpeccy(sourceFile, projectRootDir, consoleOutputArea, ownerStage);
+            return;
+        }
+
+        if (EMULATOR_CPCBOX_WEB.equalsIgnoreCase(selectedEmulator)) {
+            launchCpc(sourceFile, projectRootDir, consoleOutputArea, ownerStage);
+            return;
+        }
+
+        terminalController.appendConsoleOutput(
+            "Emulador no soportado o no configurado: " + selectedEmulator,
+            consoleOutputArea
+        );
+    }
+
+    private File findNewestArtifact(File outputDir, List<String> extensions) {
+        if (outputDir == null || !outputDir.isDirectory()) {
+            return null;
+        }
+
+        File[] candidates = outputDir.listFiles(file -> {
+            if (file == null || !file.isFile()) return false;
+            String ext = getExtension(file);
+            return extensions.contains(ext);
+        });
+
+        if (candidates == null || candidates.length == 0) {
+            return null;
+        }
+
+        File newest = candidates[0];
+        for (int i = 1; i < candidates.length; i++) {
+            if (candidates[i].lastModified() > newest.lastModified()) {
+                newest = candidates[i];
+            }
+        }
+        return newest;
     }
 
     private boolean ensureOutputDirectory(File outputDir, StyleClassedTextArea consoleOutputArea) {
@@ -1364,6 +1552,19 @@ public class BuildController {
         if (target == null || target.isBlank()) return "+zx";
         String normalized = target.trim();
         return normalized.startsWith("+") ? normalized : "+" + normalized;
+    }
+
+    private boolean containsSubtypeArgument(String extraArgs) {
+        for (String arg : splitQuotedArgs(extraArgs)) {
+            if (arg != null && arg.toLowerCase(Locale.ROOT).startsWith("-subtype")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeZ88dkProfile(String profile) {
+        return Z88DK_PROFILE_CPC.equalsIgnoreCase(profile) ? Z88DK_PROFILE_CPC : Z88DK_PROFILE_SPECTRUM;
     }
 
     private void addMacroFlags(List<String> cmd, String macros) {

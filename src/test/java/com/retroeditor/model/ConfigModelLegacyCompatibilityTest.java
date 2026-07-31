@@ -84,4 +84,23 @@ class ConfigModelLegacyCompatibilityTest {
             reloaded.getConfigProperty("editor_appearance", ConfigModel.EDITOR_APPEARANCE_MODERN_DARK)
         );
     }
+
+    @Test
+    void preservesSessionRestorePropertiesOnRoundTrip() {
+        ConfigModel model = new ConfigModel();
+        model.setConfigProperty("last_session_project", "C:\\retro\\project");
+        model.setConfigProperty("last_session_open_files", "C:\\retro\\project\\src\\main.c\nC:\\retro\\project\\README.md");
+        model.setConfigProperty("last_session_active_file", "C:\\retro\\project\\src\\main.c");
+
+        Properties serialized = model.toProperties();
+        Assertions.assertEquals("C:\\retro\\project", serialized.getProperty("last_session_project"));
+        Assertions.assertEquals("C:\\retro\\project\\src\\main.c\nC:\\retro\\project\\README.md", serialized.getProperty("last_session_open_files"));
+        Assertions.assertEquals("C:\\retro\\project\\src\\main.c", serialized.getProperty("last_session_active_file"));
+
+        ConfigModel reloaded = new ConfigModel();
+        reloaded.applyProperties(serialized);
+        Assertions.assertEquals("C:\\retro\\project", reloaded.getConfigProperty("last_session_project", ""));
+        Assertions.assertEquals("C:\\retro\\project\\src\\main.c\nC:\\retro\\project\\README.md", reloaded.getConfigProperty("last_session_open_files", ""));
+        Assertions.assertEquals("C:\\retro\\project\\src\\main.c", reloaded.getConfigProperty("last_session_active_file", ""));
+    }
 }

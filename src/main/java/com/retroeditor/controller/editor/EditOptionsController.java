@@ -175,4 +175,92 @@ public class EditOptionsController {
     private String msgFmt(ResourceBundle bundle, String key, String fallback, Object... args) {
         return MessageFormat.format(msg(bundle, key, fallback), args);
     }
+
+    /**
+     * Mueve la línea actual (o la selección) hacia arriba.
+     * @param tabPane
+     */
+    public void moveLinesUp(TabPane tabPane) {
+        CodeArea codeArea = fxUtils.getCurrentCodeArea(tabPane);
+        if (codeArea == null) return;
+
+        int startParagraph = codeArea.offsetToPosition(codeArea.getSelection().getStart(), CodeArea.Bias.Forward).getMajor();
+        int endParagraph = codeArea.offsetToPosition(codeArea.getSelection().getEnd(), CodeArea.Bias.Backward).getMajor();
+
+        if (startParagraph <= 0) return;
+
+        // Si hay selección y termina al principio de una línea, ajustamos el párrafo final
+        if (codeArea.getSelection().getEnd() > codeArea.getSelection().getStart()) {
+            var endPos = codeArea.offsetToPosition(codeArea.getSelection().getEnd(), CodeArea.Bias.Backward);
+            if (endPos.getMinor() == 0 && endParagraph > startParagraph) {
+                endParagraph--;
+            }
+        }
+
+        StringBuilder contentToMove = new StringBuilder();
+        for (int i = startParagraph; i <= endParagraph; i++) {
+            contentToMove.append(codeArea.getParagraph(i).getText()).append("\n");
+        }
+
+        String targetParagraphText = codeArea.getParagraph(startParagraph - 1).getText();
+        
+        // Operación atómica de reemplazo
+        int startOffset = codeArea.position(startParagraph - 1, 0).toOffset();
+        int endOffset = (endParagraph == codeArea.getParagraphs().size() - 1) 
+            ? codeArea.getLength() 
+            : codeArea.position(endParagraph + 1, 0).toOffset();
+        
+        codeArea.replaceText(startOffset, endOffset, contentToMove.toString() + targetParagraphText + "\n");
+        
+        // Re-seleccionar las líneas movidas
+        int newStart = codeArea.position(startParagraph - 1, 0).toOffset();
+        int newEnd = (endParagraph - 1 >= 0) 
+            ? codeArea.position(endParagraph - 1, codeArea.getParagraph(endParagraph - 1).length()).toOffset()
+            : codeArea.position(startParagraph - 1, codeArea.getParagraph(startParagraph - 1).length()).toOffset();
+        codeArea.selectRange(newStart, newEnd);
+        codeArea.requestFollowCaret();
+    }
+
+    /**
+     * Mueve la línea actual (o la selección) hacia abajo.
+     * @param tabPane
+     */
+    public void moveLinesDown(TabPane tabPane) {
+        CodeArea codeArea = fxUtils.getCurrentCodeArea(tabPane);
+        if (codeArea == null) return;
+
+        int startParagraph = codeArea.offsetToPosition(codeArea.getSelection().getStart(), CodeArea.Bias.Forward).getMajor();
+        int endParagraph = codeArea.offsetToPosition(codeArea.getSelection().getEnd(), CodeArea.Bias.Backward).getMajor();
+
+        // Ajuste si la selección termina al inicio de la siguiente línea
+        if (codeArea.getSelection().getEnd() > codeArea.getSelection().getStart()) {
+            var endPos = codeArea.offsetToPosition(codeArea.getSelection().getEnd(), CodeArea.Bias.Backward);
+            if (endPos.getMinor() == 0 && endParagraph > startParagraph) {
+                endParagraph--;
+            }
+        }
+
+        if (endParagraph >= codeArea.getParagraphs().size() - 1) return;
+
+        StringBuilder contentToMove = new StringBuilder();
+        for (int i = startParagraph; i <= endParagraph; i++) {
+            contentToMove.append(codeArea.getParagraph(i).getText()).append("\n");
+        }
+
+        String targetParagraphText = codeArea.getParagraph(endParagraph + 1).getText();
+
+        // Reemplazo
+        int startOffset = codeArea.position(startParagraph, 0).toOffset();
+        int endOffset = (endParagraph + 1 == codeArea.getParagraphs().size() - 1)
+            ? codeArea.getLength()
+            : codeArea.position(endParagraph + 2, 0).toOffset();
+
+        codeArea.replaceText(startOffset, endOffset, targetParagraphText + "\n" + contentToMove.toString());
+
+        // Re-seleccionar
+        int newStart = codeArea.position(startParagraph + 1, 0).toOffset();
+        int newEnd = codeArea.position(endParagraph + 1, codeArea.getParagraph(endParagraph + 1).length()).toOffset();
+        codeArea.selectRange(newStart, newEnd);
+        codeArea.requestFollowCaret();
+    }
 }

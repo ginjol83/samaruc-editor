@@ -76,6 +76,18 @@ public class ConfigModel {
     private final StringProperty marketplaceCatalogUrl   = new SimpleStringProperty (this, "marketplace_catalog_url", PluginMarketplaceService.DEFAULT_MARKETPLACE_URL);
     private final BooleanProperty autoApplyDetectedProjectProfile         = new SimpleBooleanProperty(this, "project_detect_auto_apply", true);
     private final StringProperty autoApplyDetectedProjectProfileThreshold = new SimpleStringProperty (this, "project_detect_auto_apply_threshold", "75");
+    private final BooleanProperty enableLogs                              = new SimpleBooleanProperty(this, "enable_logs", false);
+    private final BooleanProperty showHomeOnStartup                       = new SimpleBooleanProperty(this, "show_home_on_startup", true);
+
+    private WorkspaceModel activeWorkspace = null;
+
+    public void setActiveWorkspace(WorkspaceModel workspace) {
+        this.activeWorkspace = workspace;
+    }
+
+    public WorkspaceModel getActiveWorkspace() {
+        return activeWorkspace;
+    }
 
     // GBDK optimization options
     public static final String GBDK_OPT_NONE = "none";
@@ -102,6 +114,14 @@ public class ConfigModel {
      * @return Valor de la propiedad o el valor por defecto
      */
     public String getConfigProperty(String key, String defaultValue) {
+        // Primero consultar el workspace si está activo
+        if (activeWorkspace != null) {
+            String workspaceValue = activeWorkspace.getSetting(key);
+            if (workspaceValue != null) {
+                return workspaceValue;
+            }
+        }
+
         switch (key) {
             case "idioma"                   : return getIdioma()                 != null ? getIdioma()                 : defaultValue;
             case "project_readme_language"  : return getProjectReadmeLanguage()  != null ? getProjectReadmeLanguage()  : defaultValue;
@@ -130,6 +150,8 @@ public class ConfigModel {
             case "marketplace_catalog_url"  : return getMarketplaceCatalogUrl()    != null ? getMarketplaceCatalogUrl() : defaultValue;
             case "project_detect_auto_apply": return Boolean.toString(isAutoApplyDetectedProjectProfile());
             case "project_detect_auto_apply_threshold": return getAutoApplyDetectedProjectProfileThreshold();
+            case "enable_logs"               : return String.valueOf(isEnableLogs());
+            case "show_home_on_startup"      : return String.valueOf(isShowHomeOnStartup());
             case "gbdk_opt_level"  : return getGbdkOptLevel()  != null ? getGbdkOptLevel() : defaultValue;
             case "gbdk_opt_speed"  : return Boolean.toString(isGbdkOptSpeed());
             case "gbdk_opt_size"   : return Boolean.toString(isGbdkOptSize());
@@ -178,6 +200,8 @@ public class ConfigModel {
             case "marketplace_catalog_url": setMarketplaceCatalogUrl(value);      break;
             case "project_detect_auto_apply": setAutoApplyDetectedProjectProfile(Boolean.parseBoolean(value)); break;
             case "project_detect_auto_apply_threshold": setAutoApplyDetectedProjectProfileThreshold(value); break;
+            case "enable_logs"               : setEnableLogs(Boolean.parseBoolean(value)); break;
+            case "show_home_on_startup"      : setShowHomeOnStartup(Boolean.parseBoolean(value)); break;
             case "gbdk_opt_level"  : setGbdkOptLevel(value);                                break;
             case "gbdk_opt_speed"  : setGbdkOptSpeed(Boolean.parseBoolean(value));          break;
             case "gbdk_opt_size"   : setGbdkOptSize(Boolean.parseBoolean(value));           break;
@@ -271,6 +295,8 @@ public class ConfigModel {
         p.setProperty("marketplace_catalog_url", getMarketplaceCatalogUrl() != null ? getMarketplaceCatalogUrl() : PluginMarketplaceService.DEFAULT_MARKETPLACE_URL);
         p.setProperty("project_detect_auto_apply", Boolean.toString(isAutoApplyDetectedProjectProfile()));
         p.setProperty("project_detect_auto_apply_threshold", getAutoApplyDetectedProjectProfileThreshold());
+        p.setProperty("enable_logs", String.valueOf(isEnableLogs()));
+        p.setProperty("show_home_on_startup", String.valueOf(isShowHomeOnStartup()));
         p.setProperty("gbdk_opt_level", getGbdkOptLevel() != null ? getGbdkOptLevel() : GBDK_OPT_NONE);
         p.setProperty("gbdk_opt_speed", Boolean.toString(isGbdkOptSpeed()));
         p.setProperty("gbdk_opt_size", Boolean.toString(isGbdkOptSize()));
@@ -289,8 +315,25 @@ public class ConfigModel {
      * @param selected Idioma seleccionado (por ejemplo, "English" o "Spanish")
      */
     public void changeLanguage(String selected ) {
-        String lang = selected != null && selected.equals("English") ? "en" : "es";
-        setIdioma(lang);
+        //Si selected es diferente de null guarda el valor en lang segun sea el icioma escogido
+        if(selected != null ){
+            String lang = "";
+            switch (selected) {
+                case "English":
+                    lang = "en";
+                    break;
+                case "Spanish":
+                    lang = "es";
+                    break;
+                case "Italian":
+                    lang = "it";
+                    break;
+                default:
+                    lang = "en";
+            }
+            setIdioma(lang);
+
+        }
     }
 
 
@@ -412,6 +455,13 @@ public class ConfigModel {
     public void           setAutoApplyDetectedProjectProfileThreshold(String v) {
         autoApplyDetectedProjectProfileThreshold.set(v != null && !v.isBlank() ? v.trim() : "75");
     }
+
+    public BooleanProperty enableLogsProperty() { return enableLogs; }
+    public boolean         isEnableLogs()        { return enableLogs.get(); }
+    public void            setEnableLogs(boolean v) { enableLogs.set(v); }
+    public BooleanProperty showHomeOnStartupProperty() { return showHomeOnStartup; }
+    public boolean         isShowHomeOnStartup()        { return showHomeOnStartup.get(); }
+    public void            setShowHomeOnStartup(boolean v) { showHomeOnStartup.set(v); }
 
     public int getAutoApplyDetectedProjectProfileThresholdInt() {
         try {

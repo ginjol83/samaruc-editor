@@ -108,6 +108,19 @@ public class EditorModel {
         UserActionMonitor.fileClosed(file.getName());
     }
 
+    /**
+     * Actualiza el mapa interno cuando un archivo abierto se renombra en disco.
+     * @param previousFile Archivo anterior.
+     * @param renamedFile Archivo renombrado.
+     */
+    public void renameOpenFile(File previousFile, File renamedFile) {
+        if (previousFile == null || renamedFile == null) return;
+        String content = fileContents.remove(previousFile);
+        if (content != null) {
+            fileContents.put(renamedFile, content);
+        }
+    }
+
     private String decodeWithFallback(byte[] bytes) throws IOException {
         for (Charset charset : TEXT_FALLBACK_CHARSETS) {
             try {

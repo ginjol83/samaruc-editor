@@ -16,6 +16,7 @@ import java.util.ResourceBundle;
 
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.LineNumberFactory;
+import org.fxmisc.flowless.VirtualizedScrollPane;
 
 import com.retroeditor.model.ConfigModel;
 import com.retroeditor.service.UserActionMonitor;
@@ -34,6 +35,7 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.control.Tooltip;
+import javafx.scene.Node;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebView;
 import javafx.stage.DirectoryChooser;
@@ -131,6 +133,7 @@ public class FXUtils {
      */
     public Tab addTab(String title, String content, SyntaxHighlighter syntaxHighlighter, TabPane tabPane) {
         CodeArea codeArea = new CodeArea();
+        VirtualizedScrollPane<CodeArea> editorScrollPane = new VirtualizedScrollPane<>(codeArea);
         String initialText = content != null ? content : "";
 
         // Habilita la función de numeración de líneas para los párrafos. 
@@ -153,7 +156,7 @@ public class FXUtils {
                 });
 
         applyEditorAppearance(codeArea);
-        Tab tab = new Tab(title, codeArea);
+        Tab tab = new Tab(title, editorScrollPane);
         tab.getProperties().put(TAB_PROP_BASE_TITLE, title != null ? title : "");
         tab.getProperties().put(TAB_PROP_BASE_TEXT, initialText);
         tab.getProperties().put(TAB_PROP_CODE_AREA, codeArea);
@@ -168,6 +171,7 @@ public class FXUtils {
 
     public Tab addMarkdownTab(String title, String content, SyntaxHighlighter syntaxHighlighter, TabPane tabPane) {
         CodeArea codeArea = new CodeArea();
+        VirtualizedScrollPane<CodeArea> editorScrollPane = new VirtualizedScrollPane<>(codeArea);
         WebView previewView = new WebView();
         String initialText = content != null ? content : "";
 
@@ -188,7 +192,7 @@ public class FXUtils {
 
         updateMarkdownPreview(previewView, initialText, title);
 
-        StackPane center = new StackPane(codeArea, previewView);
+        StackPane center = new StackPane(editorScrollPane, previewView);
         previewView.setVisible(false);
         previewView.setManaged(false);
 
@@ -201,8 +205,8 @@ public class FXUtils {
 
         BorderPane root = new BorderPane();
         Tab tab = new Tab(title);
-        codeToggle.setOnAction(e -> setMarkdownPreviewVisible(tab, codeArea, previewView, false));
-        previewToggle.setOnAction(e -> setMarkdownPreviewVisible(tab, codeArea, previewView, true));
+        codeToggle.setOnAction(e -> setMarkdownPreviewVisible(tab, editorScrollPane, previewView, false));
+        previewToggle.setOnAction(e -> setMarkdownPreviewVisible(tab, editorScrollPane, previewView, true));
 
         root.setTop(new javafx.scene.control.ToolBar(codeToggle, previewToggle));
         root.setCenter(center);
@@ -443,12 +447,19 @@ public class FXUtils {
 
         if (tab.getContent() instanceof CodeArea) { return (CodeArea) tab.getContent(); }
 
+        if (tab.getContent() instanceof VirtualizedScrollPane<?> scrollPane && scrollPane.getContent() instanceof CodeArea) {
+            return (CodeArea) scrollPane.getContent();
+        }
+
         if (tab.getContent() instanceof BorderPane) {
             BorderPane borderPane = (BorderPane) tab.getContent();
             if (borderPane.getCenter() instanceof StackPane) {
                 StackPane stackPane = (StackPane) borderPane.getCenter();
                 for (javafx.scene.Node node : stackPane.getChildren()) {
                     if (node instanceof CodeArea) return (CodeArea) node;
+                    if (node instanceof VirtualizedScrollPane<?> scrollPane && scrollPane.getContent() instanceof CodeArea) {
+                        return (CodeArea) scrollPane.getContent();
+                    }
                 }
             }
         }
@@ -748,6 +759,47 @@ public class FXUtils {
         if (options != null && options.createGitignore) {
             Files.writeString(projectPath.resolve(".gitignore"), getGitignoreContent(template));
         }
+
+        writeWorkspaceConfig(projectPath, template);
+    }
+
+    private void writeWorkspaceConfig(Path projectPath, ProjectTemplate template) throws IOException {
+        if (projectPath == null) return;
+
+        Path workspaceDir = projectPath.resolve(".samarucws");
+        Files.createDirectories(workspaceDir);
+
+        String target = resolveWorkspaceTarget(template);
+        String json = String.join("\n",
+            "{",
+            "  \"samaruc.workspaceVersion\": 1,",
+            "  \"samaruc.target\": \"" + target + "\",",
+            "  \"files.exclude\": {",
+            "    \"**/out\": true",
+            "  },",
+            "  \"files.associations\": {",
+            "    \"*.inc\": \"c\",",
+            "    \"*.z80\": \"asm\",",
+            "    \"*.s\": \"asm\",",
+            "    \"*.json\": \"json\"",
+            "  },",
+            "  \"editor.tabSize\": 4,",
+            "  \"editor.insertSpaces\": true",
+            "}",
+            ""
+        );
+
+        Files.writeString(workspaceDir.resolve("settings.json"), json, StandardCharsets.UTF_8);
+    }
+
+    private String resolveWorkspaceTarget(ProjectTemplate template) {
+        if (template == ProjectTemplate.GAMEBOY || template == ProjectTemplate.GAMEBOY_SPRITE) {
+            return "gameboy";
+        }
+        if (template == ProjectTemplate.SPECTRUM || template == ProjectTemplate.SPECTRUM_SCREEN) {
+            return "spectrum";
+        }
+        return "generic";
     }
 
     private String getReadmeContent(String projectName, ProjectTemplate template) {
@@ -1185,14 +1237,14 @@ public class FXUtils {
         return normalized.endsWith(".md") || normalized.endsWith(".markdown");
     }
 
-    private void setMarkdownPreviewVisible(Tab tab, CodeArea codeArea, WebView previewView, boolean previewVisible) {
+    private void setMarkdownPreviewVisible(Tab tab, Node editorNode, WebView previewView, boolean previewVisible) {
         if (tab != null) {
             tab.getProperties().put(TAB_PROP_MARKDOWN_PREVIEW, Boolean.valueOf(previewVisible));
         }
 
-        if (codeArea != null) {
-            codeArea.setVisible(!previewVisible);
-            codeArea.setManaged(!previewVisible);
+        if (editorNode != null) {
+            editorNode.setVisible(!previewVisible);
+            editorNode.setManaged(!previewVisible);
         }
 
         if (previewView != null) {

@@ -32,8 +32,6 @@
                     <Menu fx:id="menuCompilacion" text="Compilación/Ejecución">
                         <MenuItem fx:id="menuItemCompilar" text="Compilar" onAction="#onCompilar" />
                         <MenuItem fx:id="menuItemEjecutar" text="Ejecutar" onAction="#onEjecutar" />
-                        <SeparatorMenuItem />
-                        <MenuItem fx:id="menuItemCpcWebTest" text="Probar CPC (Web)" onAction="#onOpenCpcWebTest" />
                     </Menu>
                     <Menu fx:id="menuEdicion" text="Edición">
                         <MenuItem fx:id="menuItemDeshacer" text="Deshacer" onAction="#onUndo" />
@@ -43,14 +41,26 @@
                         <MenuItem fx:id="menuItemCopiar" text="Copiar" onAction="#onCopy" />
                         <MenuItem fx:id="menuItemPegar" text="Pegar" onAction="#onPaste" />
                         <SeparatorMenuItem />
+                        <Menu fx:id="menuRefactor" text="Refactor">
+                            <MenuItem fx:id="menuItemRename" text="Rename" onAction="#onRenameFromProjectExplorer" />
+                        </Menu>
+                        <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemGoToLine" text="Ir a la linea..." onAction="#onGoToLine" />
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemFind" text="Buscar en archivo" onAction="#onFindInFile" />
                         <MenuItem fx:id="menuItemFindProject" text="Buscar en proyecto" onAction="#onFindInProject" />
                     </Menu>
 
+                    <Menu fx:id="menuHerramientas" text="Herramientas">
+                        <MenuItem fx:id="menuItemTileEditor" text="Editor de Tiles (Game Boy)" onAction="#onOpenTileEditor" />
+                        <MenuItem fx:id="menuItemPngToGameBoy" text="Convertir PNG a C (Game Boy)" onAction="#onOpenPngToGameBoyConverter" />
+                        <MenuItem fx:id="menuItemPngToZx" text="Convertir PNG a C (ZX Spectrum)" onAction="#onOpenPngToZxConverter" />
+                    </Menu>
+
                     <Menu fx:id="menuAyuda" text="Ayuda">
                         <MenuItem fx:id="menuItemManual" text="Manual" onAction="#onOpenManual" />
+                        <MenuItem fx:id="menuItemGbdkDocs" text="Documentación GBDK-2020" onAction="#onOpenGbdkDocs" />
+                        <MenuItem fx:id="menuItemZ88dkDocs" text="Documentación Z88DK" onAction="#onOpenZ88dkDocs" />
                         <MenuItem fx:id="menuItemPluginManual" text="Manual de plugins" onAction="#onOpenPluginManual" />
                         <MenuItem fx:id="menuItemLicenses" text="Licencias" onAction="#onOpenLicenses" />
                         <MenuItem fx:id="menuItemCreditos" text="Créditos" onAction="#onShowCredits" />
@@ -144,34 +154,53 @@
             <VBox fx:id="editorContainer" spacing="2.0">
                 <!-- Dock area for transient panels like search -->
                 <AnchorPane fx:id="searchDock" minHeight="0" maxHeight="120" prefHeight="0" />
-                <TabPane fx:id="tabPane" VBox.vgrow="ALWAYS" />
 
-                <!-- Panel inferior con consola y footer -->
-                <VBox fx:id="outputContainer" minHeight="180" maxHeight="180">
+                <!-- Split vertical para redimensionar editor/salida con el raton -->
+                <SplitPane fx:id="editorOutputSplitPane"
+                           orientation="VERTICAL"
+                           dividerPositions="0.72"
+                           VBox.vgrow="ALWAYS">
+                    <items>
+                        <TabPane fx:id="tabPane" />
+
+                        <!-- Panel inferior con consola y footer -->
+                        <VBox fx:id="outputContainer" minHeight="120" prefHeight="220">
                     <TabPane fx:id="outputTabPane"
                              tabClosingPolicy="UNAVAILABLE"
-                             style="-fx-background-color: #fff;"
+                             styleClass="output-tab-pane"
                              VBox.vgrow="ALWAYS">
                         <tabs>
                             <Tab text="Consola">
                                 <BorderPane>
                                     <top>
                                         <HBox alignment="CENTER_RIGHT"
-                                              style="-fx-padding: 2 4 2 4; -fx-background-color: #f5f5f5; -fx-border-color: #ddd; -fx-border-width: 0 0 1 0;">
+                                              styleClass="output-header-bar">
                             <Label fx:id="lblConsoleDotError" styleClass="diag-legend-dot diag-legend-dot-error" text="●" />
                             <Label fx:id="lblConsoleLegendError" styleClass="diag-legend-text" text="Error" />
                             <Label fx:id="lblConsoleDotWarning" styleClass="diag-legend-dot diag-legend-dot-warning" text="●" />
                             <Label fx:id="lblConsoleLegendWarning" styleClass="diag-legend-text" text="Warning" />
                             <Region HBox.hgrow="ALWAYS" />
+                            <Button fx:id="btnConsoleTop"
+                                    onAction="#onConsoleGoTop"
+                                    styleClass="output-header-button">
+                                <graphic><FontIcon iconLiteral="fas-angle-double-up" iconSize="13" /></graphic>
+                                <tooltip><Tooltip text="Ir al inicio de la consola" /></tooltip>
+                            </Button>
+                            <Button fx:id="btnConsoleBottom"
+                                    onAction="#onConsoleGoBottom"
+                                    styleClass="output-header-button">
+                                <graphic><FontIcon iconLiteral="fas-angle-double-down" iconSize="13" /></graphic>
+                                <tooltip><Tooltip text="Ir al final de la consola" /></tooltip>
+                            </Button>
                             <Button fx:id="btnClearConsole"
                                     onAction="#onClearConsole"
-                                    style="-fx-padding: 2 6 2 6; -fx-background-radius: 3; -fx-cursor: hand;">
+                                    styleClass="output-header-button">
                                 <graphic><FontIcon iconLiteral="fas-trash-alt" iconSize="13" /></graphic>
                                 <tooltip><Tooltip text="Limpiar consola" /></tooltip>
                             </Button>
                             <Button fx:id="btnCopyConsole"
                                     onAction="#onCopyConsole"
-                                    style="-fx-padding: 2 6 2 6; -fx-background-radius: 3; -fx-cursor: hand;">
+                                    styleClass="output-header-button">
                                 <graphic><FontIcon iconLiteral="fas-copy" iconSize="13" /></graphic>
                                 <tooltip><Tooltip text="Copiar consola" /></tooltip>
                             </Button>
@@ -188,7 +217,7 @@
                                 <BorderPane>
                                     <top>
                                         <HBox alignment="CENTER_RIGHT"
-                                              style="-fx-padding: 2 4 2 4; -fx-background-color: #f5f5f5; -fx-border-color: #ddd; -fx-border-width: 0 0 1 0;">
+                                              styleClass="output-header-bar">
                             <Label fx:id="lblMonitorDotError" styleClass="diag-legend-dot diag-legend-dot-error" text="●" />
                             <Label fx:id="lblMonitorLegendError" styleClass="diag-legend-text" text="Error" />
                             <Label fx:id="lblMonitorDotWarning" styleClass="diag-legend-dot diag-legend-dot-warning" text="●" />
@@ -196,7 +225,7 @@
                             <Region HBox.hgrow="ALWAYS" />
                             <Button fx:id="btnClearMonitor"
                                     onAction="#onClearMonitor"
-                                    style="-fx-padding: 2 6 2 6; -fx-background-radius: 3; -fx-cursor: hand;">
+                                    styleClass="output-header-button">
                                 <graphic><FontIcon iconLiteral="fas-trash-alt" iconSize="13" /></graphic>
                                 <tooltip><Tooltip text="Limpiar monitor" /></tooltip>
                             </Button>
@@ -207,6 +236,47 @@
                                                               editable="false"
                                                               wrapText="true" />
                                     </center>
+                                </BorderPane>
+                            </Tab>
+                            <Tab fx:id="tabTerminal" text="Terminal">
+                                <BorderPane>
+                                    <top>
+                                        <HBox alignment="CENTER_RIGHT"
+                                              styleClass="output-header-bar">
+                                            <Region HBox.hgrow="ALWAYS" />
+                                            <Button fx:id="btnTerminalRestart"
+                                                    onAction="#onTerminalRestart"
+                                                    styleClass="output-header-button">
+                                                <graphic><FontIcon iconLiteral="fas-redo" iconSize="13" /></graphic>
+                                                <tooltip><Tooltip text="Reiniciar terminal" /></tooltip>
+                                            </Button>
+                                            <Button fx:id="btnTerminalClear"
+                                                    onAction="#onTerminalClear"
+                                                    styleClass="output-header-button">
+                                                <graphic><FontIcon iconLiteral="fas-trash-alt" iconSize="13" /></graphic>
+                                                <tooltip><Tooltip text="Limpiar terminal" /></tooltip>
+                                            </Button>
+                                        </HBox>
+                                    </top>
+                                    <center>
+                                        <StyleClassedTextArea fx:id="terminalOutputArea"
+                                                              editable="false"
+                                                              wrapText="false" />
+                                    </center>
+                                    <bottom>
+                                        <HBox spacing="6"
+                                              alignment="CENTER_LEFT"
+                                              styleClass="output-header-bar">
+                                            <TextField fx:id="txtTerminalInput"
+                                                       promptText="Escribe un comando y pulsa Enter"
+                                                       onAction="#onTerminalSend"
+                                                       HBox.hgrow="ALWAYS" />
+                                            <Button fx:id="btnTerminalSend"
+                                                    text="Enviar"
+                                                    onAction="#onTerminalSend"
+                                                    styleClass="output-header-button" />
+                                        </HBox>
+                                    </bottom>
                                 </BorderPane>
                             </Tab>
                         </tabs>
@@ -227,7 +297,9 @@
                                text="Desarrollado por Andres Gimenez © 2025"
                                styleClass="footer-label" />
                     </HBox>
-                </VBox>
+                        </VBox>
+                    </items>
+                </SplitPane>
             </VBox>
         </items>
     </SplitPane>

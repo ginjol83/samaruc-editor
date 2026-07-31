@@ -2,7 +2,7 @@
 param(
     [string]$AppName = 'Samaruc',
     [string]$InputDir = 'release/input',
-    [string]$MainJar = 'samaruc-1.0-SNAPSHOT.jar',
+    [string]$MainJar = 'samaruc-1.2.0.jar',
     [string]$ReleaseDir = 'release',
     [string]$LibsDir = 'libs',
     [string]$SamplesDir = 'samples',

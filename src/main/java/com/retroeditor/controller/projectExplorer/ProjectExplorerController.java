@@ -75,12 +75,13 @@ public class ProjectExplorerController {
             private final ContextMenu cellMenu = new ContextMenu();
             private final MenuItem newFileItem = new MenuItem("Nuevo archivo");
             private final MenuItem newFolderItem = new MenuItem("Nueva carpeta");
+            private final MenuItem renameItem = new MenuItem("Renombrar");
             private final MenuItem deleteItem = new MenuItem("Eliminar");
             private final MenuItem runRomItem = new MenuItem("Ejecutar ROM en emulador");
             private final MenuItem openInExplorerItem = new MenuItem("Abrir directorio en Windows");
 
             {
-                cellMenu.getItems().addAll(newFileItem, newFolderItem, deleteItem, runRomItem, openInExplorerItem);
+                cellMenu.getItems().addAll(newFileItem, newFolderItem, renameItem, deleteItem, runRomItem, openInExplorerItem);
 
                 newFileItem.setOnAction(e -> {
 
@@ -222,6 +223,11 @@ public class ProjectExplorerController {
                     mainController.runRomFromProjectExplorer(target);
                 });
 
+                renameItem.setOnAction(e -> {
+                    FileTreeItem selected = (FileTreeItem) getTreeItem();
+                    renameTreeItem(selected);
+                });
+
                 deleteItem.setOnAction(e -> {
                     FileTreeItem selected = (FileTreeItem) getTreeItem();
                     deleteTreeItem(selected);
@@ -295,7 +301,9 @@ public class ProjectExplorerController {
                         && mainController.isSupportedRomFile(file);
                     boolean canDelete = file != null
                         && !(rootDirectory != null && file.getAbsolutePath().equals(rootDirectory.getAbsolutePath()));
+                    boolean canRename = canDelete;
                     runRomItem.setDisable(!canRunRom);
+                    renameItem.setDisable(!canRename);
                     deleteItem.setDisable(!canDelete);
                     // Asignar el menú contextual a la celda para que la acción use el TreeItem de esta celda
                     setContextMenu(cellMenu);
@@ -532,6 +540,63 @@ public class ProjectExplorerController {
         }
     }
 
+    public void renameSelectedTreeItem() {
+        FileTreeItem selected = (FileTreeItem) treeView.getSelectionModel().getSelectedItem();
+        renameTreeItem(selected);
+    }
+
+    private void renameTreeItem(FileTreeItem selected) {
+        if (selected == null) {
+            showError("Selecciona un archivo o carpeta para renombrar.");
+            return;
+        }
+
+        File target = getFileFromTreeItem(selected);
+        if (target == null) {
+            showError("No se pudo resolver el elemento seleccionado.");
+            return;
+        }
+
+        if (rootDirectory != null && target.getAbsolutePath().equals(rootDirectory.getAbsolutePath())) {
+            showError("No se puede renombrar la carpeta raíz del proyecto.");
+            return;
+        }
+
+        TextInputDialog dialog = new TextInputDialog(target.getName());
+        dialog.setTitle("Renombrar");
+        dialog.setHeaderText("Renombrar " + (target.isDirectory() ? "carpeta" : "archivo") + ": " + target.getName());
+        dialog.setContentText("Nuevo nombre:");
+
+        dialog.showAndWait().ifPresent(rawName -> {
+            String newName = rawName != null ? rawName.trim() : "";
+
+            if (newName.isEmpty()) {
+                showError("Nombre inválido.");
+                return;
+            }
+
+            if (newName.contains(java.io.File.separator) || newName.contains("/")) {
+                showError("El nombre no puede contener separadores de ruta.");
+                return;
+            }
+
+            if (newName.equals(target.getName())) return;
+
+            File renamedTarget = new File(target.getParentFile(), newName);
+
+            try {
+                projectExplorerModel.renameFileOrDirectory(target, newName);
+                if (mainController != null) {
+                    mainController.onProjectExplorerTargetRenamed(target, renamedTarget, target.isDirectory());
+                }
+                refreshTree();
+                javafx.application.Platform.runLater(() -> expandAndSelect(renamedTarget));
+            } catch (IOException ex) {
+                showError("Error al renombrar: " + ex.getMessage());
+            }
+        });
+    }
+
     private void openDirectoryInWindowsExplorer(File selectedPath) {
         File directoryToOpen = resolveDirectoryToOpen(selectedPath);
 
@@ -568,7 +633,6 @@ public class ProjectExplorerController {
         return parent != null ? parent : rootDirectory;
     }
 }
-
 
 
 

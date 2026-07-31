@@ -4,8 +4,13 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -14,6 +19,28 @@ import java.util.stream.Stream;
  * Servicio de busqueda en archivos de proyecto, sin dependencias de UI.
  */
 public class ProjectSearchService {
+
+    public static class SearchOptions {
+        private final String term;
+        private final String fileTypes; // Comma separated extensions like .c,.asm
+        private final LocalDate modifiedAfter;
+        private final boolean caseSensitive;
+        private final boolean regex;
+
+        public SearchOptions(String term, String fileTypes, LocalDate modifiedAfter, boolean caseSensitive, boolean regex) {
+            this.term = term;
+            this.fileTypes = fileTypes;
+            this.modifiedAfter = modifiedAfter;
+            this.caseSensitive = caseSensitive;
+            this.regex = regex;
+        }
+
+        public String getTerm() { return term; }
+        public String getFileTypes() { return fileTypes; }
+        public LocalDate getModifiedAfter() { return modifiedAfter; }
+        public boolean isCaseSensitive() { return caseSensitive; }
+        public boolean isRegex() { return regex; }
+    }
 
     public static class Match {
         private final File file;
@@ -39,20 +66,33 @@ public class ProjectSearchService {
         }
     }
 
-    public List<Match> searchProject(File root, String term) {
+    public List<Match> searchProject(File root, SearchOptions options) {
         List<Match> matches = new ArrayList<>();
 
-        if (root == null || !root.isDirectory() || term == null || term.isBlank()) {
+        if (root == null || !root.isDirectory() || options == null || options.getTerm() == null || options.getTerm().isBlank()) {
             return matches;
         }
 
+        String term = options.getTerm();
+        Set<String> extensions = null;
+        if (options.getFileTypes() != null && !options.getFileTypes().isBlank()) {
+            extensions = Arrays.stream(options.getFileTypes().split(","))
+                    .map(String::trim)
+                    .map(ext -> ext.startsWith(".") ? ext.toLowerCase() : "." + ext.toLowerCase())
+                    .collect(Collectors.toSet());
+        }
+
         try (Stream<Path> paths = Files.walk(root.toPath())) {
-            List<Path> files = paths.filter(Files::isRegularFile).collect(Collectors.toList());
+            final Set<String> finalExtensions = extensions;
+            List<Path> files = paths.filter(Files::isRegularFile)
+                    .filter(p -> filterByExtension(p, finalExtensions))
+                    .filter(p -> filterByDate(p, options.getModifiedAfter()))
+                    .collect(Collectors.toList());
 
             for (Path p : files) {
                 try {
                     String content = Files.readString(p);
-                    int idx = content.indexOf(term);
+                    int idx = findTerm(content, term, options.isCaseSensitive(), options.isRegex());
 
                     if (idx >= 0) {
                         String snippet = getSnippet(content, idx, term.length());
@@ -67,23 +107,79 @@ public class ProjectSearchService {
         return matches;
     }
 
-    public int replaceInProject(File root, String term, String replacement, boolean caseSensitive, boolean regex) {
-        if (root == null || !root.isDirectory() || term == null || term.isEmpty()) {
+    private boolean filterByExtension(Path p, Set<String> extensions) {
+        if (extensions == null || extensions.isEmpty()) {
+            return isCandidateTextFile(p);
+        }
+        String fileName = p.getFileName().toString().toLowerCase();
+        return extensions.stream().anyMatch(fileName::endsWith);
+    }
+
+    private boolean filterByDate(Path p, LocalDate modifiedAfter) {
+        if (modifiedAfter == null) {
+            return true;
+        }
+        try {
+            FileTime lastModified = Files.getLastModifiedTime(p);
+            LocalDate lastModifiedDate = lastModified.toInstant()
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate();
+            return !lastModifiedDate.isBefore(modifiedAfter);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private int findTerm(String content, String term, boolean caseSensitive, boolean regex) {
+        if (regex) {
+            try {
+                Pattern pattern = Pattern.compile(term, caseSensitive ? 0 : Pattern.CASE_INSENSITIVE);
+                java.util.regex.Matcher matcher = pattern.matcher(content);
+                if (matcher.find()) {
+                    return matcher.start();
+                }
+                return -1;
+            } catch (Exception e) {
+                return -1;
+            }
+        }
+        if (caseSensitive) {
+            return content.indexOf(term);
+        } else {
+            return content.toLowerCase().indexOf(term.toLowerCase());
+        }
+    }
+
+    public List<Match> searchProject(File root, String term) {
+        return searchProject(root, new SearchOptions(term, null, null, true, false));
+    }
+
+    public int replaceInProject(File root, String term, String replacement, SearchOptions options) {
+        if (root == null || !root.isDirectory() || term == null || term.isEmpty() || options == null) {
             return 0;
         }
 
         int updatedFiles = 0;
+        Set<String> extensions = null;
+        if (options.getFileTypes() != null && !options.getFileTypes().isBlank()) {
+            extensions = Arrays.stream(options.getFileTypes().split(","))
+                    .map(String::trim)
+                    .map(ext -> ext.startsWith(".") ? ext.toLowerCase() : "." + ext.toLowerCase())
+                    .collect(Collectors.toSet());
+        }
 
         try (Stream<Path> paths = Files.walk(root.toPath())) {
+            final Set<String> finalExtensions = extensions;
             List<Path> files = paths
                 .filter(Files::isRegularFile)
-                .filter(this::isCandidateTextFile)
+                .filter(p -> filterByExtension(p, finalExtensions))
+                .filter(p -> filterByDate(p, options.getModifiedAfter()))
                 .collect(Collectors.toList());
 
             for (Path p : files) {
                 try {
                     String content = Files.readString(p);
-                    String updated = replaceText(content, term, replacement, caseSensitive, regex);
+                    String updated = replaceText(content, term, replacement, options.isCaseSensitive(), options.isRegex());
                     if (!content.equals(updated)) {
                         Files.writeString(p, updated);
                         updatedFiles++;
@@ -95,6 +191,10 @@ public class ProjectSearchService {
         }
 
         return updatedFiles;
+    }
+
+    public int replaceInProject(File root, String term, String replacement, boolean caseSensitive, boolean regex) {
+        return replaceInProject(root, term, replacement, new SearchOptions(term, null, null, caseSensitive, regex));
     }
 
     private String getSnippet(String content, int idx, int length) {

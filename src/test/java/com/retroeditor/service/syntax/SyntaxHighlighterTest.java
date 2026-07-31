@@ -250,6 +250,24 @@ class SyntaxHighlighterTest {
         Assertions.assertTrue(hasStyleAt(upperDoneSpans, upperDone.indexOf("- [X]"), "md-checklist-done"));
     }
 
+    @Test
+    void highlightsJsonSyntaxForJsonFiles() {
+        String text = "{\n"
+            + "  \"name\": \"Samaruc\",\n"
+            + "  \"version\": 1,\n"
+            + "  \"enabled\": true,\n"
+            + "  \"meta\": null\n"
+            + "}\n";
+
+        StyleSpans<Collection<String>> spans = highlighter.computeHighlighting(text, "config.json");
+
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("\"name\""), "json-key"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("\"Samaruc\""), "string"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("1"), "json-number"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("true"), "json-literal"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("null"), "json-literal"));
+    }
+
     private boolean hasStyleAt(StyleSpans<Collection<String>> spans, int index, String styleClass) {
         if (index < 0) return false;
 

@@ -90,6 +90,8 @@ public class FileOptionsController {
                 tabFileMap.remove(tab);
                 editorModel.closeFile(file);
                 UserActionMonitor.fileClosed(file.getName());
+                // No podemos llamar directamente a persistSessionState de MainController aquí sin una referencia.
+                // Sin embargo, MainController ya añade su propio listener en openFileInEditorTab.
             });
         }
 

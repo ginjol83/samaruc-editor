@@ -1,5 +1,6 @@
 package com.retroeditor.controller.config;
 
+import java.io.File;
 import java.util.List;
 import java.util.ResourceBundle;
 import java.util.function.Consumer;
@@ -20,6 +21,8 @@ import javafx.stage.Stage;
  * Coordina la apertura/cierre del dialogo de configuracion para aligerar MainController.
  */
 public class ConfigDialogCoordinator {
+    private static final String APP_STYLESHEET_CLASSIC = "/css/app.css";
+    private static final String APP_STYLESHEET_DARK = "/css/app-dark.css";
 
     private Stage configStage;
     private boolean open;
@@ -27,6 +30,7 @@ public class ConfigDialogCoordinator {
     public void open(
         Stage owner,
         ConfigModel configModel,
+        File projectRoot,
         ConfigRepository configRepository,
         PluginApplicationService pluginApplicationService,
         ResourceBundle bundle,
@@ -48,6 +52,7 @@ public class ConfigDialogCoordinator {
 
             ConfigController configController = loader.getController();
             configController.setConfigModel(configModel);
+            configController.setProjectRoot(projectRoot);
             configController.setConfigRepository(configRepository);
             configController.setPluginApplicationService(pluginApplicationService);
             configController.reloadFromModel();
@@ -62,7 +67,9 @@ public class ConfigDialogCoordinator {
                 ? bundle.getString("label.configTitle")
                 : "Configuracion";
             configStage.setTitle(title);
-            configStage.setScene(new Scene(root));
+            Scene scene = new Scene(root);
+            applyApplicationAppearance(scene, configModel.getConfigProperty("editor_appearance", ConfigModel.EDITOR_APPEARANCE_MODERN_DARK));
+            configStage.setScene(scene);
             if (owner != null) {
                 configStage.initOwner(owner);
             }
@@ -111,5 +118,29 @@ public class ConfigDialogCoordinator {
         configStage.setX(bounds.getMinX() + (bounds.getWidth() - configStage.getWidth()) / 2.0);
         configStage.setY(bounds.getMinY() + (bounds.getHeight() - configStage.getHeight()) / 2.0);
     }
-}
 
+    private void applyApplicationAppearance(Scene scene, String appearance) {
+        if (scene == null) return;
+        String classicCss = resolveStylesheet(APP_STYLESHEET_CLASSIC);
+        String darkCss = resolveStylesheet(APP_STYLESHEET_DARK);
+        if (classicCss != null) scene.getStylesheets().remove(classicCss);
+        if (darkCss != null) scene.getStylesheets().remove(darkCss);
+
+        String activeCssPath = ConfigModel.EDITOR_APPEARANCE_CLASSIC.equalsIgnoreCase(appearance)
+            ? APP_STYLESHEET_CLASSIC
+            : APP_STYLESHEET_DARK;
+        String activeCss = resolveStylesheet(activeCssPath);
+        if (activeCss != null && !scene.getStylesheets().contains(activeCss)) {
+            scene.getStylesheets().add(activeCss);
+        }
+    }
+
+    private String resolveStylesheet(String resourcePath) {
+        try {
+            java.net.URL resource = getClass().getResource(resourcePath);
+            return resource != null ? resource.toExternalForm() : null;
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+}

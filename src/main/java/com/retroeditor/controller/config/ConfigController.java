@@ -13,25 +13,32 @@ import java.util.ResourceBundle;
 import java.util.stream.Collectors;
 
 import com.retroeditor.model.ConfigModel;
+import com.retroeditor.model.LanguageMarketplaceItem;
+import com.retroeditor.model.WorkspaceModel;
 import com.retroeditor.model.PluginMarketplaceItem;
 import com.retroeditor.plugin.PluginInfo;
 import com.retroeditor.plugin.PluginManager;
 import com.retroeditor.service.ConfigRepository;
 import com.retroeditor.service.AppLogger;
+import com.retroeditor.service.LanguageMarketplaceService;
+import com.retroeditor.service.LanguageService;
 import com.retroeditor.service.PluginApplicationService;
 import com.retroeditor.service.PluginMarketplaceService;
 import com.retroeditor.service.PropertiesConfigRepository;
 import com.retroeditor.service.UserActionMonitor;
+import com.retroeditor.service.WorkspaceService;
 
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
+import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListView;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
@@ -79,6 +86,8 @@ public class ConfigController {
     @FXML private CheckBox         chkGbdkOptSpeed;
     @FXML private CheckBox         chkGbdkOptSize;
     @FXML private CheckBox         chkProjectDetectAutoApply;
+    @FXML private CheckBox         chkEnableLogs;
+    @FXML private CheckBox         chkShowHomeOnStartup;
     @FXML private TextField        txtProjectDetectThreshold;
     @FXML private TextField        txtMakeExecutable;
     @FXML private TextField        txtMakeBuildTarget;
@@ -127,6 +136,7 @@ public class ConfigController {
     @FXML private Button           btnGuardarAppearance;
     @FXML private Button           btnCerrarConfig;
     @FXML private Button           btnGuardarCompilador;
+    @FXML private Button           btnGuardarWorkspace;
     @FXML private Button           btnSaveMakeOpts;
     @FXML private ComboBox<String> comboIdioma;
     @FXML private ComboBox<String> comboEditorAppearance;
@@ -160,21 +170,34 @@ public class ConfigController {
     @FXML private javafx.scene.control.Label lblMarketplaceInfo;
     @FXML private ProgressIndicator progressMarketplace;
 
+    // Marketplace Idiomas
+    @FXML private ListView<String> lstMarketplaceIdiomas;
+    @FXML private Label lblMarketplaceIdiomasInfo;
+    @FXML private Button btnInstallIdioma;
+    @FXML private Button btnRefreshIdiomas;
+    @FXML private ProgressIndicator progressIdiomas;
+    @FXML private Label lblMarketplaceIdiomas;
+
     private Runnable onCloseCallback;
     private Runnable onLanguageChanged;
     private boolean syncingCompilerUi = false;
-    private final Map<String, String> readmeLanguageCodeByLabel = new HashMap<>();
     private final Map<String, String> editorAppearanceCodeByLabel = new HashMap<>();
 
     private ConfigModel configModel = new ConfigModel();
     private ConfigRepository configRepository = new PropertiesConfigRepository();
+    private WorkspaceService workspaceService = new WorkspaceService();
+    private File projectRoot;
     private PluginApplicationService pluginApplicationService = new PluginApplicationService();
     private PluginMarketplaceService pluginMarketplaceService = new PluginMarketplaceService();
+    private LanguageMarketplaceService languageMarketplaceService = new LanguageMarketplaceService();
+    private LanguageService languageService = new LanguageService();
 
     private final File        configFile  = new File(System.getProperty("user.home"), ".retroeditor.properties");
     private final File        pluginsDir  = new File(System.getProperty("user.dir"), "plugins");
+    private final File        i18nDir     = new File(System.getProperty("user.home"), ".samaruc-editor/i18n");
     private List<PluginInfo>  discoveredPlugins = Collections.emptyList();
     private List<PluginMarketplaceItem> marketplacePlugins = Collections.emptyList();
+    private List<LanguageMarketplaceItem> marketplaceLanguages = Collections.emptyList();
     private boolean pluginsReloading = false;
     private boolean marketplaceLoading = false;
 
@@ -194,6 +217,10 @@ public class ConfigController {
      */
     public void setConfigModel(ConfigModel configModel) {
         if (configModel != null) this.configModel = configModel;
+    }
+
+    public void setProjectRoot(File root) {
+        this.projectRoot = root;
     }
 
     public void setConfigRepository(ConfigRepository configRepository) {
@@ -278,6 +305,13 @@ public class ConfigController {
         loadLanguageSelectionsFromConfig();
         loadEditorAppearanceFromConfig();
 
+        if (chkEnableLogs != null) {
+            chkEnableLogs.setSelected(configModel.isEnableLogs());
+        }
+        if (chkShowHomeOnStartup != null) {
+            chkShowHomeOnStartup.setSelected(configModel.isShowHomeOnStartup());
+        }
+
         if (txtGbdkBin != null) {
             txtGbdkBin.setText(configModel.getConfigProperty("gbdk_bin", ""));
         }
@@ -288,6 +322,12 @@ public class ConfigController {
         loadProjectDetectionPrefsFromConfig();
         if (txtMarketplaceUrl != null) {
             txtMarketplaceUrl.setText(configModel.getConfigProperty("marketplace_catalog_url", PluginMarketplaceService.DEFAULT_MARKETPLACE_URL));
+        }
+
+        if (btnGuardarWorkspace != null) {
+            boolean hasActiveProject = (projectRoot != null && projectRoot.isDirectory());
+            btnGuardarWorkspace.setVisible(hasActiveProject);
+            btnGuardarWorkspace.setManaged(hasActiveProject);
         }
 
         refreshTexts(
@@ -778,6 +818,109 @@ public class ConfigController {
     }
 
     @FXML
+    private void onRefreshMarketplaceIdiomas(ActionEvent event) {
+        if (progressIdiomas != null) {
+            progressIdiomas.setVisible(true);
+            progressIdiomas.setManaged(true);
+        }
+        btnRefreshIdiomas.setDisable(true);
+
+        new Thread(() -> {
+            try {
+                marketplaceLanguages = languageMarketplaceService.fetchCatalog(null);
+                Platform.runLater(() -> {
+                    lstMarketplaceIdiomas.getItems().clear();
+                    for (LanguageMarketplaceItem item : marketplaceLanguages) {
+                        lstMarketplaceIdiomas.getItems().add(item.displayLine());
+                    }
+                    if (progressIdiomas != null) {
+                        progressIdiomas.setVisible(false);
+                        progressIdiomas.setManaged(false);
+                    }
+                    btnRefreshIdiomas.setDisable(false);
+                });
+            } catch (Exception e) {
+                System.err.println("Error al obtener catálogo de idiomas: " + e.getMessage());
+                e.printStackTrace();
+                Platform.runLater(() -> {
+                    if (progressIdiomas != null) {
+                        progressIdiomas.setVisible(false);
+                        progressIdiomas.setManaged(false);
+                    }
+                    btnRefreshIdiomas.setDisable(false);
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.setTitle("Error Marketplace");
+                    alert.setHeaderText("No se pudo descargar el catálogo de idiomas");
+                    alert.setContentText(e.getMessage());
+                    alert.showAndWait();
+                });
+            }
+        }).start();
+    }
+
+    @FXML
+    private void onInstallMarketplaceIdioma(ActionEvent event) {
+        int idx = lstMarketplaceIdiomas.getSelectionModel().getSelectedIndex();
+        if (idx < 0 || idx >= marketplaceLanguages.size()) {
+            return;
+        }
+
+        LanguageMarketplaceItem item = marketplaceLanguages.get(idx);
+        
+        if (progressIdiomas != null) {
+            progressIdiomas.setVisible(true);
+            progressIdiomas.setManaged(true);
+        }
+        btnInstallIdioma.setDisable(true);
+
+        new Thread(() -> {
+            try {
+                LanguageMarketplaceService.DownloadedLanguage downloaded = languageMarketplaceService.downloadLanguage(item);
+                
+                if (!i18nDir.exists()) i18nDir.mkdirs();
+                File destFile = new File(i18nDir, downloaded.suggestedFileName());
+                java.nio.file.Files.copy(downloaded.tempFile(), destFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                java.nio.file.Files.deleteIfExists(downloaded.tempFile());
+
+                Platform.runLater(() -> {
+                    if (progressIdiomas != null) {
+                        progressIdiomas.setVisible(false);
+                        progressIdiomas.setManaged(false);
+                    }
+                    btnInstallIdioma.setDisable(false);
+                    
+                    // Recargar idiomas en el service
+                    languageService.setExternalI18nDir(i18nDir);
+                    
+                    // Actualizar combo box de idiomas en la UI
+                    loadLanguageSelectionsFromConfig();
+
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setTitle("Idioma instalado");
+                    alert.setHeaderText(null);
+                    alert.setContentText("El idioma " + item.name() + " ha sido instalado correctamente. Ya puedes seleccionarlo en el menú desplegable.");
+                    alert.showAndWait();
+                });
+            } catch (Exception e) {
+                System.err.println("Error al instalar idioma: " + e.getMessage());
+                e.printStackTrace();
+                Platform.runLater(() -> {
+                    if (progressIdiomas != null) {
+                        progressIdiomas.setVisible(false);
+                        progressIdiomas.setManaged(false);
+                    }
+                    btnInstallIdioma.setDisable(false);
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.setTitle("Error de instalación");
+                    alert.setHeaderText("No se pudo instalar el idioma");
+                    alert.setContentText(e.getMessage());
+                    alert.showAndWait();
+                });
+            }
+        }).start();
+    }
+
+    @FXML
     public void onInstallMarketplacePlugin(ActionEvent event) {
         PluginMarketplaceItem item = getSelectedMarketplaceItem();
         if (item == null || marketplaceLoading) return;
@@ -898,13 +1041,79 @@ public class ConfigController {
         }
     }
 
+    @FXML
+    public void onSaveWorkspace(ActionEvent event) {
+        if (projectRoot == null || !projectRoot.isDirectory()) {
+            showError("No hay un proyecto activo para guardar el workspace.");
+            return;
+        }
+
+        WorkspaceModel workspace = configModel.getActiveWorkspace();
+        if (workspace == null) {
+            workspace = new WorkspaceModel();
+            workspace.setProjectName(projectRoot.getName());
+            configModel.setActiveWorkspace(workspace);
+        }
+
+        // Capturar estado actual de la UI de compilación
+        captureCompilerSettingsToWorkspace(workspace);
+
+        workspaceService.saveWorkspace(projectRoot, workspace);
+        showError("");
+        
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Workspace Guardado");
+        alert.setHeaderText(null);
+        alert.setContentText("La configuración se ha guardado en workspace.json del proyecto.");
+        alert.showAndWait();
+    }
+
+    private void captureCompilerSettingsToWorkspace(WorkspaceModel workspace) {
+        String selectedCompiler = comboCompilador != null ? comboCompilador.getSelectionModel().getSelectedItem() : "GBDK";
+        workspace.setSetting("compilador_seleccionado", normalizeCompiler(selectedCompiler));
+
+        // GBDK
+        if (txtGbdkBin != null) workspace.setSetting("gbdk_bin", txtGbdkBin.getText());
+        if (comboGbdkOptLevel != null) workspace.setSetting("gbdk_opt_level", comboGbdkOptLevel.getSelectionModel().getSelectedItem());
+        if (chkGbdkOptSpeed != null) workspace.setSetting("gbdk_opt_speed", String.valueOf(chkGbdkOptSpeed.isSelected()));
+        if (chkGbdkOptSize != null) workspace.setSetting("gbdk_opt_size", String.valueOf(chkGbdkOptSize.isSelected()));
+        if (txtGbdkDefines != null) workspace.setSetting("gbdk_defines", txtGbdkDefines.getText());
+        if (txtGbdkIncludes != null) workspace.setSetting("gbdk_includes", txtGbdkIncludes.getText());
+        if (txtGbdkExtraArgs != null) workspace.setSetting("gbdk_extra_args", txtGbdkExtraArgs.getText());
+
+        // Z88DK Spectrum
+        if (txtSpectrumBin != null) workspace.setSetting("spectrum_bin", txtSpectrumBin.getText());
+        if (comboZ88dkSpectrumClib != null) workspace.setSetting("z88dk_clib_option", comboZ88dkSpectrumClib.getSelectionModel().getSelectedItem());
+        if (chkZ88dkSpectrumCrtOrgCode != null) workspace.setSetting("z88dk_use_pragma_crt_org_code_32768", String.valueOf(chkZ88dkSpectrumCrtOrgCode.isSelected()));
+        if (txtZ88dkSpectrumTarget != null) workspace.setSetting("z88dk_target", txtZ88dkSpectrumTarget.getText());
+        if (chkZ88dkSpectrumCreateApp != null) workspace.setSetting("z88dk_create_app", String.valueOf(chkZ88dkSpectrumCreateApp.isSelected()));
+        if (txtZ88dkSpectrumDefines != null) workspace.setSetting("z88dk_defines", txtZ88dkSpectrumDefines.getText());
+        if (txtZ88dkSpectrumIncludes != null) workspace.setSetting("z88dk_includes", txtZ88dkSpectrumIncludes.getText());
+        if (txtZ88dkSpectrumExtraArgs != null) workspace.setSetting("z88dk_extra_args", txtZ88dkSpectrumExtraArgs.getText());
+
+        // Z88DK CPC
+        if (txtCpcBin != null) workspace.setSetting("cpc_bin", txtCpcBin.getText());
+        if (comboZ88dkCpcClib != null) workspace.setSetting("z88dk_cpc_clib_option", comboZ88dkCpcClib.getSelectionModel().getSelectedItem());
+        if (chkZ88dkCpcCrtOrgCode != null) workspace.setSetting("z88dk_cpc_use_pragma_crt_org_code_32768", String.valueOf(chkZ88dkCpcCrtOrgCode.isSelected()));
+        if (txtZ88dkCpcTarget != null) workspace.setSetting("z88dk_cpc_target", txtZ88dkCpcTarget.getText());
+        if (chkZ88dkCpcCreateApp != null) workspace.setSetting("z88dk_cpc_create_app", String.valueOf(chkZ88dkCpcCreateApp.isSelected()));
+        if (txtZ88dkCpcDefines != null) workspace.setSetting("z88dk_cpc_defines", txtZ88dkCpcDefines.getText());
+        if (txtZ88dkCpcIncludes != null) workspace.setSetting("z88dk_cpc_includes", txtZ88dkCpcIncludes.getText());
+        if (txtZ88dkCpcExtraArgs != null) workspace.setSetting("z88dk_cpc_extra_args", txtZ88dkCpcExtraArgs.getText());
+
+        // Makefile
+        if (txtMakeExecutable != null) workspace.setSetting("make_executable", txtMakeExecutable.getText());
+        if (txtMakeBuildTarget != null) workspace.setSetting("make_build_target", txtMakeBuildTarget.getText());
+        if (txtMakeRunTarget != null) workspace.setSetting("make_run_target", txtMakeRunTarget.getText());
+        if (txtMakeExtraArgs != null) workspace.setSetting("make_extra_args", txtMakeExtraArgs.getText());
+    }
+
     /**
      * Evento para guardar la configuración del compilador
      * @param event
      */
     @FXML
     private void onSaveCompilador(ActionEvent event) {
-        // Validaciones
         String selectedCompilerLabel = comboCompilador != null ? comboCompilador.getSelectionModel().getSelectedItem() : null;
         String selectedCompiler = normalizeCompiler(selectedCompilerLabel);
         String gbdkPath         = txtGbdkBin        != null ? txtGbdkBin.getText().trim()        : "";
@@ -938,19 +1147,24 @@ public class ConfigController {
             return;
         }
 
-        // Guardar configuración si las validaciones pasan
+        if (!persistZ88dkFlags(false)) {
+            return;
+        }
+        persistGbdkOpts(false);
+        if (!persistProjectDetectionPrefs(false)) {
+            return;
+        }
+
+        configModel.setConfigProperty("gbdk_bin", gbdkPath);
+        configModel.setConfigProperty("spectrum_bin", spectrumPath);
+        configModel.setConfigProperty("cpc_bin", cpcPath);
+
         if (txtCompilador != null) {
             configModel.setCompilador(txtCompilador.getText());
         }
 
-        saveCompilerSelection(selectedCompiler, z88dkProfile, true);
-        if (!persistZ88dkFlags(true)) {
-            return;
-        }
-        persistGbdkOpts(true);
-        if (!persistProjectDetectionPrefs(true)) {
-            return;
-        }
+        saveCompilerSelection(selectedCompiler, z88dkProfile, false);
+        persistConfig();
         UserActionMonitor.compilerChanged(selectedCompiler);
 
         showError(""); // Limpiar error
@@ -964,28 +1178,12 @@ public class ConfigController {
                 getZ88dkCpcDisplayLabel(),
                 COMPILER_MAKEFILE
             );
-            comboCompilador.setOnAction(this::onSaveCompilador);
+            comboCompilador.setOnAction(this::onCompilerSelectionChanged);
         }
 
         if (tabPaneCompilerOptions != null) {
             tabPaneCompilerOptions.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
-                if (syncingCompilerUi || newTab == null) return;
-                String selectedCompiler;
-                String profile = getSelectedZ88dkProfile();
-
-                if (newTab == tabCompilerZ88dkSpectrum) {
-                    selectedCompiler = COMPILER_Z88DK;
-                    profile = Z88DK_PROFILE_SPECTRUM;
-                } else if (newTab == tabCompilerZ88dkCpc) {
-                    selectedCompiler = COMPILER_Z88DK;
-                    profile = Z88DK_PROFILE_CPC;
-                } else if (newTab == tabCompilerMakefile) {
-                    selectedCompiler = COMPILER_MAKEFILE;
-                } else {
-                    selectedCompiler = COMPILER_GBDK;
-                }
-
-                saveCompilerSelection(selectedCompiler, profile, true);
+                onCompilerOptionsTabChanged(newTab);
             });
         }
     }
@@ -993,7 +1191,38 @@ public class ConfigController {
     private void applyCompilerSelectionFromModel() {
         String compiler = normalizeCompiler(configModel.getConfigProperty("compilador_seleccionado", COMPILER_GBDK));
         String profile = normalizeZ88dkProfile(configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM));
-        saveCompilerSelection(compiler, profile, true);
+        saveCompilerSelection(compiler, profile, false);
+    }
+
+    @FXML
+    private void onCompilerSelectionChanged(ActionEvent event) {
+        if (syncingCompilerUi) return;
+        String selectedCompilerLabel = comboCompilador != null ? comboCompilador.getSelectionModel().getSelectedItem() : null;
+        String selectedCompiler = normalizeCompiler(selectedCompilerLabel);
+        String profile = resolveZ88dkProfileFromSelection(selectedCompilerLabel, getSelectedZ88dkProfile());
+        saveCompilerSelection(selectedCompiler, profile, false);
+        showError("");
+    }
+
+    private void onCompilerOptionsTabChanged(Tab newTab) {
+        if (syncingCompilerUi || newTab == null) return;
+        String selectedCompiler;
+        String profile = getSelectedZ88dkProfile();
+
+        if (newTab == tabCompilerZ88dkSpectrum) {
+            selectedCompiler = COMPILER_Z88DK;
+            profile = Z88DK_PROFILE_SPECTRUM;
+        } else if (newTab == tabCompilerZ88dkCpc) {
+            selectedCompiler = COMPILER_Z88DK;
+            profile = Z88DK_PROFILE_CPC;
+        } else if (newTab == tabCompilerMakefile) {
+            selectedCompiler = COMPILER_MAKEFILE;
+        } else {
+            selectedCompiler = COMPILER_GBDK;
+        }
+
+        saveCompilerSelection(selectedCompiler, profile, false);
+        showError("");
     }
 
     private void saveCompilerSelection(String compiler, String z88dkProfile, boolean persist) {
@@ -1180,6 +1409,12 @@ public class ConfigController {
         if (persistProjectDetectionPrefs(true)) {
             showError("");
         }
+    }
+
+    @FXML
+    public void onProjectDetectionAutoApplyChanged(ActionEvent event) {
+        updateProjectDetectionControlsState();
+        showError("");
     }
 
     private void loadGbdkOptsFromConfig() {
@@ -1483,16 +1718,18 @@ public class ConfigController {
      */
     @FXML
     public void onSaveLanguage(ActionEvent event) {
-        String selected = comboIdioma.getSelectionModel().getSelectedItem();
+        String selectedDisplayName = comboIdioma.getSelectionModel().getSelectedItem();
+        String selectedLanguageCode = languageService.getLanguageCodeByName(selectedDisplayName);
         String selectedReadmeLanguage = comboReadmeLanguage != null
             ? comboReadmeLanguage.getSelectionModel().getSelectedItem()
             : "English";
 
-        // Actualizar modelo y persistir
-        configModel.changeLanguage(selected);
+        // Actualizar modelo y persistir - Usar código de idioma directamente
+        configModel.setConfigProperty("idioma", selectedLanguageCode);
         configModel.setConfigProperty("project_readme_language", toReadmeLanguageCode(selectedReadmeLanguage));
+        languageService.setLanguage(selectedLanguageCode);
         persistConfig();
-        UserActionMonitor.languageChanged(selected);
+        UserActionMonitor.languageChanged(selectedLanguageCode);
 
         // Refrescar textos locales en el diálogo
         refreshTexts(
@@ -1515,8 +1752,16 @@ public class ConfigController {
         String selectedAppearance = comboEditorAppearance != null
             ? comboEditorAppearance.getSelectionModel().getSelectedItem()
             : null;
-        configModel.setConfigProperty("editor_appearance", toEditorAppearanceCode(selectedAppearance));
+        String appearance = toEditorAppearanceCode(selectedAppearance);
+        configModel.setConfigProperty("editor_appearance", appearance);
+        if (chkEnableLogs != null) {
+            configModel.setEnableLogs(chkEnableLogs.isSelected());
+        }
+        if (chkShowHomeOnStartup != null) {
+            configModel.setShowHomeOnStartup(chkShowHomeOnStartup.isSelected());
+        }
         persistConfig();
+        applyApplicationAppearanceToCurrentScene(appearance);
         showError("");
     }
 
@@ -1590,6 +1835,8 @@ public class ConfigController {
         if (lblTituloConfig      != null) lblTituloConfig      .setText(bundle.getString("label.configTitle"));
         if (btnGuardarIdioma     != null) btnGuardarIdioma     .setText(bundle.getString("button.saveLanguage"));
         if (btnGuardarAppearance != null) btnGuardarAppearance .setText(bundle.getString("button.saveAppearance"));
+        if (chkEnableLogs != null) chkEnableLogs.setText(bundle.containsKey("config.appearance.enable_logs") ? bundle.getString("config.appearance.enable_logs") : "Habilitar guardado de logs en archivo (samaruc.log)");
+        if (chkShowHomeOnStartup != null) chkShowHomeOnStartup.setText(bundle.containsKey("config.appearance.show_home_on_startup") ? bundle.getString("config.appearance.show_home_on_startup") : "Mostrar página de inicio al arrancar");
         if (btnGuardarCompilador != null) btnGuardarCompilador .setText(bundle.getString("button.saveConfig"));
         if (btnSaveMakeOpts      != null) btnSaveMakeOpts      .setText(bundle.getString("button.saveMake"));
         if (btnGuardarGbdkBin    != null) btnGuardarGbdkBin    .setText(bundle.getString("button.saveGbdk"));
@@ -1615,6 +1862,31 @@ public class ConfigController {
             }
         }
 
+        // Setup Marketplace Idiomas selection
+        if (lstMarketplaceIdiomas != null) {
+            lstMarketplaceIdiomas.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
+                int idx = lstMarketplaceIdiomas.getSelectionModel().getSelectedIndex();
+                if (idx >= 0 && idx < marketplaceLanguages.size()) {
+                    LanguageMarketplaceItem item = marketplaceLanguages.get(idx);
+                    lblMarketplaceIdiomasInfo.setText(
+                        item.name() + " (" + item.languageCode() + ") v" + item.version() + "\n" +
+                        "Autor: " + item.author() + "\n" +
+                        "Descripción: " + item.description()
+                    );
+                } else {
+                    lblMarketplaceIdiomasInfo.setText(bundle.containsKey("marketplace.idiomas.select.info") 
+                        ? bundle.getString("marketplace.idiomas.select.info") 
+                        : "Selecciona un idioma para ver detalles.");
+                }
+            });
+        }
+
+        // Asegurar que i18nDir existe
+        if (!i18nDir.exists()) {
+            i18nDir.mkdirs();
+        }
+        languageService.setExternalI18nDir(i18nDir);
+
         loadLanguageSelectionsFromConfig();
         loadEditorAppearanceFromConfig();
         refreshCompilerComboItems();
@@ -1623,39 +1895,67 @@ public class ConfigController {
     private void loadLanguageSelectionsFromConfig() {
         if (comboIdioma != null) {
             comboIdioma.getItems().clear();
-            comboIdioma.getItems().addAll("Español", "English");
+            comboIdioma.getItems().addAll(languageService.getAvailableLanguageNames());
+            
             String lang = configModel.getConfigProperty("idioma", "es");
-            comboIdioma.getSelectionModel().select("en".equalsIgnoreCase(lang) ? "English" : "Español");
+            String displayName = languageService.getLanguageNameByCode(lang);
+            comboIdioma.getSelectionModel().select(displayName);
         }
 
         if (comboReadmeLanguage != null) {
-            ResourceBundle bundle = getCurrentBundle();
-            String readmeEsLabel = bundle.containsKey("config.readmeLanguage.option.es")
-                ? bundle.getString("config.readmeLanguage.option.es")
-                : "Español";
-            String readmeEnLabel = bundle.containsKey("config.readmeLanguage.option.en")
-                ? bundle.getString("config.readmeLanguage.option.en")
-                : "English";
-
+            ResourceBundle bundle = languageService.getCurrentBundle();
+            Map<String, String> readmeLanguageCodeByLabel = new HashMap<>();
+            
+            for (LanguageService.LanguageInfo langInfo : languageService.getAvailableLanguages()) {
+                String code = langInfo.code();
+                String key = "config.readmeLanguage.option." + code;
+                String label = bundle.containsKey(key) 
+                    ? bundle.getString(key)
+                    : langInfo.displayName();
+                readmeLanguageCodeByLabel.put(label, code);
+            }
+            
             comboReadmeLanguage.getItems().clear();
-            comboReadmeLanguage.getItems().addAll(readmeEsLabel, readmeEnLabel);
-            readmeLanguageCodeByLabel.clear();
-            readmeLanguageCodeByLabel.put(readmeEsLabel, "es");
-            readmeLanguageCodeByLabel.put(readmeEnLabel, "en");
-
+            comboReadmeLanguage.getItems().addAll(readmeLanguageCodeByLabel.keySet());
+            
             String readmeLang = configModel.getConfigProperty("project_readme_language", "en");
-            comboReadmeLanguage.getSelectionModel().select("es".equalsIgnoreCase(readmeLang) ? readmeEsLabel : readmeEnLabel);
+            String selectedLabel = readmeLanguageCodeByLabel.entrySet().stream()
+                .filter(e -> e.getValue().equalsIgnoreCase(readmeLang))
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse(readmeLanguageCodeByLabel.entrySet().stream()
+                    .filter(e -> e.getValue().equalsIgnoreCase("en"))
+                    .map(Map.Entry::getKey)
+                    .findFirst()
+                    .orElse(null));
+            
+            if (selectedLabel != null) {
+                comboReadmeLanguage.getSelectionModel().select(selectedLabel);
+            }
+            
+            // Almacenar el mapeo en el atributo del combo para acceso posterior
+            comboReadmeLanguage.setUserData(readmeLanguageCodeByLabel);
         }
     }
 
     private String toReadmeLanguageCode(String displayValue) {
         if (displayValue == null || displayValue.isBlank()) return "en";
-
-        String mapped = readmeLanguageCodeByLabel.get(displayValue);
-        if (mapped != null) return mapped;
-
-        return displayValue.equalsIgnoreCase("español") || displayValue.equalsIgnoreCase("spanish") ? "es" : "en";
+        
+        // Intentar obtener el mapeo del combo
+        if (comboReadmeLanguage != null && comboReadmeLanguage.getUserData() instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, String> mapping = (Map<String, String>) comboReadmeLanguage.getUserData();
+            String code = mapping.get(displayValue);
+            if (code != null) return code;
+        }
+        
+        // Fallback: buscar por código directo
+        if (languageService.isLanguageAvailable(displayValue)) return displayValue;
+        
+        // Fallback final: mapear por nombre legible
+        return languageService.getLanguageCodeByName(displayValue);
     }
+
 
     private void loadEditorAppearanceFromConfig() {
         if (comboEditorAppearance == null) return;
@@ -1663,7 +1963,7 @@ public class ConfigController {
         ResourceBundle bundle = getCurrentBundle();
         String modernLabel = bundle.containsKey("config.editorAppearance.option.modernDark")
             ? bundle.getString("config.editorAppearance.option.modernDark")
-            : "Moderno oscuro";
+            : "Oscuro";
         String classicLabel = bundle.containsKey("config.editorAppearance.option.classic")
             ? bundle.getString("config.editorAppearance.option.classic")
             : "Clasico";
@@ -1693,9 +1993,33 @@ public class ConfigController {
             : ConfigModel.EDITOR_APPEARANCE_MODERN_DARK;
     }
 
+    private void applyApplicationAppearanceToCurrentScene(String appearance) {
+        if (tabPaneConfig == null || tabPaneConfig.getScene() == null) return;
+        String classicCss = resolveStylesheet("/css/app.css");
+        String darkCss = resolveStylesheet("/css/app-dark.css");
+        Scene scene = tabPaneConfig.getScene();
+        if (classicCss != null) scene.getStylesheets().remove(classicCss);
+        if (darkCss != null) scene.getStylesheets().remove(darkCss);
+
+        String activeCssPath = ConfigModel.EDITOR_APPEARANCE_CLASSIC.equalsIgnoreCase(appearance) ? "/css/app.css" : "/css/app-dark.css";
+        String activeCss = resolveStylesheet(activeCssPath);
+        if (activeCss != null && !scene.getStylesheets().contains(activeCss)) {
+            scene.getStylesheets().add(activeCss);
+        }
+    }
+
+    private String resolveStylesheet(String resourcePath) {
+        try {
+            java.net.URL resource = getClass().getResource(resourcePath);
+            return resource != null ? resource.toExternalForm() : null;
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
     private ResourceBundle getCurrentBundle() {
         String lang = configModel.getConfigProperty("idioma", "es");
-        Locale locale = Locale.forLanguageTag(lang);
-        return ResourceBundle.getBundle("i18n.MessagesBundle", locale);
+        languageService.setLanguage(lang);
+        return languageService.getCurrentBundle();
     }
 }
