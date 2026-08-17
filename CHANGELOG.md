@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.2.3 - 2026-08-01
+
+### Añadido
+- **Plantillas para nuevos archivos**: nuevo ítem "Nuevo archivo desde plantilla..." en el menú Archivo. Incluye plantillas para Game Boy (C/GBDK), ZX Spectrum (C/Z88DK), Amstrad CPC (C/Z88DK), ensamblador z80 y C genérico. Si el nombre ya existe se genera un nombre alternativo.
+
+## 1.2.2 - 2026-08-01
+
+### Añadido
+- **Autocompletado básico**: `Ctrl+Space` sugiere palabras del archivo actual ordenadas por frecuencia. Navegación con flechas, inserción con Enter/Tab o doble clic, cierre con Escape.
+
+## 1.2.1 - 2026-08-01
+
+### Añadido
+- **Atajo para comentar/descomentar**: `Ctrl+/` comenta o descomenta la línea o selección actual. Usa `//` para C/C++ y `;` para Assembly, respetando la indentación.
+
 ## 1.2.0 - 2026-07-31
 
 ### Añadido

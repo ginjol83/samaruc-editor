@@ -35,10 +35,35 @@ import javafx.stage.Stage;
  */
 public class TileEditorController {
 
-    private static final int TILE_SIZE = 8;
+    public enum SpriteSizeMode {
+        SIZE_8x8(8, 8, "8x8 (1 tile)"),
+        SIZE_8x16(8, 16, "8x16 (2 tiles)"),
+        SIZE_16x16(16, 16, "16x16 (4 tiles)");
+
+        private final int width;
+        private final int height;
+        private final String label;
+
+        SpriteSizeMode(int width, int height, String label) {
+            this.width = width;
+            this.height = height;
+            this.label = label;
+        }
+
+        public int getWidth() { return width; }
+        public int getHeight() { return height; }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
     private static final int CELL_SIZE = 28;
 
-    private final int[][] pixels = new int[TILE_SIZE][TILE_SIZE];
+    private int currentWidth = 8;
+    private int currentHeight = 8;
+    private int[][] pixels = new int[8][8];
     private final GameBoyTileCodeGenerator codeGenerator = new GameBoyTileCodeGenerator();
 
     private final Color[] palette = new Color[] {
@@ -53,7 +78,11 @@ public class TileEditorController {
         stage.initOwner(owner);
         stage.setTitle(msg(bundle, "tool.tileEditor.title", "Editor de Tiles (Game Boy)"));
 
-        Canvas canvas = new Canvas(TILE_SIZE * CELL_SIZE, TILE_SIZE * CELL_SIZE);
+        ChoiceBox<SpriteSizeMode> sizeChoice = new ChoiceBox<>();
+        sizeChoice.getItems().addAll(SpriteSizeMode.values());
+        sizeChoice.setValue(SpriteSizeMode.SIZE_8x8);
+
+        Canvas canvas = new Canvas(currentWidth * CELL_SIZE, currentHeight * CELL_SIZE);
         TextField symbolField = new TextField("tile_data");
         TextArea outputArea = new TextArea();
         outputArea.setEditable(false);
@@ -71,10 +100,20 @@ public class TileEditorController {
 
         Runnable updateAction = () -> updateCode(outputArea, symbolField.getText(), chkConst.isSelected(), chkDefines.isSelected());
 
+        sizeChoice.valueProperty().addListener((obs, oldV, newV) -> {
+            if (newV != null) {
+                resizePixels(newV.getWidth(), newV.getHeight());
+                canvas.setWidth(newV.getWidth() * CELL_SIZE);
+                canvas.setHeight(newV.getHeight() * CELL_SIZE);
+                redrawCanvas(canvas);
+                updateAction.run();
+            }
+        });
+
         canvas.setOnMousePressed(evt -> {
             int x = (int) (evt.getX() / CELL_SIZE);
             int y = (int) (evt.getY() / CELL_SIZE);
-            if (x < 0 || y < 0 || x >= TILE_SIZE || y >= TILE_SIZE) return;
+            if (x < 0 || y < 0 || x >= currentWidth || y >= currentHeight) return;
 
             if (evt.getButton() == MouseButton.SECONDARY) {
                 pixels[y][x] = 0;
@@ -89,7 +128,7 @@ public class TileEditorController {
             if (!evt.isPrimaryButtonDown()) return;
             int x = (int) (evt.getX() / CELL_SIZE);
             int y = (int) (evt.getY() / CELL_SIZE);
-            if (x < 0 || y < 0 || x >= TILE_SIZE || y >= TILE_SIZE) return;
+            if (x < 0 || y < 0 || x >= currentWidth || y >= currentHeight) return;
             pixels[y][x] = colorChoice.getValue() != null ? colorChoice.getValue() : 0;
             redrawCanvas(canvas);
             updateAction.run();
@@ -117,6 +156,8 @@ public class TileEditorController {
         exportButton.setOnAction(e -> exportCodeToProject(stage, currentProjectDir, outputArea.getText(), symbolField.getText(), bundle, onExported));
 
         HBox editorTop = new HBox(8,
+            new Label(msg(bundle, "tool.tileEditor.spriteSize", "Tamaño:")),
+            sizeChoice,
             new Label(msg(bundle, "tool.tileEditor.symbol", "Nombre del array:")),
             symbolField,
             new Label(msg(bundle, "tool.tileEditor.color", "Color:")),
@@ -137,13 +178,25 @@ public class TileEditorController {
         redrawCanvas(canvas);
         updateAction.run();
 
-        stage.setScene(new Scene(root, 750, 620));
+        stage.setScene(new Scene(root, 750, 680));
         stage.show();
     }
 
+    private void resizePixels(int newWidth, int newHeight) {
+        int[][] newPixels = new int[newHeight][newWidth];
+        for (int y = 0; y < Math.min(currentHeight, newHeight); y++) {
+            for (int x = 0; x < Math.min(currentWidth, newWidth); x++) {
+                newPixels[y][x] = pixels[y][x];
+            }
+        }
+        currentWidth = newWidth;
+        currentHeight = newHeight;
+        pixels = newPixels;
+    }
+
     private void clearPixels() {
-        for (int y = 0; y < TILE_SIZE; y++) {
-            for (int x = 0; x < TILE_SIZE; x++) {
+        for (int y = 0; y < currentHeight; y++) {
+            for (int x = 0; x < currentWidth; x++) {
                 pixels[y][x] = 0;
             }
         }
@@ -154,8 +207,8 @@ public class TileEditorController {
         gc.setFill(Color.WHITE);
         gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
 
-        for (int y = 0; y < TILE_SIZE; y++) {
-            for (int x = 0; x < TILE_SIZE; x++) {
+        for (int y = 0; y < currentHeight; y++) {
+            for (int x = 0; x < currentWidth; x++) {
                 int colorIndex = pixels[y][x];
                 if (colorIndex < 0 || colorIndex > 3) colorIndex = 0;
                 gc.setFill(palette[colorIndex]);
@@ -164,6 +217,17 @@ public class TileEditorController {
                 gc.strokeRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
             }
         }
+
+        // Draw 8x8 tile boundary lines
+        gc.setStroke(Color.web("#202020"));
+        gc.setLineWidth(2.0);
+        for (int ty = 0; ty <= currentHeight / 8; ty++) {
+            gc.strokeLine(0, ty * 8 * CELL_SIZE, currentWidth * CELL_SIZE, ty * 8 * CELL_SIZE);
+        }
+        for (int tx = 0; tx <= currentWidth / 8; tx++) {
+            gc.strokeLine(tx * 8 * CELL_SIZE, 0, tx * 8 * CELL_SIZE, currentHeight * CELL_SIZE);
+        }
+        gc.setLineWidth(1.0);
     }
 
     private void updateCode(TextArea outputArea, String symbolName, boolean includeConst, boolean includeDefines) {

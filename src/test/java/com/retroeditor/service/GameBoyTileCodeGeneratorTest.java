@@ -29,12 +29,28 @@ class GameBoyTileCodeGeneratorTest {
     }
 
     @Test
-    void generateTileCode_WithoutConst_DoesNotHaveConst() {
-        int[][] pixels = new int[8][8];
-        String code = generator.generateTileCode(pixels, "test", false, false);
+    void to2bppBytes_With8x16Sprite_Returns32Bytes() {
+        int[][] pixels = new int[16][8];
+        byte[] bytes = generator.to2bppBytes(pixels);
+        assertTrue(bytes.length == 32);
+    }
 
-        assertTrue(code.contains("unsigned char test[] = {"));
-        assertTrue(!code.contains("const unsigned char test[] = {"));
+    @Test
+    void to2bppBytes_With16x16Sprite_Returns64Bytes() {
+        int[][] pixels = new int[16][16];
+        byte[] bytes = generator.to2bppBytes(pixels);
+        assertTrue(bytes.length == 64);
+    }
+
+    @Test
+    void generateTileCode_With8x16_ProducesDefinesAndCorrectBytes() {
+        int[][] pixels = new int[16][8];
+        String code = generator.generateTileCode(pixels, "sprite16", true, true);
+
+        assertTrue(code.contains("#define SPRITE16_WIDTH 8"));
+        assertTrue(code.contains("#define SPRITE16_HEIGHT 16"));
+        assertTrue(code.contains("#define SPRITE16_TILE_COUNT 2"));
+        assertTrue(code.contains("const unsigned char sprite16[] = {"));
     }
 }
 
