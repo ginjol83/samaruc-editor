@@ -125,5 +125,150 @@ class CompilationDiagnosticParserServiceTest {
         );
         Assertions.assertNull(location);
     }
+
+    /**
+     * Escenario: diagnostico GCC (compilacion nativa) con ruta Windows absoluta
+     * y formato "path:linea:columna: error:".
+     */
+    @Test
+    void parseCompilerDiagnosticGccAbsoluteWindowsPath() throws IOException {
+        Path source = tempDir.resolve("main.c");
+        Files.writeString(source, "int main() { return 0; }");
+
+        String line = source.toFile().getAbsolutePath() + ":3:5: error: 'x' undeclared (first use in this function)";
+        CompilationDiagnosticParserService.DiagnosticLocation location = service.parseCompilerDiagnosticLocation(
+            source.toFile(),
+            line,
+            File::new
+        );
+
+        Assertions.assertNotNull(location);
+        Assertions.assertEquals(3, location.getLine());
+        Assertions.assertEquals(source.toFile().getAbsolutePath(), location.getFile().getAbsolutePath());
+        Assertions.assertFalse(location.isWarning());
+    }
+
+    /**
+     * Escenario: diagnostico GCC con severidad warning y columna, ruta Windows absoluta.
+     */
+    @Test
+    void parseCompilerDiagnosticGccWindowsWarning() throws IOException {
+        Path source = tempDir.resolve("main.c");
+        Files.writeString(source, "int main() { return 0; }");
+
+        String line = source.toFile().getAbsolutePath() + ":12:9: warning: implicit declaration of function 'foo'";
+        CompilationDiagnosticParserService.DiagnosticLocation location = service.parseCompilerDiagnosticLocation(
+            source.toFile(),
+            line,
+            File::new
+        );
+
+        Assertions.assertNotNull(location);
+        Assertions.assertEquals(12, location.getLine());
+        Assertions.assertTrue(location.isWarning());
+    }
+
+    /**
+     * Escenario: clic en consola sobre una linea GCC con ruta Windows absoluta
+     * y columna ("path:linea:columna: error:").
+     */
+    @Test
+    void parseConsoleFileLineGccAbsoluteWindowsPath() throws IOException {
+        Path source = tempDir.resolve("main.c");
+        Files.writeString(source, "int main() { return 0; }");
+
+        String line = source.toFile().getAbsolutePath() + ":3:5: error: expected ';' before 'return'";
+        CompilationDiagnosticParserService.DiagnosticLocation location = service.parseConsoleFileLine(
+            line,
+            File::new
+        );
+
+        Assertions.assertNotNull(location);
+        Assertions.assertEquals(3, location.getLine());
+        Assertions.assertEquals(source.toFile().getAbsolutePath(), location.getFile().getAbsolutePath());
+    }
+
+    /**
+     * Escenario: clic en consola sobre una linea GCC cuya ruta absoluta contiene
+     * espacios (no entrecomillada, como emite gcc).
+     */
+    @Test
+    void parseConsoleFileLineGccPathWithSpaces() throws IOException {
+        Path source = tempDir.resolve("mi proyecto").resolve("main.c");
+        Files.createDirectories(source.getParent());
+        Files.writeString(source, "int main() { return 0; }");
+
+        String line = source.toFile().getAbsolutePath() + ":7:1: error: expected ';'";
+        CompilationDiagnosticParserService.DiagnosticLocation location = service.parseConsoleFileLine(
+            line,
+            File::new
+        );
+
+        Assertions.assertNotNull(location);
+        Assertions.assertEquals(7, location.getLine());
+        Assertions.assertEquals(source.toFile().getAbsolutePath(), location.getFile().getAbsolutePath());
+    }
+
+    /**
+     * Escenario: clic en consola sobre una ruta relativa con backslashes
+     * ("src/util.c:7:1: error:", con separador \ de Windows), estilo que puede
+     * emitir gcc con rutas relativas.
+     */
+    @Test
+    void parseConsoleFileLineGccRelativeBackslashPath() throws IOException {
+        Path source = tempDir.resolve("src").resolve("util.c");
+        Files.createDirectories(source.getParent());
+        Files.writeString(source, "int x;\n");
+
+        String line = "src" + "\\" + "util.c:7:1: error: expected ';'";
+        CompilationDiagnosticParserService.DiagnosticLocation location = service.parseConsoleFileLine(
+            line,
+            raw -> tempDir.resolve(raw.replace('\\', File.separatorChar)).toFile()
+        );
+
+        Assertions.assertNotNull(location);
+        Assertions.assertEquals(7, location.getLine());
+        Assertions.assertEquals(source.toFile().getAbsolutePath(), location.getFile().getAbsolutePath());
+    }
+
+    /**
+     * Escenario: clic en consola sobre una ruta entrecomillada con espacios
+     * (herramientas que citan la ruta: "path:linea:columna: error:").
+     */
+    @Test
+    void parseConsoleFileLineQuotedWindowsPath() throws IOException {
+        Path source = tempDir.resolve("main.c");
+        Files.writeString(source, "int main() { return 0; }");
+
+        String line = "\"" + source.toFile().getAbsolutePath() + "\":3:5: error: expected ';'";
+        CompilationDiagnosticParserService.DiagnosticLocation location = service.parseConsoleFileLine(
+            line,
+            File::new
+        );
+
+        Assertions.assertNotNull(location);
+        Assertions.assertEquals(3, location.getLine());
+        Assertions.assertEquals(source.toFile().getAbsolutePath(), location.getFile().getAbsolutePath());
+    }
+
+    /**
+     * Escenario: diagnostico de compilacion con ruta entrecomillada.
+     */
+    @Test
+    void parseCompilerDiagnosticQuotedWindowsPath() throws IOException {
+        Path source = tempDir.resolve("main.c");
+        Files.writeString(source, "int main() { return 0; }");
+
+        String line = "\"" + source.toFile().getAbsolutePath() + "\":3:5: error: 'x' undeclared";
+        CompilationDiagnosticParserService.DiagnosticLocation location = service.parseCompilerDiagnosticLocation(
+            source.toFile(),
+            line,
+            File::new
+        );
+
+        Assertions.assertNotNull(location);
+        Assertions.assertEquals(3, location.getLine());
+        Assertions.assertEquals(source.toFile().getAbsolutePath(), location.getFile().getAbsolutePath());
+    }
 }
 

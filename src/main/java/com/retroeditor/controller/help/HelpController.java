@@ -3,6 +3,7 @@ package com.retroeditor.controller.help;
 import java.net.URL;
 
 import com.retroeditor.service.UserActionMonitor;
+import com.retroeditor.util.AppInfo;
 
 public class HelpController {
     /**
@@ -14,7 +15,7 @@ public class HelpController {
         javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.INFORMATION);
 
         alert.setTitle      ("Créditos");
-        alert.setHeaderText ("Créditos de Samaru C Retro Editor");
+        alert.setHeaderText ("Samaru C Retro Editor v" + AppInfo.getVersion());
         alert.setContentText("Desarrollado por Andres Gimenez © 2025\n\n¡Gracias por usar Samaru C Retro Editor!");
         alert.showAndWait   ();
     }

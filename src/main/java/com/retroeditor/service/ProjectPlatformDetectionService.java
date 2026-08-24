@@ -18,6 +18,8 @@ public class ProjectPlatformDetectionService {
     public enum Platform {
         GAMEBOY,
         SPECTRUM,
+        MSDOS,
+        SMS,
         UNKNOWN
     }
 
@@ -52,6 +54,8 @@ public class ProjectPlatformDetectionService {
 
         int gameBoyScore = 0;
         int spectrumScore = 0;
+        int msdosScore = 0;
+        int smsScore = 0;
         List<String> evidence = new ArrayList<>();
 
         try (Stream<Path> paths = Files.walk(projectDir.toPath())) {
@@ -86,7 +90,7 @@ public class ProjectPlatformDetectionService {
                     evidence.add("DISPLAY_ON");
                 }
 
-                if (content.contains("#include <conio.h>")) {
+                if (content.contains("#include <conio.h>") && !content.contains("dos.h")) {
                     spectrumScore += 6;
                     evidence.add("conio.h");
                 }
@@ -106,24 +110,63 @@ public class ProjectPlatformDetectionService {
                     spectrumScore += 2;
                     evidence.add("z88dk/+zx");
                 }
+
+                if (content.contains("#include <dos.h>")) {
+                    msdosScore += 6;
+                    evidence.add("dos.h");
+                }
+                if (content.contains("int 21h") || content.contains("int21")) {
+                    msdosScore += 4;
+                    evidence.add("int 21h");
+                }
+                if (content.contains("org 100h")) {
+                    msdosScore += 4;
+                    evidence.add("org 100h");
+                }
+                if (content.contains("watcom") || content.contains("turboc")) {
+                    msdosScore += 2;
+                    evidence.add("watcom/turboc");
+                }
+
+                if (content.contains("#include <sms/sms.h>") || content.contains("#include <gg/gg.h>")) {
+                    smsScore += 6;
+                    evidence.add("sms/gg.h");
+                }
+                if (content.contains("sms_displayon") || content.contains("sms_waitforvblank")) {
+                    smsScore += 4;
+                    evidence.add("sms_vdp");
+                }
+                if (content.contains("rgb15(")) {
+                    smsScore += 2;
+                    evidence.add("rgb15");
+                }
             }
         } catch (IOException ex) {
             return new DetectionResult(Platform.UNKNOWN, 0, "");
         }
 
-        int total = gameBoyScore + spectrumScore;
+        int total = gameBoyScore + spectrumScore + msdosScore + smsScore;
         if (total == 0) {
             return new DetectionResult(Platform.UNKNOWN, 0, "");
         }
 
-        int diff = Math.abs(gameBoyScore - spectrumScore);
-        int confidence = (int) Math.round((diff * 100.0) / total);
+        int maxScore = Math.max(gameBoyScore, Math.max(spectrumScore, Math.max(msdosScore, smsScore)));
+        Platform platform = Platform.UNKNOWN;
+        if (maxScore == gameBoyScore && gameBoyScore > spectrumScore && gameBoyScore > msdosScore && gameBoyScore > smsScore) {
+            platform = Platform.GAMEBOY;
+        } else if (maxScore == spectrumScore && spectrumScore > gameBoyScore && spectrumScore > msdosScore && spectrumScore > smsScore) {
+            platform = Platform.SPECTRUM;
+        } else if (maxScore == msdosScore && msdosScore > gameBoyScore && msdosScore > spectrumScore && msdosScore > smsScore) {
+            platform = Platform.MSDOS;
+        } else if (maxScore == smsScore && smsScore > gameBoyScore && smsScore > spectrumScore && smsScore > msdosScore) {
+            platform = Platform.SMS;
+        }
 
-        if (diff < 2) {
+        int confidence = (int) Math.round((maxScore * 100.0) / total);
+        if (platform == Platform.UNKNOWN || confidence < 40) {
             return new DetectionResult(Platform.UNKNOWN, confidence, summarizeEvidence(evidence));
         }
 
-        Platform platform = gameBoyScore > spectrumScore ? Platform.GAMEBOY : Platform.SPECTRUM;
         return new DetectionResult(platform, confidence, summarizeEvidence(evidence));
     }
 

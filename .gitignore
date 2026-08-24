@@ -59,6 +59,7 @@ coverage/
 
 # Local runtime files
 logs/
+.output.txt
 
 # Release/package outputs
 /release/
@@ -98,3 +99,6 @@ jarlist.txt
 
 AGENTS.md
 /.agents
+
+# opencode local runtime state (sessions, caches)
+/.opencode/

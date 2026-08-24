@@ -7,6 +7,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.retroeditor.util.AppInfo;
+
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import org.w3c.dom.Element;
@@ -29,6 +31,9 @@ public class HomeReleaseNotesService {
     public ReleaseNotes load(Path workingDirectory, String fallbackItem) {
         Path baseDir = workingDirectory != null ? workingDirectory : Path.of(".");
         String version = resolveVersion(baseDir.resolve(POM_FILE_NAME));
+        if (DEFAULT_VERSION.equals(version)) {
+            version = AppInfo.getVersion();
+        }
 
         ParsedChangelog parsed = parseChangelog(baseDir.resolve(CHANGELOG_FILE_NAME));
         List<String> items = new ArrayList<>(parsed.items());

@@ -8,6 +8,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import com.retroeditor.util.AppInfo;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -54,7 +56,7 @@ class HomeReleaseNotesServiceTest {
         HomeReleaseNotesService.ReleaseNotes notes = service.load(tempDir, "no notes");
 
         assertFalse(notes.fromChangelog());
-        assertEquals("dev", notes.version());
+        assertEquals(AppInfo.getVersion(), notes.version());
         assertEquals(1, notes.items().size());
         assertEquals("no notes", notes.items().get(0));
     }
@@ -77,7 +79,7 @@ class HomeReleaseNotesServiceTest {
         HomeReleaseNotesService.ReleaseNotes notes = service.load(tempDir, "fallback");
 
         assertTrue(notes.fromChangelog());
-        assertEquals("dev", notes.version()); // Pom missing returns dev
+        assertEquals(AppInfo.getVersion(), notes.version()); // Pom missing falls back to app version
         assertEquals("1.2.0", notes.changelogSection());
         assertEquals(3, notes.items().size());
         assertEquals("[Added] Feature A", notes.items().get(0));

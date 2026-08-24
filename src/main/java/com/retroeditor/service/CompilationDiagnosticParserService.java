@@ -10,8 +10,8 @@ import java.util.regex.Pattern;
  */
 public class CompilationDiagnosticParserService {
 
-    private static final Pattern CONSOLE_FILE_LINE_PATTERN = Pattern.compile("([A-Za-z]:[^:\\r\\n]*?\\.[A-Za-z0-9_]+|[^\\s:]+\\.[A-Za-z0-9_]+):(\\d+)(?::\\d+)?");
-    private static final Pattern COMPILER_FILE_LINE_DIAGNOSTIC_PATTERN = Pattern.compile("(?i)([A-Za-z]:[^:\\r\\n]*|[^:\\r\\n]+\\.[A-Za-z0-9_]+):(\\d+)(?::\\d+)?\\s*:");
+    private static final Pattern CONSOLE_FILE_LINE_PATTERN = Pattern.compile("(['\"]?[A-Za-z]:[^:\\r\\n]*?\\.[A-Za-z0-9_]+['\"]?|['\"]?[^\\s:]+\\.[A-Za-z0-9_]+['\"]?):(\\d+)(?::\\d+)?");
+    private static final Pattern COMPILER_FILE_LINE_DIAGNOSTIC_PATTERN = Pattern.compile("(?i)(['\"]?[A-Za-z]:[^:\\r\\n]*['\"]?|['\"]?[^:\\r\\n]+\\.[A-Za-z0-9_]+['\"]?):(\\d+)(?::\\d+)?\\s*:");
     private static final Pattern Z88DK_PREFIXED_FILE_LINE_DIAGNOSTIC_PATTERN = Pattern.compile("(?i)(?:sccz80|sdcc|zsdcc|zcc)\\s*:\\s*(['\"]?[^'\"\\r\\n]+?\\.[A-Za-z0-9_]+['\"]?)\\s+(?:L|line)\\s*[:=]?\\s*(\\d+)\\b.*?\\b(error|warning)\\b");
     private static final Pattern Z88DK_FILE_LINE_DIAGNOSTIC_PATTERN = Pattern.compile("(?i)(['\"]?[^'\"\\r\\n]+?\\.[A-Za-z0-9_]+['\"]?)\\s+(?:L|line)\\s*[:=]?\\s*(\\d+)\\b.*?\\b(error|warning)\\b");
     private static final Pattern COMPILER_AT_LINE_DIAGNOSTIC_PATTERN = Pattern.compile("(?i)\\bat\\s+(\\d+)\\s*:\\s*(error|warning)");

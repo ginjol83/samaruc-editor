@@ -25,6 +25,18 @@ public class ConfigModel {
     public static final String Z88DK_CLIB_CLANG_IY = "clang_iy";
     public static final String EDITOR_APPEARANCE_MODERN_DARK = "modern_dark";
     public static final String EDITOR_APPEARANCE_CLASSIC = "classic";
+    public static final String TERMINAL_SHELL_AUTO = "auto";
+    public static final String TERMINAL_SHELL_CMD = "cmd";
+    public static final String TERMINAL_SHELL_POWERSHELL = "powershell";
+    public static final String TERMINAL_SHELL_PWSH = "pwsh";
+    public static final String TERMINAL_SHELL_BASH = "bash";
+    public static final List<String> TERMINAL_SHELL_OPTIONS = List.of(
+        TERMINAL_SHELL_AUTO,
+        TERMINAL_SHELL_CMD,
+        TERMINAL_SHELL_POWERSHELL,
+        TERMINAL_SHELL_PWSH,
+        TERMINAL_SHELL_BASH
+    );
 
     private static final List<String> Z88DK_CLIB_OPTIONS = List.of(
         Z88DK_CLIB_NONE,
@@ -40,6 +52,7 @@ public class ConfigModel {
 
     private static final String COMPILER_GBDK           = "GBDK";
     private static final String COMPILER_Z88DK          = "z88dk";
+    private static final String COMPILER_GCC            = "gcc";
     private static final String COMPILER_MAKEFILE       = "Makefile";
     private static final String LEGACY_SPECTRUM         = "Spectrum";
     private static final String Z88DK_PROFILE_SPECTRUM  = "spectrum";
@@ -78,6 +91,7 @@ public class ConfigModel {
     private final StringProperty autoApplyDetectedProjectProfileThreshold = new SimpleStringProperty (this, "project_detect_auto_apply_threshold", "75");
     private final BooleanProperty enableLogs                              = new SimpleBooleanProperty(this, "enable_logs", false);
     private final BooleanProperty showHomeOnStartup                       = new SimpleBooleanProperty(this, "show_home_on_startup", true);
+    private final StringProperty  terminalShell                           = new SimpleStringProperty (this, "terminal_shell", TERMINAL_SHELL_AUTO);
 
     private WorkspaceModel activeWorkspace = null;
 
@@ -106,6 +120,33 @@ public class ConfigModel {
     private final StringProperty  makeBuildTarget  = new SimpleStringProperty (this, "make_build_target", "");
     private final StringProperty  makeRunTarget    = new SimpleStringProperty (this, "make_run_target", "run");
     private final StringProperty  makeExtraArgs    = new SimpleStringProperty (this, "make_extra_args", "");
+
+    // GCC / C nativo (no retro)
+    public static final String GCC_OPT_NONE = "none";
+    public static final String GCC_OPT_O0   = "-O0";
+    public static final String GCC_OPT_O1   = "-O1";
+    public static final String GCC_OPT_O2   = "-O2";
+    public static final String GCC_OPT_O3   = "-O3";
+    public static final List<String> GCC_OPT_LEVELS = List.of(GCC_OPT_NONE, GCC_OPT_O0, GCC_OPT_O1, GCC_OPT_O2, GCC_OPT_O3);
+    private final StringProperty  gccBin           = new SimpleStringProperty (this, "gcc_bin", "");
+    private final StringProperty  gccOptLevel      = new SimpleStringProperty (this, "gcc_opt_level", GCC_OPT_NONE);
+    private final StringProperty  gccDefines       = new SimpleStringProperty (this, "gcc_defines", "");
+    private final StringProperty  gccIncludes      = new SimpleStringProperty (this, "gcc_includes", "");
+    private final StringProperty  gccExtraArgs     = new SimpleStringProperty (this, "gcc_extra_args", "");
+
+    // CC65 / Atari XE/XL
+    public static final String COMPILER_CC65 = "cc65";
+    public static final String EMULATOR_ALTIRRA = "Altirra";
+    public static final String CC65_OPT_NONE = "none";
+    public static final String CC65_OPT_O    = "-O";
+    public static final String CC65_OPT_OI   = "-Oi";
+    public static final List<String> CC65_OPT_LEVELS = List.of(CC65_OPT_NONE, CC65_OPT_O, CC65_OPT_OI);
+    private final StringProperty  cc65Bin          = new SimpleStringProperty (this, "cc65_bin", "");
+    private final StringProperty  altirraBin       = new SimpleStringProperty (this, "altirra_bin", "");
+    private final StringProperty  cc65OptLevel     = new SimpleStringProperty (this, "cc65_opt_level", CC65_OPT_NONE);
+    private final StringProperty  cc65Defines      = new SimpleStringProperty (this, "cc65_defines", "");
+    private final StringProperty  cc65Includes     = new SimpleStringProperty (this, "cc65_includes", "");
+    private final StringProperty  cc65ExtraArgs    = new SimpleStringProperty (this, "cc65_extra_args", "");
 
     /**
      * Obtener una propiedad de configuración con valor por defecto
@@ -152,6 +193,7 @@ public class ConfigModel {
             case "project_detect_auto_apply_threshold": return getAutoApplyDetectedProjectProfileThreshold();
             case "enable_logs"               : return String.valueOf(isEnableLogs());
             case "show_home_on_startup"      : return String.valueOf(isShowHomeOnStartup());
+            case "terminal_shell"            : return getTerminalShell() != null ? getTerminalShell() : defaultValue;
             case "gbdk_opt_level"  : return getGbdkOptLevel()  != null ? getGbdkOptLevel() : defaultValue;
             case "gbdk_opt_speed"  : return Boolean.toString(isGbdkOptSpeed());
             case "gbdk_opt_size"   : return Boolean.toString(isGbdkOptSize());
@@ -162,6 +204,17 @@ public class ConfigModel {
             case "make_build_target": return getMakeBuildTarget() != null ? getMakeBuildTarget() : defaultValue;
             case "make_run_target"  : return getMakeRunTarget() != null ? getMakeRunTarget() : defaultValue;
             case "make_extra_args"  : return getMakeExtraArgs() != null ? getMakeExtraArgs() : defaultValue;
+            case "gcc_bin"          : return getGccBin()          != null ? getGccBin() : defaultValue;
+            case "gcc_opt_level"    : return getGccOptLevel()     != null ? getGccOptLevel() : defaultValue;
+            case "gcc_defines"      : return getGccDefines()      != null ? getGccDefines() : defaultValue;
+            case "gcc_includes"     : return getGccIncludes()     != null ? getGccIncludes() : defaultValue;
+            case "gcc_extra_args"   : return getGccExtraArgs()    != null ? getGccExtraArgs() : defaultValue;
+            case "cc65_bin"         : return getCc65Bin()         != null ? getCc65Bin() : defaultValue;
+            case "altirra_bin"      : return getAltirraBin()      != null ? getAltirraBin() : defaultValue;
+            case "cc65_opt_level"   : return getCc65OptLevel()    != null ? getCc65OptLevel() : defaultValue;
+            case "cc65_defines"     : return getCc65Defines()     != null ? getCc65Defines() : defaultValue;
+            case "cc65_includes"    : return getCc65Includes()    != null ? getCc65Includes() : defaultValue;
+            case "cc65_extra_args"  : return getCc65ExtraArgs()   != null ? getCc65ExtraArgs() : defaultValue;
             default                         : return configProps.getProperty(key, defaultValue);
         }
     }
@@ -202,6 +255,7 @@ public class ConfigModel {
             case "project_detect_auto_apply_threshold": setAutoApplyDetectedProjectProfileThreshold(value); break;
             case "enable_logs"               : setEnableLogs(Boolean.parseBoolean(value)); break;
             case "show_home_on_startup"      : setShowHomeOnStartup(Boolean.parseBoolean(value)); break;
+            case "terminal_shell"            : setTerminalShell(value); break;
             case "gbdk_opt_level"  : setGbdkOptLevel(value);                                break;
             case "gbdk_opt_speed"  : setGbdkOptSpeed(Boolean.parseBoolean(value));          break;
             case "gbdk_opt_size"   : setGbdkOptSize(Boolean.parseBoolean(value));           break;
@@ -212,6 +266,17 @@ public class ConfigModel {
             case "make_build_target": setMakeBuildTarget(value);                             break;
             case "make_run_target"  : setMakeRunTarget(value);                               break;
             case "make_extra_args"  : setMakeExtraArgs(value);                               break;
+            case "gcc_bin"          : setGccBin(value);                                      break;
+            case "gcc_opt_level"    : setGccOptLevel(value);                                 break;
+            case "gcc_defines"      : setGccDefines(value);                                 break;
+            case "gcc_includes"     : setGccIncludes(value);                                break;
+            case "gcc_extra_args"   : setGccExtraArgs(value);                               break;
+            case "cc65_bin"         : setCc65Bin(value);                                     break;
+            case "altirra_bin"      : setAltirraBin(value);                                  break;
+            case "cc65_opt_level"   : setCc65OptLevel(value);                                break;
+            case "cc65_defines"     : setCc65Defines(value);                                 break;
+            case "cc65_includes"    : setCc65Includes(value);                                break;
+            case "cc65_extra_args"  : setCc65ExtraArgs(value);                               break;
             default:                        configProps.setProperty(key, value); break;
         }
     }
@@ -262,6 +327,18 @@ public class ConfigModel {
         makeBuildTarget        .set(source.getProperty("make_build_target", ""));
         makeRunTarget          .set(source.getProperty("make_run_target", "run"));
         makeExtraArgs          .set(source.getProperty("make_extra_args", ""));
+        gccBin                 .set(source.getProperty("gcc_bin", ""));
+        gccOptLevel            .set(source.getProperty("gcc_opt_level", GCC_OPT_NONE));
+        gccDefines             .set(source.getProperty("gcc_defines", ""));
+        gccIncludes            .set(source.getProperty("gcc_includes", ""));
+        gccExtraArgs           .set(source.getProperty("gcc_extra_args", ""));
+        cc65Bin                .set(source.getProperty("cc65_bin", ""));
+        altirraBin             .set(source.getProperty("altirra_bin", ""));
+        cc65OptLevel           .set(source.getProperty("cc65_opt_level", CC65_OPT_NONE));
+        cc65Defines            .set(source.getProperty("cc65_defines", ""));
+        cc65Includes           .set(source.getProperty("cc65_includes", ""));
+        cc65ExtraArgs          .set(source.getProperty("cc65_extra_args", ""));
+        terminalShell          .set(normalizeTerminalShell(source.getProperty("terminal_shell", TERMINAL_SHELL_AUTO)));
     }
 
     public Properties toProperties() {
@@ -307,6 +384,18 @@ public class ConfigModel {
         p.setProperty("make_build_target", getMakeBuildTarget() != null ? getMakeBuildTarget() : "");
         p.setProperty("make_run_target", getMakeRunTarget() != null ? getMakeRunTarget() : "run");
         p.setProperty("make_extra_args", getMakeExtraArgs() != null ? getMakeExtraArgs() : "");
+        p.setProperty("gcc_bin", getGccBin() != null ? getGccBin() : "");
+        p.setProperty("gcc_opt_level", getGccOptLevel() != null ? getGccOptLevel() : GCC_OPT_NONE);
+        p.setProperty("gcc_defines", getGccDefines() != null ? getGccDefines() : "");
+        p.setProperty("gcc_includes", getGccIncludes() != null ? getGccIncludes() : "");
+        p.setProperty("gcc_extra_args", getGccExtraArgs() != null ? getGccExtraArgs() : "");
+        p.setProperty("cc65_bin", getCc65Bin() != null ? getCc65Bin() : "");
+        p.setProperty("altirra_bin", getAltirraBin() != null ? getAltirraBin() : "");
+        p.setProperty("cc65_opt_level", getCc65OptLevel() != null ? getCc65OptLevel() : CC65_OPT_NONE);
+        p.setProperty("cc65_defines", getCc65Defines() != null ? getCc65Defines() : "");
+        p.setProperty("cc65_includes", getCc65Includes() != null ? getCc65Includes() : "");
+        p.setProperty("cc65_extra_args", getCc65ExtraArgs() != null ? getCc65ExtraArgs() : "");
+        p.setProperty("terminal_shell", getTerminalShell() != null ? getTerminalShell() : TERMINAL_SHELL_AUTO);
         return p;
     }
 
@@ -463,6 +552,23 @@ public class ConfigModel {
     public boolean         isShowHomeOnStartup()        { return showHomeOnStartup.get(); }
     public void            setShowHomeOnStartup(boolean v) { showHomeOnStartup.set(v); }
 
+    public StringProperty  terminalShellProperty()      { return terminalShell; }
+    public String          getTerminalShell()           { return normalizeTerminalShell(terminalShell.get()); }
+    public void            setTerminalShell(String v)   { terminalShell.set(normalizeTerminalShell(v)); }
+
+    public static List<String> getSupportedTerminalShells() {
+        return TERMINAL_SHELL_OPTIONS;
+    }
+
+    private String normalizeTerminalShell(String shell) {
+        if (shell == null || shell.isBlank()) return TERMINAL_SHELL_AUTO;
+        String normalized = shell.trim().toLowerCase();
+        if (TERMINAL_SHELL_OPTIONS.contains(normalized)) {
+            return normalized;
+        }
+        return TERMINAL_SHELL_AUTO;
+    }
+
     public int getAutoApplyDetectedProjectProfileThresholdInt() {
         try {
             int parsed = Integer.parseInt(getAutoApplyDetectedProjectProfileThreshold());
@@ -519,6 +625,50 @@ public class ConfigModel {
     public String          getMakeExtraArgs()                  { return makeExtraArgs.get(); }
     public void            setMakeExtraArgs(String v)          { makeExtraArgs.set(v != null ? v.trim() : ""); }
 
+    public StringProperty  gccBinProperty()              { return gccBin; }
+    public String          getGccBin()                   { return gccBin.get(); }
+    public void            setGccBin(String v)           { gccBin.set(v != null ? v.trim() : ""); }
+
+    public StringProperty  gccOptLevelProperty()         { return gccOptLevel; }
+    public String          getGccOptLevel()              { return gccOptLevel.get(); }
+    public void            setGccOptLevel(String v)      { gccOptLevel.set(v != null ? v : GCC_OPT_NONE); }
+
+    public StringProperty  gccDefinesProperty()          { return gccDefines; }
+    public String          getGccDefines()               { return gccDefines.get(); }
+    public void            setGccDefines(String v)       { gccDefines.set(v != null ? v.trim() : ""); }
+
+    public StringProperty  gccIncludesProperty()         { return gccIncludes; }
+    public String          getGccIncludes()              { return gccIncludes.get(); }
+    public void            setGccIncludes(String v)      { gccIncludes.set(v != null ? v.trim() : ""); }
+
+    public StringProperty  gccExtraArgsProperty()        { return gccExtraArgs; }
+    public String          getGccExtraArgs()             { return gccExtraArgs.get(); }
+    public void            setGccExtraArgs(String v)     { gccExtraArgs.set(v != null ? v.trim() : ""); }
+
+    public StringProperty  cc65BinProperty()             { return cc65Bin; }
+    public String          getCc65Bin()                  { return cc65Bin.get(); }
+    public void            setCc65Bin(String v)          { cc65Bin.set(v != null ? v.trim() : ""); }
+
+    public StringProperty  altirraBinProperty()          { return altirraBin; }
+    public String          getAltirraBin()               { return altirraBin.get(); }
+    public void            setAltirraBin(String v)       { altirraBin.set(v != null ? v.trim() : ""); }
+
+    public StringProperty  cc65OptLevelProperty()        { return cc65OptLevel; }
+    public String          getCc65OptLevel()             { return cc65OptLevel.get(); }
+    public void            setCc65OptLevel(String v)     { cc65OptLevel.set(v != null ? v : CC65_OPT_NONE); }
+
+    public StringProperty  cc65DefinesProperty()         { return cc65Defines; }
+    public String          getCc65Defines()              { return cc65Defines.get(); }
+    public void            setCc65Defines(String v)      { cc65Defines.set(v != null ? v.trim() : ""); }
+
+    public StringProperty  cc65IncludesProperty()        { return cc65Includes; }
+    public String          getCc65Includes()             { return cc65Includes.get(); }
+    public void            setCc65Includes(String v)     { cc65Includes.set(v != null ? v.trim() : ""); }
+
+    public StringProperty  cc65ExtraArgsProperty()       { return cc65ExtraArgs; }
+    public String          getCc65ExtraArgs()            { return cc65ExtraArgs.get(); }
+    public void            setCc65ExtraArgs(String v)    { cc65ExtraArgs.set(v != null ? v.trim() : ""); }
+
     private String normalizeZ88dkClibOption(String option) {
         if (option == null || option.isBlank()) return Z88DK_CLIB_NEW;
 
@@ -551,6 +701,20 @@ public class ConfigModel {
             return COMPILER_Z88DK;
         }
 
+        if (COMPILER_GCC.equalsIgnoreCase(normalized)
+            || "desktop".equalsIgnoreCase(normalized)
+            || "native".equalsIgnoreCase(normalized)
+            || normalized.toLowerCase().contains("gcc")) {
+            return COMPILER_GCC;
+        }
+
+        if (COMPILER_CC65.equalsIgnoreCase(normalized)
+            || "atari".equalsIgnoreCase(normalized)
+            || normalized.toLowerCase().contains("cc65")
+            || normalized.toLowerCase().contains("atari")) {
+            return COMPILER_CC65;
+        }
+
         return COMPILER_GBDK;
     }
 
@@ -572,8 +736,12 @@ public class ConfigModel {
     }
 
     private String deriveEmulatorForCompilerAndProfile(String compiler, String profile) {
-        if (COMPILER_Z88DK.equalsIgnoreCase(normalizeCompilerSelection(compiler))) {
+        String normCompiler = normalizeCompilerSelection(compiler);
+        if (COMPILER_Z88DK.equalsIgnoreCase(normCompiler)) {
             return Z88DK_PROFILE_CPC.equalsIgnoreCase(normalizeZ88dkProfile(profile)) ? EMULATOR_CPCBOX_WEB : EMULATOR_JSPECCY;
+        }
+        if (COMPILER_CC65.equalsIgnoreCase(normCompiler)) {
+            return EMULATOR_ALTIRRA;
         }
         return EMULATOR_EMULICIOUS;
     }

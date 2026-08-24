@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.3.0 - 2026-08-24
+
+### Añadido
+- **Editores avanzados para Game Boy**: Editor de audio PSG/VGM y visor de estructura/tilemap.
+- **Refactorización y Herramientas**: Soporte para refactorización de renombrado, formateo de código, plegado de código (code folding), breadcrumbs de símbolos y estadísticas de proyecto.
+
+## 1.2.5 - 2026-08-01
+
+### Añadido
+- **Minimapa interactivo (Minimap)** en el editor de código con navegación rápida y salto de línea por clic/arrastre.
+- **Intellisense Contextual por SDK** en el autocompletado (`Ctrl+Space`) con palabras clave para GBDK, Conio, MS-DOS y C estándar.
+- **Soporte de Desarrollo y Emulación para MS-DOS**: Plantillas C y ASM (`.com`), detección de plataforma y lanzamiento vía DOSBox.
+- **Soporte de Desarrollo y Emulación para Sega Master System / Game Gear**: Plantillas C y ASM, detección de plataforma y emulación integrada por defecto con Emulicious.
+
+## 1.2.4 - 2026-08-01
+
+### Añadido
+- Iteración 1.2.4 de desarrollo y reubicación de documentación generada a `.trash/`.
+
 ## 1.2.3 - 2026-08-01
 
 ### Añadido

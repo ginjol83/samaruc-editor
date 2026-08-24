@@ -86,6 +86,54 @@ class ConfigModelLegacyCompatibilityTest {
     }
 
     @Test
+    void loadsNativeGccCompilerSelection() {
+        ConfigModel model = new ConfigModel();
+        Properties props = new Properties();
+        props.setProperty("compilador_seleccionado", "gcc");
+
+        model.applyProperties(props);
+
+        Assertions.assertEquals("gcc", model.getConfigProperty("compilador_seleccionado", "GBDK"));
+    }
+
+    @Test
+    void normalizesDisplayLabelsAndAliasesToGcc() {
+        for (String label : new String[] {"Native C (gcc)", "C normal (gcc)", "desktop", "C Natif (gcc)"}) {
+            ConfigModel model = new ConfigModel();
+            Properties props = new Properties();
+            props.setProperty("compilador_seleccionado", label);
+
+            model.applyProperties(props);
+
+            Assertions.assertEquals(
+                "gcc",
+                model.getConfigProperty("compilador_seleccionado", "GBDK"),
+                "Expected '" + label + "' to normalize to gcc"
+            );
+        }
+    }
+
+    @Test
+    void roundTripsGccCompilerSettings() {
+        ConfigModel model = new ConfigModel();
+        model.setConfigProperty("compilador_seleccionado", "gcc");
+        model.setConfigProperty("gcc_opt_level", "-O2");
+        model.setConfigProperty("gcc_defines", "DEBUG,FOO=1");
+        model.setConfigProperty("gcc_includes", "C:\\proj\\include");
+        model.setConfigProperty("gcc_extra_args", "-Wall");
+
+        Properties serialized = model.toProperties();
+
+        ConfigModel reloaded = new ConfigModel();
+        reloaded.applyProperties(serialized);
+        Assertions.assertEquals("gcc", reloaded.getConfigProperty("compilador_seleccionado", "GBDK"));
+        Assertions.assertEquals("-O2", reloaded.getConfigProperty("gcc_opt_level", ""));
+        Assertions.assertEquals("DEBUG,FOO=1", reloaded.getConfigProperty("gcc_defines", ""));
+        Assertions.assertEquals("C:\\proj\\include", reloaded.getConfigProperty("gcc_includes", ""));
+        Assertions.assertEquals("-Wall", reloaded.getConfigProperty("gcc_extra_args", ""));
+    }
+
+    @Test
     void preservesSessionRestorePropertiesOnRoundTrip() {
         ConfigModel model = new ConfigModel();
         model.setConfigProperty("last_session_project", "C:\\retro\\project");
@@ -102,5 +150,56 @@ class ConfigModelLegacyCompatibilityTest {
         Assertions.assertEquals("C:\\retro\\project", reloaded.getConfigProperty("last_session_project", ""));
         Assertions.assertEquals("C:\\retro\\project\\src\\main.c\nC:\\retro\\project\\README.md", reloaded.getConfigProperty("last_session_open_files", ""));
         Assertions.assertEquals("C:\\retro\\project\\src\\main.c", reloaded.getConfigProperty("last_session_active_file", ""));
+    }
+
+    @Test
+    void workspaceGccSettingsTakePrecedenceOverGlobal() {
+        ConfigModel model = new ConfigModel();
+        model.setConfigProperty("compilador_seleccionado", "gcc");
+        model.setConfigProperty("gcc_opt_level", "-O3");
+        model.setConfigProperty("gcc_extra_args", "-Wall -g");
+
+        WorkspaceModel workspace = new WorkspaceModel();
+        workspace.setProjectName("demo");
+        workspace.setSetting("gcc_opt_level", "-O2");
+        workspace.setSetting("gcc_extra_args", "-Wall -Wextra");
+
+        model.setActiveWorkspace(workspace);
+
+        Assertions.assertEquals("-O2", model.getConfigProperty("gcc_opt_level", "none"));
+        Assertions.assertEquals("-Wall -Wextra", model.getConfigProperty("gcc_extra_args", ""));
+        Assertions.assertEquals("gcc", model.getConfigProperty("compilador_seleccionado", "GBDK"));
+    }
+
+    @Test
+    void workspaceFallsBackToGlobalForMissingKeys() {
+        ConfigModel model = new ConfigModel();
+        model.setConfigProperty("gcc_includes", "C:\\global\\include");
+
+        WorkspaceModel workspace = new WorkspaceModel();
+        workspace.setSetting("gcc_opt_level", "-O1");
+
+        model.setActiveWorkspace(workspace);
+
+        Assertions.assertEquals("-O1", model.getConfigProperty("gcc_opt_level", "none"));
+        Assertions.assertEquals("C:\\global\\include", model.getConfigProperty("gcc_includes", ""));
+
+        model.setActiveWorkspace(null);
+        Assertions.assertEquals("none", model.getConfigProperty("gcc_opt_level", "none"));
+        Assertions.assertEquals("C:\\global\\include", model.getConfigProperty("gcc_includes", ""));
+    }
+
+    @Test
+    void workspaceRemovalReturnsToGlobalValue() {
+        ConfigModel model = new ConfigModel();
+        model.setConfigProperty("gcc_extra_args", "-Wall");
+
+        WorkspaceModel workspace = new WorkspaceModel();
+        workspace.setSetting("gcc_extra_args", "-O2");
+        model.setActiveWorkspace(workspace);
+        Assertions.assertEquals("-O2", model.getConfigProperty("gcc_extra_args", ""));
+
+        workspace.setSetting("gcc_extra_args", null);
+        Assertions.assertEquals("-Wall", model.getConfigProperty("gcc_extra_args", ""));
     }
 }

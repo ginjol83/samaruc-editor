@@ -18,6 +18,7 @@
                         <MenuItem fx:id="menuItemAbrirProyecto" text="Abrir proyecto" onAction="#onAbrirProyecto" />
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemNuevo" text="Nuevo" onAction="#onNewTab" />
+                        <MenuItem fx:id="menuItemNuevoPlantilla" text="Nuevo archivo desde plantilla..." onAction="#onNuevoArchivoDesdePlantilla" />
                         <MenuItem fx:id="menuItemAbrir" text="Abrir" onAction="#onOpenFile" />
                         <MenuItem fx:id="menuItemGuardar" text="Guardar" onAction="#onSaveFile" />
                         <MenuItem fx:id="menuItemGuardarTodo" text="Guardar todo" onAction="#onSaveAllFiles" />
@@ -31,6 +32,7 @@
                     </Menu>
                     <Menu fx:id="menuCompilacion" text="Compilación/Ejecución">
                         <MenuItem fx:id="menuItemCompilar" text="Compilar" onAction="#onCompilar" />
+                        <MenuItem fx:id="menuItemCompilarYEjecutar" text="Compilar y ejecutar" onAction="#onCompilarYEjecutar" />
                         <MenuItem fx:id="menuItemEjecutar" text="Ejecutar" onAction="#onEjecutar" />
                     </Menu>
                     <Menu fx:id="menuEdicion" text="Edición">
@@ -46,6 +48,8 @@
                         </Menu>
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemGoToLine" text="Ir a la linea..." onAction="#onGoToLine" />
+                        <MenuItem fx:id="menuItemGoToDefinition" text="Ir a definición" onAction="#onGoToDefinition" />
+                        <MenuItem fx:id="menuItemSplitEditor" text="Dividir vista de editor" onAction="#onSplitEditor" />
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemFind" text="Buscar en archivo" onAction="#onFindInFile" />
                         <MenuItem fx:id="menuItemFindProject" text="Buscar en proyecto" onAction="#onFindInProject" />
@@ -53,8 +57,11 @@
 
                     <Menu fx:id="menuHerramientas" text="Herramientas">
                         <MenuItem fx:id="menuItemTileEditor" text="Editor de Tiles (Game Boy)" onAction="#onOpenTileEditor" />
+                        <MenuItem fx:id="menuItemGameBoyAudioEditor" text="Editor de audio (Game Boy)" onAction="#onOpenGameBoyAudioEditor" />
                         <MenuItem fx:id="menuItemPngToGameBoy" text="Convertir PNG a C (Game Boy)" onAction="#onOpenPngToGameBoyConverter" />
                         <MenuItem fx:id="menuItemPngToZx" text="Convertir PNG a C (ZX Spectrum)" onAction="#onOpenPngToZxConverter" />
+                        <SeparatorMenuItem />
+                        <MenuItem fx:id="menuItemProjectStats" text="Estadísticas del proyecto" onAction="#onOpenProjectStats" />
                     </Menu>
 
                     <Menu fx:id="menuAyuda" text="Ayuda">
@@ -146,9 +153,20 @@
     <!-- Split principal con el explorador de proyecto y el editor -->
     <SplitPane orientation="HORIZONTAL" fx:id="mainSplitPane" BorderPane.alignment="CENTER" dividerPositions="0.18">
         <items>
-            <AnchorPane fx:id="projectExplorerAnchor" minWidth="180.0" maxWidth="350.0" prefWidth="220.0">
-                <fx:include source="ProjectExplorer.fxml" />
-            </AnchorPane>
+            <TabPane fx:id="sidebarTabPane" minWidth="180.0" maxWidth="350.0" prefWidth="220.0" tabClosingPolicy="UNAVAILABLE">
+                <tabs>
+                    <Tab text="Proyecto">
+                        <content>
+                            <AnchorPane fx:id="projectExplorerAnchor" />
+                        </content>
+                    </Tab>
+                    <Tab text="Estructura">
+                        <content>
+                            <AnchorPane fx:id="structureViewAnchor" />
+                        </content>
+                    </Tab>
+                </tabs>
+            </TabPane>
 
             <!-- Contenedor vertical con el editor y el panel de salida -->
             <VBox fx:id="editorContainer" spacing="2.0">
@@ -259,24 +277,9 @@
                                         </HBox>
                                     </top>
                                     <center>
-                                        <StyleClassedTextArea fx:id="terminalOutputArea"
-                                                              editable="false"
-                                                              wrapText="false" />
+                                        <StackPane fx:id="terminalContainer"
+                                                   styleClass="terminal-container" />
                                     </center>
-                                    <bottom>
-                                        <HBox spacing="6"
-                                              alignment="CENTER_LEFT"
-                                              styleClass="output-header-bar">
-                                            <TextField fx:id="txtTerminalInput"
-                                                       promptText="Escribe un comando y pulsa Enter"
-                                                       onAction="#onTerminalSend"
-                                                       HBox.hgrow="ALWAYS" />
-                                            <Button fx:id="btnTerminalSend"
-                                                    text="Enviar"
-                                                    onAction="#onTerminalSend"
-                                                    styleClass="output-header-button" />
-                                        </HBox>
-                                    </bottom>
                                 </BorderPane>
                             </Tab>
                         </tabs>

@@ -102,13 +102,16 @@
 }
 
 .output-tab-pane #consoleOutputArea,
-.output-tab-pane #debuggerOutputArea,
-.output-tab-pane #terminalOutputArea {
+.output-tab-pane #debuggerOutputArea {
     -fx-font-family: "JetBrains Mono", "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
     -fx-font-size: 13px;
     -fx-background-color: #0f1721;
     -fx-control-inner-background: #0f1721;
     -fx-text-fill: #e2e8f0;
+}
+
+.terminal-container {
+    -fx-background-color: #0f1118;
 }
 
 .output-tab-pane .styled-text-area {
@@ -120,9 +123,7 @@
 .output-tab-pane #consoleOutputArea .text,
 .output-tab-pane #consoleOutputArea .paragraph-text,
 .output-tab-pane #debuggerOutputArea .text,
-.output-tab-pane #debuggerOutputArea .paragraph-text,
-.output-tab-pane #terminalOutputArea .text,
-.output-tab-pane #terminalOutputArea .paragraph-text {
+.output-tab-pane #debuggerOutputArea .paragraph-text {
     -fx-fill: #e2e8f0;
 }
 

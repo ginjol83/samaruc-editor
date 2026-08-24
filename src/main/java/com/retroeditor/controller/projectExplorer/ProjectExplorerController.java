@@ -77,11 +77,20 @@ public class ProjectExplorerController {
             private final MenuItem newFolderItem = new MenuItem("Nueva carpeta");
             private final MenuItem renameItem = new MenuItem("Renombrar");
             private final MenuItem deleteItem = new MenuItem("Eliminar");
+            private final MenuItem openInSplitItem = new MenuItem("Abrir en vista dividida");
             private final MenuItem runRomItem = new MenuItem("Ejecutar ROM en emulador");
             private final MenuItem openInExplorerItem = new MenuItem("Abrir directorio en Windows");
 
             {
-                cellMenu.getItems().addAll(newFileItem, newFolderItem, renameItem, deleteItem, runRomItem, openInExplorerItem);
+                cellMenu.getItems().addAll(newFileItem, newFolderItem, renameItem, deleteItem, openInSplitItem, runRomItem, openInExplorerItem);
+
+                openInSplitItem.setOnAction(e -> {
+                    FileTreeItem selected = (FileTreeItem) getTreeItem();
+                    File file = getFileFromTreeItem(selected);
+                    if (file != null && file.isFile() && mainController != null) {
+                        mainController.openFileInSecondaryTab(file);
+                    }
+                });
 
                 newFileItem.setOnAction(e -> {
 

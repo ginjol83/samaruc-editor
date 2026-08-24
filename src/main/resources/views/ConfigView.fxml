@@ -49,6 +49,8 @@
                 <VBox spacing="10" alignment="TOP_LEFT" style="-fx-padding: 14;" AnchorPane.topAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0">
                     <Label fx:id="lblEditorAppearance" text="Apariencia del editor:" />
                     <ComboBox fx:id="comboEditorAppearance" prefWidth="260" />
+                    <Label fx:id="lblTerminalShell" text="Shell del terminal:" />
+                    <ComboBox fx:id="comboTerminalShell" prefWidth="260" />
                     <CheckBox fx:id="chkEnableLogs" text="Habilitar guardado de logs en archivo (samaruc.log)" />
                     <CheckBox fx:id="chkShowHomeOnStartup" text="Mostrar página de inicio al arrancar" />
                     <HBox spacing="8" alignment="CENTER_LEFT">
@@ -153,6 +155,61 @@
                             <TextField fx:id="txtZ88dkCpcIncludes" prefWidth="420" promptText="include; libs/include" />
                             <Label fx:id="lblZ88dkCpcExtraArgs" text="Argumentos extra Z88DK:" />
                             <TextField fx:id="txtZ88dkCpcExtraArgs" prefWidth="420" promptText="-SO3 --max-allocs-per-node 50000" />
+                        </VBox>
+                        </content>
+                        </ScrollPane>
+                    </Tab>
+                    <Tab fx:id="tabCompilerGcc" text="C normal (gcc)">
+                        <ScrollPane fitToWidth="true" fitToHeight="false" prefHeight="340" hbarPolicy="NEVER" vbarPolicy="ALWAYS">
+                        <content>
+                        <VBox spacing="12" alignment="CENTER_LEFT" style="-fx-padding: 8 0 0 0;">
+                            <Label fx:id="lblGccBin" text="RUTA DEL BIN DE GCC (OPCIONAL):" />
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <TextField fx:id="txtGccBin" prefWidth="220" promptText="/ruta/a/gcc/bin (vacio = usar el PATH)" />
+                                <Button fx:id="btnSeleccionarGccBin" text="..." onAction="#onSeleccionarGccBin" />
+                            </HBox>
+                            <Label fx:id="lblGccOpts" text="Opciones de compilacion GCC:" />
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <Label fx:id="lblGccOptLevel" text="Nivel de optimizacion:" />
+                                <ComboBox fx:id="comboGccOptLevel" prefWidth="100" />
+                            </HBox>
+                            <Label fx:id="lblGccDefines" text="Defines (-D), separados por coma o espacio:" />
+                            <TextField fx:id="txtGccDefines" prefWidth="420" promptText="DEBUG, MY_FLAG" />
+                            <Label fx:id="lblGccIncludes" text="Includes (-I), separados por ; o coma:" />
+                            <TextField fx:id="txtGccIncludes" prefWidth="420" promptText="include; libs/include" />
+                            <Label fx:id="lblGccExtraArgs" text="Argumentos extra GCC:" />
+                            <TextField fx:id="txtGccExtraArgs" prefWidth="420" promptText="-Wall -std=c11" />
+                            <Button fx:id="btnSaveGccOpts" text="Guardar GCC" onAction="#onSaveGccOpts" />
+                        </VBox>
+                        </content>
+                        </ScrollPane>
+                    </Tab>
+                    <Tab fx:id="tabCompilerCc65" text="CC65 (Atari XE/XL)">
+                        <ScrollPane fitToWidth="true" fitToHeight="false" prefHeight="340" hbarPolicy="NEVER" vbarPolicy="ALWAYS">
+                        <content>
+                        <VBox spacing="12" alignment="CENTER_LEFT" style="-fx-padding: 8 0 0 0;">
+                            <Label fx:id="lblCc65Bin" text="RUTA DEL BIN DE CC65:" />
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <TextField fx:id="txtCc65Bin" prefWidth="220" promptText="/ruta/a/cc65/bin" />
+                                <Button fx:id="btnSeleccionarCc65Bin" text="..." onAction="#onSeleccionarCc65Bin" />
+                            </HBox>
+                            <Label fx:id="lblAltirraBin" text="RUTA DEL EJECUTABLE DE ALTIRRA:" />
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <TextField fx:id="txtAltirraBin" prefWidth="220" promptText="/ruta/a/altirra64.exe" />
+                                <Button fx:id="btnSeleccionarAltirraBin" text="..." onAction="#onSeleccionarAltirraBin" />
+                            </HBox>
+                            <Label fx:id="lblCc65Opts" text="Opciones de compilacion CC65:" />
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <Label fx:id="lblCc65OptLevel" text="Nivel de optimizacion:" />
+                                <ComboBox fx:id="comboCc65OptLevel" prefWidth="100" />
+                            </HBox>
+                            <Label fx:id="lblCc65Defines" text="Defines (-D), separados por coma o espacio:" />
+                            <TextField fx:id="txtCc65Defines" prefWidth="420" promptText="DEBUG, ATARI" />
+                            <Label fx:id="lblCc65Includes" text="Includes (-I), separados por ; o coma:" />
+                            <TextField fx:id="txtCc65Includes" prefWidth="420" promptText="include; libs/include" />
+                            <Label fx:id="lblCc65ExtraArgs" text="Argumentos extra CC65:" />
+                            <TextField fx:id="txtCc65ExtraArgs" prefWidth="420" promptText="-O" />
+                            <Button fx:id="btnSaveCc65Opts" text="Guardar CC65" onAction="#onSaveCc65Opts" />
                         </VBox>
                         </content>
                         </ScrollPane>

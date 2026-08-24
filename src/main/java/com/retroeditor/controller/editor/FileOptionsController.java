@@ -7,13 +7,22 @@ import java.util.Map;
 import org.fxmisc.richtext.CodeArea;
 
 import com.retroeditor.model.EditorModel;
+import com.retroeditor.service.LocalHistoryService;
 import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.service.syntax.SyntaxHighlighter;
 import com.retroeditor.util.FXUtils;
 
 import javafx.event.ActionEvent;
+import javafx.geometry.Insets;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.ListView;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
+import javafx.scene.control.TextArea;
+import javafx.scene.layout.HBox;
 import javafx.stage.FileChooser;
 
 public class FileOptionsController {
@@ -116,6 +125,7 @@ public class FileOptionsController {
         if (file != null && codeArea != null) {
             try {
                 editorModel.saveFile(file, codeArea.getText());
+                LocalHistoryService.recordSnapshot(file, codeArea.getText());
                 fxUtils.markTabSaved(tab, file.getName(), codeArea.getText());
                 return true;
             } catch (IOException e) {
@@ -161,6 +171,7 @@ public class FileOptionsController {
             UserActionMonitor.fileSaveAsDialogShown(file.getName());
             try {
                 editorModel.saveFile(file, codeArea.getText());
+                LocalHistoryService.recordSnapshot(file, codeArea.getText());
                 fxUtils.markTabSaved(tab, file.getName(), codeArea.getText());
                 tabFileMap.put(tab, file);
                 if (file.getParentFile() != null) {
@@ -198,6 +209,83 @@ public class FileOptionsController {
                 editorModel.closeFile(file);
             }
         }
+    }
+
+    /**
+     * Muestra el historial local de snapshots para el archivo actual y permite restaurar una versión anterior.
+     * @param event Evento de acción.
+     * @param tabPane Pestañas del editor.
+     * @param tabFileMap Mapa de pestañas a archivos.
+     */
+    public void onShowLocalHistory(ActionEvent event, TabPane tabPane, Map<Tab, File> tabFileMap) {
+        Tab tab = fxUtils.getSelectedTab(tabPane);
+        if (tab == null) return;
+        File file = tabFileMap.get(tab);
+        if (file == null) {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.initOwner(fxUtils.getStage(tabPane));
+            alert.setTitle("Historial Local");
+            alert.setHeaderText(null);
+            alert.setContentText("El archivo actual no está guardado en disco.");
+            alert.showAndWait();
+            return;
+        }
+
+        var snapshots = LocalHistoryService.getSnapshots(file);
+        if (snapshots.isEmpty()) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.initOwner(fxUtils.getStage(tabPane));
+            alert.setTitle("Historial Local");
+            alert.setHeaderText(null);
+            alert.setContentText("No hay snapshots previos guardados para este archivo.");
+            alert.showAndWait();
+            return;
+        }
+
+        Dialog<LocalHistoryService.HistoryEntry> dialog = new Dialog<>();
+        dialog.initOwner(fxUtils.getStage(tabPane));
+        dialog.setTitle("Historial Local — " + file.getName());
+        dialog.setHeaderText("Selecciona un snapshot anterior para restaurar:");
+
+        ButtonType restoreButtonType = new ButtonType("Restaurar", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(restoreButtonType, ButtonType.CANCEL);
+
+        ListView<LocalHistoryService.HistoryEntry> listView = new ListView<>();
+        listView.getItems().setAll(snapshots);
+        listView.setPrefSize(450, 250);
+
+        TextArea previewArea = new TextArea();
+        previewArea.setEditable(false);
+        previewArea.setPrefSize(450, 250);
+
+        listView.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> {
+            if (newV != null) {
+                previewArea.setText(LocalHistoryService.loadSnapshotContent(newV.snapshotFile()));
+            }
+        });
+        if (!snapshots.isEmpty()) {
+            listView.getSelectionModel().select(0);
+        }
+
+        HBox content = new HBox(10, listView, previewArea);
+        content.setPadding(new Insets(10));
+        dialog.getDialogPane().setContent(content);
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == restoreButtonType) {
+                return listView.getSelectionModel().getSelectedItem();
+            }
+            return null;
+        });
+
+        java.util.Optional<LocalHistoryService.HistoryEntry> result = dialog.showAndWait();
+        result.ifPresent(entry -> {
+            String contentStr = LocalHistoryService.loadSnapshotContent(entry.snapshotFile());
+            CodeArea codeArea = fxUtils.getCurrentCodeArea(tabPane);
+            if (codeArea != null) {
+                codeArea.replaceText(contentStr);
+            }
+        });
     }
 
 }

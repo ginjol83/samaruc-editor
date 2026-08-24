@@ -76,7 +76,7 @@ public class MainApp extends Application {
     }
 
     /**
-     * Método de parada de la aplicación, se llama al cerrar la ventana.
+     * Metodo de parada de la aplicación, se llama al cerrar la ventana.
      */
     @Override
     public void stop() {

@@ -48,6 +48,7 @@ public class UIElements {
     public MenuItem menuItemGuardar;
     public MenuItem menuItemGuardarTodo;
     public MenuItem menuItemCompilar;
+    public MenuItem menuItemCompilarYEjecutar;
     public MenuItem menuItemEjecutar;
     public MenuItem menuItemFindProject;
     public MenuItem menuItemGuardarComo;

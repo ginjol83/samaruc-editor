@@ -17,6 +17,7 @@ import java.net.URI;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.File;
+import java.text.MessageFormat;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -29,8 +30,10 @@ import com.retroeditor.controller.config.ConfigDialogCoordinator;
 import com.retroeditor.controller.editor.EditOptionsController;
 import com.retroeditor.controller.editor.FileOptionsController;
 import com.retroeditor.controller.tools.TileEditorController;
+import com.retroeditor.controller.tools.StructureViewController;
 import com.retroeditor.controller.tools.PngToZxConverterController;
 import com.retroeditor.controller.tools.PngToGameBoyConverterController;
+import com.retroeditor.controller.tools.GameBoyAudioEditorController;
 import com.retroeditor.controller.terminal.TerminalController;
 import com.retroeditor.controller.search.ProjectContextPort;
 import com.retroeditor.controller.search.SearchController;
@@ -46,9 +49,12 @@ import com.retroeditor.service.HomeReleaseNotesService;
 import com.retroeditor.service.PluginApplicationService;
 import com.retroeditor.service.ProjectSearchService;
 import com.retroeditor.service.TextSearchService;
+import com.retroeditor.service.FileTemplateService;
+import com.retroeditor.service.ProjectStatisticsService;
 import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.service.ConfigRepository;
 import com.retroeditor.service.WorkspaceService;
+import com.retroeditor.service.CodeFormatterService;
 import com.retroeditor.model.WorkspaceModel;
 import com.retroeditor.service.LanguageService;
 import com.retroeditor.service.AppLogger;
@@ -58,6 +64,7 @@ import com.retroeditor.model.EditorModel;
 
 import com.retroeditor.util.CompilationDiagnosticsUiHelper;
 import com.retroeditor.util.FXUtils;
+import com.retroeditor.util.AppInfo;
 
 import com.retroeditor.view.UIElements;
 
@@ -80,7 +87,10 @@ import javafx.scene.control.ToolBar;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ButtonType;
-import javafx.scene.control.TextField;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.ListCell;
+import javafx.scene.control.ListView;
 
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.ClipboardContent;
@@ -89,6 +99,7 @@ import javafx.scene.input.Clipboard;
 import javafx.scene.input.KeyCode;
 
 import javafx.scene.layout.AnchorPane;
+import javafx.scene.layout.StackPane;
 
 import org.fxmisc.richtext.StyleClassedTextArea;
 import org.fxmisc.richtext.CodeArea;
@@ -119,6 +130,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private final TileEditorController    tileEditorController    = new TileEditorController();
     private final PngToZxConverterController pngToZxConverterController = new PngToZxConverterController();
     private final PngToGameBoyConverterController pngToGameBoyConverterController = new PngToGameBoyConverterController();
+    private final GameBoyAudioEditorController    gameBoyAudioEditorController    = new GameBoyAudioEditorController();
     private final TerminalController      terminalController      = new TerminalController();
     private final BuildController         buildController         = new BuildController();
     private final HelpController          helpController          = new HelpController();
@@ -131,6 +143,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private final ProjectPlatformDetectionService projectPlatformDetectionService = new ProjectPlatformDetectionService();
     private final ProjectSearchService projectSearchService = new ProjectSearchService();
     private final TextSearchService textSearchService = new TextSearchService();
+    private final FileTemplateService fileTemplateService = new FileTemplateService();
     private final HomeReleaseNotesService homeReleaseNotesService = new HomeReleaseNotesService();
 
     private int newFileCounter = 1;
@@ -191,6 +204,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private MenuItem menuItemNuevoProyecto;
     @FXML private MenuItem menuItemAbrirProyecto;
     @FXML private MenuItem menuItemNuevo;
+    @FXML private MenuItem menuItemNuevoPlantilla;
     @FXML private MenuItem menuItemAbrir;
     @FXML private MenuItem menuItemSalir;
     @FXML private MenuItem menuItemCerrar;
@@ -201,6 +215,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private MenuItem menuItemGuardarTodo;
     @FXML private MenuItem menuItemRehacer;
     @FXML private MenuItem menuItemCompilar;
+    @FXML private MenuItem menuItemCompilarYEjecutar;
     @FXML private MenuItem menuItemEjecutar;
     @FXML private MenuItem menuItemDeshacer;
     @FXML private MenuItem menuItemGuardarComo;
@@ -211,18 +226,18 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private MenuItem menuClearRecentFiles;
     private MenuItem menuClearRecentProjects;
     @FXML private AnchorPane projectExplorerAnchor;
+    @FXML private AnchorPane structureViewAnchor;
+    private StructureViewController structureViewController;
     @FXML private TabPane outputTabPane;
     @FXML private Tab tabTerminal;
     @FXML private StyleClassedTextArea consoleOutputArea;
     @FXML private StyleClassedTextArea debuggerOutputArea;
-    @FXML private StyleClassedTextArea terminalOutputArea;
-    @FXML private TextField txtTerminalInput;
+    @FXML private StackPane terminalContainer;
     @FXML private Button btnConsoleTop;
     @FXML private Button btnConsoleBottom;
     @FXML private Button btnClearConsole;
     @FXML private Button btnCopyConsole;
     @FXML private Button btnClearMonitor;
-    @FXML private Button btnTerminalSend;
     @FXML private Button btnTerminalRestart;
     @FXML private Button btnTerminalClear;
     @FXML private Label lblConsoleDotError;
@@ -266,6 +281,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         elements.menuItemConfig = menuItemConfig;
         elements.menuItemSalir = menuItemSalir;
         elements.menuItemCompilar = menuItemCompilar;
+        elements.menuItemCompilarYEjecutar = menuItemCompilarYEjecutar;
         elements.menuItemEjecutar = menuItemEjecutar;
         elements.menuItemFind = menuItemFind;
         elements.menuItemFindProject = menuItemFindProject;
@@ -300,6 +316,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private static final KeyCombination ACCEL_FIND_PROJECT = new KeyCodeCombination(KeyCode.H, KeyCombination.CONTROL_DOWN);
     private static final KeyCombination ACCEL_MOVE_UP      = new KeyCodeCombination(KeyCode.UP, KeyCombination.ALT_DOWN);
     private static final KeyCombination ACCEL_MOVE_DOWN    = new KeyCodeCombination(KeyCode.DOWN, KeyCombination.ALT_DOWN);
+    private static final KeyCombination ACCEL_TOGGLE_COMMENT = new KeyCodeCombination(KeyCode.SLASH, KeyCombination.CONTROL_DOWN);
+    private static final KeyCombination ACCEL_AUTO_COMPLETE = new KeyCodeCombination(KeyCode.SPACE, KeyCombination.CONTROL_DOWN);
+    private static final KeyCombination ACCEL_FORMAT_CODE   = new KeyCodeCombination(KeyCode.L, KeyCombination.CONTROL_DOWN, KeyCombination.ALT_DOWN);
     private static final KeyCombination ACCEL_BUILD        = new KeyCodeCombination(KeyCode.F5);
     private static final KeyCombination ACCEL_RUN          = new KeyCodeCombination(KeyCode.F6);
 
@@ -307,6 +326,8 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     public void initialize() {
         // Cargar configuración del usuario (incluye gbdk_bin)
         configModel.applyProperties(configRepository.load(userConfigFile));
+
+        buildController.setEmbeddedTerminalController(terminalController);
 
         // Leer idioma desde configModel (ya cargado por getDefaultLanguage)
         String lang     = configModel.getConfigProperty("idioma", "es");
@@ -321,6 +342,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         syntaxHighlighter   = new SyntaxHighlighter();
         fxUtils             = new FXUtils();
         fxUtils.setEditorAppearance(configModel.getConfigProperty(EDITOR_APPEARANCE_PROPERTY, ConfigModel.EDITOR_APPEARANCE_MODERN_DARK));
+        fxUtils.setDoubleClickHandler((symbol, area) -> navigateToDefinition(symbol));
         restoreDialogDirectories();
         setupRecentMenus();
         refreshRecentMenus();
@@ -362,6 +384,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
                 applyDiagnosticsForTab(newTab);
                 persistSessionState();
+                if (structureViewController != null) {
+                    structureViewController.setActiveCodeArea(fxUtils.getCurrentCodeArea(tabPane));
+                }
             });
 
             // Listener para cuando se cierran pestañas
@@ -381,6 +406,18 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             projectExplorerController = loader.getController();
             projectExplorerController.setMainController(this);
             projectExplorerAnchor.getChildren().setAll(explorer);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // Cargar StructureView
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/views/StructureView.fxml"));
+            Parent structure = loader.load();
+            structureViewController = loader.getController();
+            if (structureViewAnchor != null) {
+                structureViewAnchor.getChildren().setAll(structure);
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -423,9 +460,17 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             });
         }
 
-        if (terminalOutputArea != null) {
+        if (terminalContainer != null) {
             terminalController.setEnableLogging(configModel.isEnableLogs());
-            terminalController.startWindowsTerminal(terminalOutputArea);
+            terminalController.setTerminalShell(configModel.getConfigProperty("terminal_shell", "auto"));
+            terminalController.startTerminal(terminalContainer);
+            if (tabTerminal != null) {
+                tabTerminal.selectedProperty().addListener((obs, wasSelected, selected) -> {
+                    if (selected) {
+                        terminalController.requestTerminalFocus();
+                    }
+                });
+            }
         }
 
         if (lblCompileStatus != null) {
@@ -514,9 +559,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (btnConsoleBottom != null) {
             btnConsoleBottom.setTooltip(new Tooltip(bundle.getString("tooltip.console.bottom")));
         }
-        if (btnTerminalSend != null) {
-            btnTerminalSend.setTooltip(new Tooltip(msg("tooltip.terminal.send", "Enviar comando a la terminal")));
-        }
         if (btnTerminalRestart != null) {
             btnTerminalRestart.setTooltip(new Tooltip(msg("tooltip.terminal.restart", "Reiniciar terminal")));
         }
@@ -551,6 +593,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemNuevoProyecto != null) menuItemNuevoProyecto.setText(bundle.getString("button.newProject"));
         if (menuItemAbrirProyecto != null) menuItemAbrirProyecto.setText(bundle.getString("button.openProject"));
         if (menuItemNuevo         != null) menuItemNuevo.setText(bundle.getString("button.new"));
+        if (menuItemNuevoPlantilla != null) menuItemNuevoPlantilla.setText(bundle.getString("menu.file.newFromTemplate"));
         if (menuItemAbrir         != null) menuItemAbrir.setText(bundle.getString("button.open"));
         if (menuItemGuardar       != null) menuItemGuardar.setText(bundle.getString("button.save"));
         if (menuItemGuardarComo   != null) menuItemGuardarComo.setText(bundle.getString("button.saveAs"));
@@ -575,6 +618,11 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemPluginManual  != null) menuItemPluginManual.setText(bundle.getString("menu.help.pluginsManual"));
         if (menuItemLicenses      != null) menuItemLicenses.setText(bundle.getString("menu.help.licenses"));
         if (menuItemCreditos      != null) menuItemCreditos.setText(bundle.getString("menu.help.credits"));
+        
+        if (lblFooter != null) {
+            lblFooter.setText("Desarrollado por Andres Gimenez © 2025 - v" + AppInfo.getVersion());
+        }
+
         updateOutputTabsI18n();
         applyDiagnosticLegendI18n();
 
@@ -603,6 +651,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemCompilar != null) {
             menuItemCompilar.disableProperty().bind(buildController.compilationRunningProperty());
         }
+        if (menuItemCompilarYEjecutar != null) {
+            menuItemCompilarYEjecutar.disableProperty().bind(buildController.compilationRunningProperty());
+        }
         if (menuItemEjecutar != null) {
             menuItemEjecutar.disableProperty().bind(buildController.compilationRunningProperty());
         }
@@ -619,6 +670,80 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         editOptionsController.onGoToLine(event, tabPane, bundle);
     }
 
+    @FXML
+    private void onGoToDefinition(ActionEvent event) {
+        CodeArea codeArea = fxUtils.getCurrentCodeArea(tabPane);
+        if (codeArea == null) return;
+        String text = codeArea.getText();
+        int caret = codeArea.getCaretPosition();
+        String symbol = editOptionsController.extractWordAtCaret(text, caret);
+        if (symbol == null || symbol.isBlank()) return;
+        navigateToDefinition(symbol);
+    }
+
+    private void navigateToDefinition(String symbol) {
+        Tab selectedTab = fxUtils.getSelectedTab(tabPane);
+        File currentFile = selectedTab != null ? tabFileMap.get(selectedTab) : null;
+
+        EditOptionsController.DefinitionResult result = editOptionsController.findDefinition(
+            symbol, currentFile, currentProjectDir, tabFileMap, editorModel
+        );
+
+        if (result != null) {
+            openFileFromExplorer(result.getFile());
+            Platform.runLater(() -> {
+                editOptionsController.goToLine(tabPane, result.getLine());
+                UserActionMonitor.goToLineExecuted(result.getLine());
+            });
+        } else {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle(msg("dialog.definition.notfound.title", "Ir a definición"));
+            alert.setHeaderText(null);
+            alert.setContentText(msgFmt("dialog.definition.notfound.symbol", "No se encontró la definición de ''{0}''.", symbol));
+            alert.showAndWait();
+        }
+    }
+
+    private String msgFmt(String key, String fallback, Object... args) {
+        return MessageFormat.format(msg(key, fallback), args);
+    }
+
+    private TabPane secondaryTabPane = null;
+    private javafx.scene.control.SplitPane editorSplitPane = null;
+
+    @FXML
+    private void onSplitEditor(ActionEvent event) {
+        if (editorSplitPane == null) {
+            secondaryTabPane = new TabPane();
+            secondaryTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
+
+            javafx.scene.Parent parent = tabPane.getParent();
+            if (parent instanceof javafx.scene.layout.Pane pane) {
+                int idx = pane.getChildren().indexOf(tabPane);
+                if (idx >= 0) {
+                    editorSplitPane = new javafx.scene.control.SplitPane();
+                    editorSplitPane.setOrientation(javafx.geometry.Orientation.HORIZONTAL);
+                    pane.getChildren().remove(tabPane);
+                    editorSplitPane.getItems().addAll(tabPane, secondaryTabPane);
+                    editorSplitPane.setDividerPositions(0.5);
+                    pane.getChildren().add(idx, editorSplitPane);
+                }
+            }
+        } else {
+            javafx.scene.Parent parent = editorSplitPane.getParent();
+            if (parent instanceof javafx.scene.layout.Pane pane) {
+                int idx = pane.getChildren().indexOf(editorSplitPane);
+                if (idx >= 0) {
+                    editorSplitPane.getItems().remove(tabPane);
+                    pane.getChildren().remove(editorSplitPane);
+                    pane.getChildren().add(idx, tabPane);
+                    editorSplitPane = null;
+                    secondaryTabPane = null;
+                }
+            }
+        }
+    }
+
 
     @FXML
     private void onFindInProject(ActionEvent event) {
@@ -627,6 +752,11 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     @FXML
     private void onCompilar(ActionEvent event) {
+        boolean saved = fileOptionsController.onSaveFile(event, tabPane, tabFileMap, editorModel);
+        if (!saved) {
+            terminalController.appendConsoleOutput("No se puede compilar: el archivo no está guardado.", consoleOutputArea);
+            return;
+        }
         lastCompilationHasErrors = false;
         lastCompilationHasWarnings = false;
         updateCompileStatusUI();
@@ -658,6 +788,22 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             currentProjectDir,
             getStage()
         );
+    }
+
+    @FXML
+    private void onCompilarYEjecutar(ActionEvent event) {
+        onEjecutar(event);
+    }
+
+    @FXML
+    public void onFormatCode(ActionEvent event) {
+        Tab tab = fxUtils.getSelectedTab(tabPane);
+        if (tab == null) return;
+        CodeArea codeArea = fxUtils.getCodeArea(tab);
+        if (codeArea == null) return;
+        String fileName = tab.getText();
+        String formatted = CodeFormatterService.formatCode(codeArea.getText(), fileName);
+        codeArea.replaceText(formatted);
     }
 
     @FXML
@@ -770,6 +916,14 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         }
     }
 
+    /**
+     * Resuelve una clave i18n para las plantillas; devuelve null si no se encuentra
+     * para que el servicio use el texto por defecto de la plantilla.
+     */
+    private String msgFromBundle(String key) {
+        return msg(key, null);
+    }
+
     public File getCurrentProjectDir() { return currentProjectDir; }
 
     // Expose MenuBar for plugins or other host integrations
@@ -778,6 +932,10 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     public void setProyectoActual(File carpeta) {
         this.currentProjectDir = carpeta;
         UserActionMonitor.projectSet(carpeta != null ? carpeta.getName() : null);
+
+        if (terminalController != null) {
+            terminalController.restartTerminalIfWorkingDirectoryChanged(terminalContainer, carpeta);
+        }
 
         // Cargar workspace si existe
         if (carpeta != null) {
@@ -858,6 +1016,38 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 return;
             }
             showOpenFileError(file, e);
+        }
+    }
+
+    public void openFileInSecondaryTab(File file) {
+        if (file == null || !file.isFile()) return;
+        if (editorSplitPane == null) {
+            onSplitEditor(null);
+        }
+        if (secondaryTabPane == null) return;
+
+        for (Map.Entry<Tab, File> entry : tabFileMap.entrySet()) {
+            if (file.equals(entry.getValue()) && secondaryTabPane.getTabs().contains(entry.getKey())) {
+                secondaryTabPane.getSelectionModel().select(entry.getKey());
+                return;
+            }
+        }
+
+        try {
+            String content = editorModel != null ? editorModel.getFileContent(file) : null;
+            if (content == null) {
+                editorModel.openFile(file);
+                content = editorModel.getFileContent(file);
+            }
+            boolean isMarkdown = file.getName().toLowerCase(Locale.ROOT).endsWith(".md");
+            Tab tab = isMarkdown 
+                ? fxUtils.addMarkdownTab(file.getName(), content, syntaxHighlighter, secondaryTabPane)
+                : fxUtils.addTab(file.getName(), content, syntaxHighlighter, secondaryTabPane);
+            
+            tabFileMap.put(tab, file.getAbsoluteFile());
+            secondaryTabPane.getSelectionModel().select(tab);
+        } catch (Exception ex) {
+            ex.printStackTrace();
         }
     }
 
@@ -1357,6 +1547,65 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     @FXML
+    private void onNuevoArchivoDesdePlantilla(ActionEvent event) {
+        if (this.currentProjectDir == null) {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle(bundle.getString("alert.project.notOpen.title"));
+            alert.setHeaderText(null);
+            alert.setContentText(bundle.getString("alert.project.notOpen.content"));
+            alert.showAndWait();
+            return;
+        }
+
+        List<FileTemplateService.FileTemplate> templates = fileTemplateService.getTemplates(this::msgFromBundle);
+        if (templates.isEmpty()) return;
+
+        Dialog<FileTemplateService.FileTemplate> dialog = new Dialog<>();
+        dialog.setTitle(bundle.getString("dialog.template.title"));
+        dialog.setHeaderText(bundle.getString("dialog.template.header"));
+
+        ButtonType createType = new ButtonType(bundle.getString("dialog.template.confirm"), ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancelType = new ButtonType(bundle.getString("dialog.template.cancel"), ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(createType, cancelType);
+
+        ListView<FileTemplateService.FileTemplate> listView = new ListView<>();
+        listView.getItems().setAll(templates);
+        listView.setPrefSize(500, 240);
+        listView.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(FileTemplateService.FileTemplate item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                } else {
+                    setText(item.name() + "  (" + item.fileName() + ")" + System.lineSeparator() + item.description());
+                }
+            }
+        });
+        listView.getSelectionModel().select(0);
+
+        dialog.getDialogPane().setContent(listView);
+        dialog.setResultConverter(button -> button == createType ? listView.getSelectionModel().getSelectedItem() : null);
+
+        Optional<FileTemplateService.FileTemplate> result = dialog.showAndWait();
+        result.ifPresent(template -> createFileFromTemplate(template));
+    }
+
+    private void createFileFromTemplate(FileTemplateService.FileTemplate template) {
+        try {
+            Path target = fileTemplateService.createTemplateFile(template, currentProjectDir.toPath());
+            File created = target.toFile();
+            openFileFromExplorer(created);
+        } catch (IOException ex) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle(bundle.getString("alert.template.error.title"));
+            alert.setHeaderText(null);
+            alert.setContentText(bundle.getString("alert.template.error.content").replace("{0}", ex.getMessage()));
+            alert.showAndWait();
+        }
+    }
+
+    @FXML
     private void onExit(ActionEvent event) { 
         shutdown();
         UserActionMonitor.tabClosed("Aplicación cerrada por el usuario");
@@ -1370,7 +1619,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         } catch (Exception ignored) {
         }
         try {
-            terminalController.stopWindowsTerminal(terminalOutputArea);
+            terminalController.stopTerminal();
         } catch (Exception ignored) {
         }
     }
@@ -1392,21 +1641,13 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     @FXML
-    private void onTerminalSend(ActionEvent event) {
-        if (txtTerminalInput == null) return;
-        String command = txtTerminalInput.getText() != null ? txtTerminalInput.getText() : "";
-        terminalController.sendTerminalCommand(command, terminalOutputArea);
-        txtTerminalInput.clear();
-    }
-
-    @FXML
     private void onTerminalClear(ActionEvent event) {
-        terminalController.clearTerminalOutput(terminalOutputArea);
+        terminalController.clearTerminal();
     }
 
     @FXML
     private void onTerminalRestart(ActionEvent event) {
-        terminalController.restartWindowsTerminal(terminalOutputArea);
+        terminalController.restartTerminal(terminalContainer);
     }
 
     @FXML
@@ -1572,6 +1813,33 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     @FXML
+    private void onOpenProjectStats(ActionEvent event) {
+        if (currentProjectDir == null) {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle(bundle != null ? bundle.getString("alert.project.notOpen.title") : "Aviso");
+            alert.setHeaderText(null);
+            alert.setContentText(bundle != null ? bundle.getString("alert.project.notOpen.content") : "No hay ningún proyecto abierto.");
+            alert.showAndWait();
+            return;
+        }
+
+        ProjectStatisticsService statsService = new ProjectStatisticsService();
+        ProjectStatisticsService.ProjectStats stats = statsService.calculateStats(currentProjectDir);
+
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Estadísticas del proyecto");
+        alert.setHeaderText("Estadísticas para: " + currentProjectDir.getName());
+        alert.setContentText(String.format(
+            "Archivos totales: %d\nLíneas de código (LOC): %d\nTamaño ROM / binarios: %d bytes\nArchivos de tiles/sprites: %d",
+            stats.getTotalFiles(),
+            stats.getTotalLinesOfCode(),
+            stats.getRomSizeBytes(),
+            stats.getTileFilesCount()
+        ));
+        alert.showAndWait();
+    }
+
+    @FXML
     private void onOpenPngToZxConverter(ActionEvent event) {
         pngToZxConverterController.open(
             getStage(),
@@ -1590,6 +1858,22 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML
     private void onOpenPngToGameBoyConverter(ActionEvent event) {
         pngToGameBoyConverterController.open(
+            getStage(),
+            currentProjectDir,
+            bundle,
+            exportedFile -> {
+                if (projectExplorerController != null) {
+                    projectExplorerController.refreshTree();
+                }
+                openFileFromExplorer(exportedFile);
+                persistSessionState();
+            }
+        );
+    }
+
+    @FXML
+    private void onOpenGameBoyAudioEditor(ActionEvent event) {
+        gameBoyAudioEditorController.open(
             getStage(),
             currentProjectDir,
             bundle,
@@ -1652,6 +1936,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
         CompilationDiagnosticParserService.DiagnosticLocation location =
             compilationDiagnosticParserService.parseConsoleFileLine(lineText, this::resolveConsoleFileReference);
+        if (location == null) {
+            location = compilationDiagnosticParserService.parseCompilerDiagnosticLocation(null, lineText, this::resolveConsoleFileReference);
+        }
         if (location == null) return null;
         return new FileLineLocation(location.getFile(), location.getLine());
     }
@@ -1726,11 +2013,8 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (btnPaste            != null) btnPaste.setTooltip(new Tooltip(bundle.getString("button.paste")));
         if (btnConsoleTop       != null) btnConsoleTop.setTooltip(new Tooltip(bundle.getString("tooltip.console.top")));
         if (btnConsoleBottom    != null) btnConsoleBottom.setTooltip(new Tooltip(bundle.getString("tooltip.console.bottom")));
-        if (btnTerminalSend     != null) btnTerminalSend.setText(msg("terminal.button.send", "Enviar"));
-        if (btnTerminalSend     != null) btnTerminalSend.setTooltip(new Tooltip(msg("tooltip.terminal.send", "Enviar comando a la terminal")));
         if (btnTerminalRestart  != null) btnTerminalRestart.setTooltip(new Tooltip(msg("tooltip.terminal.restart", "Reiniciar terminal")));
         if (btnTerminalClear    != null) btnTerminalClear.setTooltip(new Tooltip(msg("tooltip.terminal.clear", "Limpiar terminal")));
-        if (txtTerminalInput    != null) txtTerminalInput.setPromptText(msg("terminal.input.prompt", "Escribe un comando y pulsa Enter"));
         updateCompileStatusUI();
 
         if (menuArchivo         != null) menuArchivo.setText(bundle.getString("menu.file"));
@@ -1742,6 +2026,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemNuevoProyecto != null) menuItemNuevoProyecto.setText(bundle.getString("button.newProject"));
         if (menuItemAbrirProyecto != null) menuItemAbrirProyecto.setText(bundle.getString("button.openProject"));
         if (menuItemNuevo       != null) menuItemNuevo.setText(bundle.getString("button.new"));
+        if (menuItemNuevoPlantilla != null) menuItemNuevoPlantilla.setText(bundle.getString("menu.file.newFromTemplate"));
         if (menuItemAbrir       != null) menuItemAbrir.setText(bundle.getString("button.open"));
         if (menuItemGuardar     != null) menuItemGuardar.setText(bundle.getString("button.save"));
         if (menuItemGuardarComo != null) menuItemGuardarComo.setText(bundle.getString("button.saveAs"));
@@ -1766,6 +2051,11 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemPluginManual != null) menuItemPluginManual.setText(bundle.getString("menu.help.pluginsManual"));
         if (menuItemLicenses    != null) menuItemLicenses.setText(bundle.getString("menu.help.licenses"));
         if (menuItemCreditos    != null) menuItemCreditos.setText(bundle.getString("menu.help.credits"));
+        
+        if (lblFooter != null) {
+            lblFooter.setText("Desarrollado por Andres Gimenez © 2025 - v" + AppInfo.getVersion());
+        }
+
         updateOutputTabsI18n();
         refreshRecentMenus();
         applyDiagnosticLegendI18n();
@@ -2421,6 +2711,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
         scene.getAccelerators().put(ACCEL_MOVE_UP, () -> editOptionsController.moveLinesUp(tabPane));
         scene.getAccelerators().put(ACCEL_MOVE_DOWN, () -> editOptionsController.moveLinesDown(tabPane));
+        scene.getAccelerators().put(ACCEL_TOGGLE_COMMENT, () -> editOptionsController.toggleLineComments(tabPane));
+        scene.getAccelerators().put(ACCEL_AUTO_COMPLETE, () -> editOptionsController.showAutoComplete(tabPane));
+        scene.getAccelerators().put(ACCEL_FORMAT_CODE, () -> onFormatCode(null));
 
         scene.getAccelerators().put(ACCEL_BUILD, () -> onCompilar(null));
         scene.getAccelerators().put(ACCEL_RUN, () -> onEjecutar(null));

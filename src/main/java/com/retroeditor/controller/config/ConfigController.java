@@ -50,6 +50,7 @@ import javafx.stage.Stage;
 public class ConfigController {
     private static final String COMPILER_GBDK      = "GBDK";
     private static final String COMPILER_Z88DK     = "z88dk";
+    private static final String COMPILER_GCC       = "gcc";
     private static final String COMPILER_MAKEFILE  = "Makefile";
     private static final String LEGACY_DISPLAY_Z88DK = "Z88DK";
     private static final String LEGACY_SPECTRUM    = "Spectrum";
@@ -58,6 +59,7 @@ public class ConfigController {
     private static final String EMULATOR_EMULICIOUS = "Emulicious";
     private static final String EMULATOR_JSPECCY   = "JSpeccy";
     private static final String EMULATOR_CPCBOX_WEB = "CPCBoxWeb";
+    private static final String EMULATOR_ALTIRRA   = ConfigModel.EMULATOR_ALTIRRA;
 
     @FXML private TabPane          tabPaneConfig;
     @FXML private TabPane          tabPaneCompilerOptions;
@@ -93,6 +95,37 @@ public class ConfigController {
     @FXML private TextField        txtMakeBuildTarget;
     @FXML private TextField        txtMakeRunTarget;
     @FXML private TextField        txtMakeExtraArgs;
+    @FXML private TextField        txtGccBin;
+    @FXML private TextField        txtGccDefines;
+    @FXML private TextField        txtGccIncludes;
+    @FXML private TextField        txtGccExtraArgs;
+    @FXML private ComboBox<String> comboGccOptLevel;
+    @FXML private Tab              tabCompilerGcc;
+    @FXML private Label            lblGccBin;
+    @FXML private Label            lblGccOpts;
+    @FXML private Label            lblGccOptLevel;
+    @FXML private Label            lblGccDefines;
+    @FXML private Label            lblGccIncludes;
+    @FXML private Label            lblGccExtraArgs;
+    @FXML private Button           btnSeleccionarGccBin;
+    @FXML private Button           btnSaveGccOpts;
+    @FXML private TextField        txtCc65Bin;
+    @FXML private TextField        txtAltirraBin;
+    @FXML private TextField        txtCc65Defines;
+    @FXML private TextField        txtCc65Includes;
+    @FXML private TextField        txtCc65ExtraArgs;
+    @FXML private ComboBox<String> comboCc65OptLevel;
+    @FXML private Tab              tabCompilerCc65;
+    @FXML private Label            lblCc65Bin;
+    @FXML private Label            lblAltirraBin;
+    @FXML private Label            lblCc65Opts;
+    @FXML private Label            lblCc65OptLevel;
+    @FXML private Label            lblCc65Defines;
+    @FXML private Label            lblCc65Includes;
+    @FXML private Label            lblCc65ExtraArgs;
+    @FXML private Button           btnSeleccionarCc65Bin;
+    @FXML private Button           btnSeleccionarAltirraBin;
+    @FXML private Button           btnSaveCc65Opts;
     @FXML private Tab              tabIdioma;
     @FXML private Tab              tabAppearance;
     @FXML private Tab              tabCompilador;
@@ -140,6 +173,7 @@ public class ConfigController {
     @FXML private Button           btnSaveMakeOpts;
     @FXML private ComboBox<String> comboIdioma;
     @FXML private ComboBox<String> comboEditorAppearance;
+    @FXML private ComboBox<String> comboTerminalShell;
     @FXML private ComboBox<String> comboReadmeLanguage;
     @FXML private ComboBox<String> comboCompilador;
 
@@ -182,6 +216,7 @@ public class ConfigController {
     private Runnable onLanguageChanged;
     private boolean syncingCompilerUi = false;
     private final Map<String, String> editorAppearanceCodeByLabel = new HashMap<>();
+    private final Map<String, String> terminalShellCodeByLabel = new HashMap<>();
 
     private ConfigModel configModel = new ConfigModel();
     private ConfigRepository configRepository = new PropertiesConfigRepository();
@@ -304,6 +339,7 @@ public class ConfigController {
 
         loadLanguageSelectionsFromConfig();
         loadEditorAppearanceFromConfig();
+        loadTerminalShellFromConfig();
 
         if (chkEnableLogs != null) {
             chkEnableLogs.setSelected(configModel.isEnableLogs());
@@ -319,6 +355,8 @@ public class ConfigController {
         loadZ88dkFlagsFromConfig();
         loadGbdkOptsFromConfig();
         loadMakeOptsFromConfig();
+        loadGccOptsFromConfig();
+        loadCc65OptsFromConfig();
         loadProjectDetectionPrefsFromConfig();
         if (txtMarketplaceUrl != null) {
             txtMarketplaceUrl.setText(configModel.getConfigProperty("marketplace_catalog_url", PluginMarketplaceService.DEFAULT_MARKETPLACE_URL));
@@ -385,6 +423,8 @@ public class ConfigController {
         loadZ88dkFlagsFromConfig();
         loadGbdkOptsFromConfig();
         loadMakeOptsFromConfig();
+        loadGccOptsFromConfig();
+        loadCc65OptsFromConfig();
         loadProjectDetectionPrefsFromConfig();
         if (txtMarketplaceUrl != null) {
             txtMarketplaceUrl.setText(configModel.getConfigProperty("marketplace_catalog_url", PluginMarketplaceService.DEFAULT_MARKETPLACE_URL));
@@ -1019,6 +1059,7 @@ public class ConfigController {
             String path = txtGbdkBin.getText();
             configModel.setConfigProperty("gbdk_bin", path);
             persistConfig();
+            persistCompilerSettingsToActiveWorkspace();
             UserActionMonitor.compilerPathUpdated("GBDK", path);
         }
     }
@@ -1106,6 +1147,32 @@ public class ConfigController {
         if (txtMakeBuildTarget != null) workspace.setSetting("make_build_target", txtMakeBuildTarget.getText());
         if (txtMakeRunTarget != null) workspace.setSetting("make_run_target", txtMakeRunTarget.getText());
         if (txtMakeExtraArgs != null) workspace.setSetting("make_extra_args", txtMakeExtraArgs.getText());
+
+        // GCC / C nativo
+        if (txtGccBin != null) workspace.setSetting("gcc_bin", txtGccBin.getText());
+        if (comboGccOptLevel != null) workspace.setSetting("gcc_opt_level", comboGccOptLevel.getSelectionModel().getSelectedItem());
+        if (txtGccDefines != null) workspace.setSetting("gcc_defines", txtGccDefines.getText());
+        if (txtGccIncludes != null) workspace.setSetting("gcc_includes", txtGccIncludes.getText());
+        if (txtGccExtraArgs != null) workspace.setSetting("gcc_extra_args", txtGccExtraArgs.getText());
+    }
+
+    /**
+     * Cuando hay un proyecto activo, guarda la configuración de compilación capturada
+     * en el workspace del proyecto (workspace.json) para que sea específica del proyecto
+     * en lugar de quedar solo en la configuración global.
+     */
+    private void persistCompilerSettingsToActiveWorkspace() {
+        if (projectRoot == null || !projectRoot.isDirectory()) return;
+
+        WorkspaceModel workspace = configModel.getActiveWorkspace();
+        if (workspace == null) {
+            workspace = new WorkspaceModel();
+            workspace.setProjectName(projectRoot.getName());
+            configModel.setActiveWorkspace(workspace);
+        }
+
+        captureCompilerSettingsToWorkspace(workspace);
+        workspaceService.saveWorkspace(projectRoot, workspace);
     }
 
     /**
@@ -1151,6 +1218,8 @@ public class ConfigController {
             return;
         }
         persistGbdkOpts(false);
+        persistGccOpts(false);
+        persistCc65Opts(false);
         if (!persistProjectDetectionPrefs(false)) {
             return;
         }
@@ -1165,6 +1234,7 @@ public class ConfigController {
 
         saveCompilerSelection(selectedCompiler, z88dkProfile, false);
         persistConfig();
+        persistCompilerSettingsToActiveWorkspace();
         UserActionMonitor.compilerChanged(selectedCompiler);
 
         showError(""); // Limpiar error
@@ -1176,6 +1246,7 @@ public class ConfigController {
                 COMPILER_GBDK,
                 getZ88dkSpectrumDisplayLabel(),
                 getZ88dkCpcDisplayLabel(),
+                getGccDisplayLabel(),
                 COMPILER_MAKEFILE
             );
             comboCompilador.setOnAction(this::onCompilerSelectionChanged);
@@ -1215,6 +1286,10 @@ public class ConfigController {
         } else if (newTab == tabCompilerZ88dkCpc) {
             selectedCompiler = COMPILER_Z88DK;
             profile = Z88DK_PROFILE_CPC;
+        } else if (newTab == tabCompilerGcc) {
+            selectedCompiler = COMPILER_GCC;
+        } else if (newTab == tabCompilerCc65) {
+            selectedCompiler = ConfigModel.COMPILER_CC65;
         } else if (newTab == tabCompilerMakefile) {
             selectedCompiler = COMPILER_MAKEFILE;
         } else {
@@ -1239,6 +1314,10 @@ public class ConfigController {
                     );
                 } else if (COMPILER_MAKEFILE.equalsIgnoreCase(normalizedCompiler) && tabCompilerMakefile != null) {
                     tabPaneCompilerOptions.getSelectionModel().select(tabCompilerMakefile);
+                } else if (ConfigModel.COMPILER_CC65.equalsIgnoreCase(normalizedCompiler) && tabCompilerCc65 != null) {
+                    tabPaneCompilerOptions.getSelectionModel().select(tabCompilerCc65);
+                } else if (COMPILER_GCC.equalsIgnoreCase(normalizedCompiler) && tabCompilerGcc != null) {
+                    tabPaneCompilerOptions.getSelectionModel().select(tabCompilerGcc);
                 } else if (tabCompilerGbdk != null) {
                     tabPaneCompilerOptions.getSelectionModel().select(tabCompilerGbdk);
                 }
@@ -1257,12 +1336,17 @@ public class ConfigController {
 
         if (persist) {
             persistConfig();
+            persistCompilerSettingsToActiveWorkspace();
         }
     }
 
     private String getEmulatorForCompiler(String compiler, String z88dkProfile) {
-        if (COMPILER_Z88DK.equalsIgnoreCase(normalizeCompiler(compiler))) {
+        String norm = normalizeCompiler(compiler);
+        if (COMPILER_Z88DK.equalsIgnoreCase(norm)) {
             return Z88DK_PROFILE_CPC.equals(normalizeZ88dkProfile(z88dkProfile)) ? EMULATOR_CPCBOX_WEB : EMULATOR_JSPECCY;
+        }
+        if (ConfigModel.COMPILER_CC65.equalsIgnoreCase(norm)) {
+            return EMULATOR_ALTIRRA;
         }
         return EMULATOR_EMULICIOUS;
     }
@@ -1300,6 +1384,19 @@ public class ConfigController {
             return COMPILER_Z88DK;
         }
 
+        if (COMPILER_GCC.equalsIgnoreCase(normalized)
+            || normalized.equalsIgnoreCase(getGccDisplayLabel())
+            || normalized.toLowerCase(Locale.ROOT).contains("gcc")) {
+            return COMPILER_GCC;
+        }
+
+        if (ConfigModel.COMPILER_CC65.equalsIgnoreCase(normalized)
+            || normalized.equalsIgnoreCase(getCc65DisplayLabel())
+            || normalized.toLowerCase(Locale.ROOT).contains("cc65")
+            || normalized.toLowerCase(Locale.ROOT).contains("atari")) {
+            return ConfigModel.COMPILER_CC65;
+        }
+
         return COMPILER_GBDK;
     }
 
@@ -1309,8 +1406,17 @@ public class ConfigController {
                 ? getZ88dkCpcDisplayLabel()
                 : getZ88dkSpectrumDisplayLabel();
         }
+        if (COMPILER_GCC.equalsIgnoreCase(normalizedCompiler)) return getGccDisplayLabel();
+        if (ConfigModel.COMPILER_CC65.equalsIgnoreCase(normalizedCompiler)) return getCc65DisplayLabel();
         if (COMPILER_MAKEFILE.equalsIgnoreCase(normalizedCompiler)) return COMPILER_MAKEFILE;
         return COMPILER_GBDK;
+    }
+
+    private String getCc65DisplayLabel() {
+        ResourceBundle bundle = getCurrentBundle();
+        return bundle.containsKey("config.compiler.option.cc65")
+            ? bundle.getString("config.compiler.option.cc65")
+            : "CC65 (Atari XE/XL)";
     }
 
     private String resolveZ88dkProfileFromSelection(String compilerLabel, String fallbackProfile) {
@@ -1336,6 +1442,13 @@ public class ConfigController {
             : "Z88DK (CPC)";
     }
 
+    private String getGccDisplayLabel() {
+        ResourceBundle bundle = getCurrentBundle();
+        return bundle.containsKey("config.compiler.option.gcc")
+            ? bundle.getString("config.compiler.option.gcc")
+            : "C normal (gcc)";
+    }
+
     private void refreshCompilerComboItems() {
         if (comboCompilador == null) return;
 
@@ -1346,6 +1459,7 @@ public class ConfigController {
             COMPILER_GBDK,
             getZ88dkSpectrumDisplayLabel(),
             getZ88dkCpcDisplayLabel(),
+            getGccDisplayLabel(),
             COMPILER_MAKEFILE
         );
         comboCompilador.getSelectionModel().select(toCompilerDisplayLabel(compiler, profile));
@@ -1371,6 +1485,7 @@ public class ConfigController {
             String path = txtSpectrumBin.getText();
             configModel.setConfigProperty("spectrum_bin", path);
             persistConfig();
+            persistCompilerSettingsToActiveWorkspace();
             UserActionMonitor.compilerPathUpdated("Z88DK-Spectrum", path);
         }
     }
@@ -1381,6 +1496,7 @@ public class ConfigController {
             String path = txtCpcBin.getText();
             configModel.setConfigProperty("cpc_bin", path);
             persistConfig();
+            persistCompilerSettingsToActiveWorkspace();
             UserActionMonitor.compilerPathUpdated("Z88DK-CPC", path);
         }
     }
@@ -1453,7 +1569,140 @@ public class ConfigController {
         configModel.setConfigProperty("gbdk_includes", txtGbdkIncludes != null ? txtGbdkIncludes.getText().trim() : "");
         configModel.setConfigProperty("gbdk_extra_args", txtGbdkExtraArgs != null ? txtGbdkExtraArgs.getText().trim() : "");
 
-        if (persist) persistConfig();
+        if (persist) {
+            persistConfig();
+            persistCompilerSettingsToActiveWorkspace();
+        }
+    }
+
+    private void loadGccOptsFromConfig() {
+        if (txtGccBin != null) {
+            txtGccBin.setText(configModel.getConfigProperty("gcc_bin", ""));
+        }
+        if (comboGccOptLevel != null) {
+            comboGccOptLevel.getItems().setAll(ConfigModel.GCC_OPT_LEVELS);
+            String selected = configModel.getConfigProperty("gcc_opt_level", ConfigModel.GCC_OPT_NONE);
+            comboGccOptLevel.getSelectionModel().select(selected);
+        }
+        if (txtGccDefines != null) {
+            txtGccDefines.setText(configModel.getConfigProperty("gcc_defines", ""));
+        }
+        if (txtGccIncludes != null) {
+            txtGccIncludes.setText(configModel.getConfigProperty("gcc_includes", ""));
+        }
+        if (txtGccExtraArgs != null) {
+            txtGccExtraArgs.setText(configModel.getConfigProperty("gcc_extra_args", ""));
+        }
+    }
+
+    private boolean persistGccOpts(boolean persist) {
+        String gccBin = txtGccBin != null ? txtGccBin.getText().trim() : "";
+        String optLevel = comboGccOptLevel != null && comboGccOptLevel.getValue() != null
+            ? comboGccOptLevel.getValue() : ConfigModel.GCC_OPT_NONE;
+
+        configModel.setConfigProperty("gcc_bin", gccBin);
+        configModel.setConfigProperty("gcc_opt_level", optLevel);
+        configModel.setConfigProperty("gcc_defines", txtGccDefines != null ? txtGccDefines.getText().trim() : "");
+        configModel.setConfigProperty("gcc_includes", txtGccIncludes != null ? txtGccIncludes.getText().trim() : "");
+        configModel.setConfigProperty("gcc_extra_args", txtGccExtraArgs != null ? txtGccExtraArgs.getText().trim() : "");
+
+        if (persist) {
+            persistConfig();
+            persistCompilerSettingsToActiveWorkspace();
+        }
+        return true;
+    }
+
+    @FXML
+    public void onSaveGccOpts(ActionEvent event) {
+        persistGccOpts(true);
+        showError("");
+    }
+
+    @FXML
+    public void onSeleccionarGccBin(ActionEvent event) {
+        javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
+
+        chooser.setTitle("Seleccionar carpeta bin de GCC");
+
+        File selectedDir = chooser.showDialog(txtGccBin.getScene().getWindow());
+
+        if (selectedDir != null) {
+            txtGccBin.setText(selectedDir.getAbsolutePath());
+            UserActionMonitor.compilerPathUpdated("GCC", selectedDir.getAbsolutePath());
+        }
+    }
+
+    private void loadCc65OptsFromConfig() {
+        if (txtCc65Bin != null) {
+            txtCc65Bin.setText(configModel.getConfigProperty("cc65_bin", ""));
+        }
+        if (txtAltirraBin != null) {
+            txtAltirraBin.setText(configModel.getConfigProperty("altirra_bin", ""));
+        }
+        if (comboCc65OptLevel != null) {
+            comboCc65OptLevel.getItems().setAll(ConfigModel.CC65_OPT_LEVELS);
+            String selected = configModel.getConfigProperty("cc65_opt_level", ConfigModel.CC65_OPT_NONE);
+            comboCc65OptLevel.getSelectionModel().select(selected);
+        }
+        if (txtCc65Defines != null) {
+            txtCc65Defines.setText(configModel.getConfigProperty("cc65_defines", ""));
+        }
+        if (txtCc65Includes != null) {
+            txtCc65Includes.setText(configModel.getConfigProperty("cc65_includes", ""));
+        }
+        if (txtCc65ExtraArgs != null) {
+            txtCc65ExtraArgs.setText(configModel.getConfigProperty("cc65_extra_args", ""));
+        }
+    }
+
+    private boolean persistCc65Opts(boolean persist) {
+        String cc65Bin = txtCc65Bin != null ? txtCc65Bin.getText().trim() : "";
+        String altirraBin = txtAltirraBin != null ? txtAltirraBin.getText().trim() : "";
+        String optLevel = comboCc65OptLevel != null && comboCc65OptLevel.getValue() != null
+            ? comboCc65OptLevel.getValue() : ConfigModel.CC65_OPT_NONE;
+
+        configModel.setConfigProperty("cc65_bin", cc65Bin);
+        configModel.setConfigProperty("altirra_bin", altirraBin);
+        configModel.setConfigProperty("cc65_opt_level", optLevel);
+        configModel.setConfigProperty("cc65_defines", txtCc65Defines != null ? txtCc65Defines.getText().trim() : "");
+        configModel.setConfigProperty("cc65_includes", txtCc65Includes != null ? txtCc65Includes.getText().trim() : "");
+        configModel.setConfigProperty("cc65_extra_args", txtCc65ExtraArgs != null ? txtCc65ExtraArgs.getText().trim() : "");
+
+        if (persist) {
+            persistConfig();
+            persistCompilerSettingsToActiveWorkspace();
+        }
+        return true;
+    }
+
+    @FXML
+    public void onSaveCc65Opts(ActionEvent event) {
+        persistCc65Opts(true);
+        showError("");
+    }
+
+    @FXML
+    public void onSeleccionarCc65Bin(ActionEvent event) {
+        javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
+        chooser.setTitle("Seleccionar carpeta bin de CC65");
+        File selectedDir = chooser.showDialog(txtCc65Bin.getScene().getWindow());
+        if (selectedDir != null) {
+            txtCc65Bin.setText(selectedDir.getAbsolutePath());
+            UserActionMonitor.compilerPathUpdated("CC65", selectedDir.getAbsolutePath());
+        }
+    }
+
+    @FXML
+    public void onSeleccionarAltirraBin(ActionEvent event) {
+        javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
+        chooser.setTitle("Seleccionar ejecutable de Altirra");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Altirra Executable", "altirra64.exe", "altirra.exe", "*.exe"));
+        File selectedFile = chooser.showOpenDialog(txtAltirraBin.getScene().getWindow());
+        if (selectedFile != null) {
+            txtAltirraBin.setText(selectedFile.getAbsolutePath());
+            UserActionMonitor.emulatorPathUpdated("Altirra", selectedFile.getAbsolutePath());
+        }
     }
 
     private void loadZ88dkFlagsFromConfig() {
@@ -1546,6 +1795,7 @@ public class ConfigController {
 
         if (persist) {
             persistConfig();
+            persistCompilerSettingsToActiveWorkspace();
         }
 
         return true;
@@ -1647,6 +1897,7 @@ public class ConfigController {
 
         if (persist) {
             persistConfig();
+            persistCompilerSettingsToActiveWorkspace();
         }
 
         return true;
@@ -1754,6 +2005,10 @@ public class ConfigController {
             : null;
         String appearance = toEditorAppearanceCode(selectedAppearance);
         configModel.setConfigProperty("editor_appearance", appearance);
+        if (comboTerminalShell != null) {
+            String selectedShell = comboTerminalShell.getSelectionModel().getSelectedItem();
+            configModel.setConfigProperty("terminal_shell", toTerminalShellCode(selectedShell));
+        }
         if (chkEnableLogs != null) {
             configModel.setEnableLogs(chkEnableLogs.isSelected());
         }
@@ -1829,6 +2084,14 @@ public class ConfigController {
         if (lblMakeBuildTarget   != null) lblMakeBuildTarget   .setText(bundle.getString("label.compiler.make.buildTarget"));
         if (lblMakeRunTarget     != null) lblMakeRunTarget     .setText(bundle.getString("label.compiler.make.runTarget"));
         if (lblMakeExtraArgs     != null) lblMakeExtraArgs     .setText(bundle.getString("label.compiler.make.extra"));
+        if (tabCompilerGcc       != null) tabCompilerGcc       .setText(bundle.getString("label.compiler.gccTab"));
+        if (lblGccBin            != null) lblGccBin            .setText(bundle.getString("label.compiler.gcc.bin"));
+        if (lblGccOpts           != null) lblGccOpts           .setText(bundle.getString("label.compiler.gcc.opts"));
+        if (lblGccOptLevel       != null) lblGccOptLevel       .setText(bundle.getString("label.compiler.gcc.opt.level"));
+        if (lblGccDefines        != null) lblGccDefines        .setText(bundle.getString("label.compiler.gcc.defines"));
+        if (lblGccIncludes       != null) lblGccIncludes       .setText(bundle.getString("label.compiler.gcc.includes"));
+        if (lblGccExtraArgs      != null) lblGccExtraArgs      .setText(bundle.getString("label.compiler.gcc.extra"));
+        if (btnSaveGccOpts       != null) btnSaveGccOpts       .setText(bundle.getString("button.saveGcc"));
         if (chkProjectDetectAutoApply != null) chkProjectDetectAutoApply.setText(bundle.getString("config.projectDetection.autoApply"));
         if (lblProjectDetectThreshold != null) lblProjectDetectThreshold.setText(bundle.getString("config.projectDetection.threshold"));
         if (btnCerrarConfig      != null) btnCerrarConfig      .setText(bundle.getString("button.close"));
@@ -1991,6 +2254,45 @@ public class ConfigController {
         return displayValue.toLowerCase(Locale.ROOT).contains("classic")
             ? ConfigModel.EDITOR_APPEARANCE_CLASSIC
             : ConfigModel.EDITOR_APPEARANCE_MODERN_DARK;
+    }
+
+    private void loadTerminalShellFromConfig() {
+        if (comboTerminalShell == null) return;
+
+        comboTerminalShell.getItems().clear();
+        terminalShellCodeByLabel.clear();
+        for (String code : ConfigModel.getSupportedTerminalShells()) {
+            String label = terminalShellLabel(code);
+            comboTerminalShell.getItems().add(label);
+            terminalShellCodeByLabel.put(label, code);
+        }
+
+        String shell = configModel.getConfigProperty("terminal_shell", ConfigModel.TERMINAL_SHELL_AUTO);
+        comboTerminalShell.getSelectionModel().select(terminalShellLabel(shell));
+    }
+
+    private String terminalShellLabel(String code) {
+        if (ConfigModel.TERMINAL_SHELL_CMD.equals(code)) {
+            return tr("config.terminal.shell.option.cmd", "cmd.exe (Windows)");
+        }
+        if (ConfigModel.TERMINAL_SHELL_POWERSHELL.equals(code)) {
+            return tr("config.terminal.shell.option.powershell", "PowerShell (Windows)");
+        }
+        if (ConfigModel.TERMINAL_SHELL_PWSH.equals(code)) {
+            return tr("config.terminal.shell.option.pwsh", "PowerShell 7 (pwsh)");
+        }
+        if (ConfigModel.TERMINAL_SHELL_BASH.equals(code)) {
+            return tr("config.terminal.shell.option.bash", "Bash (Linux/macOS)");
+        }
+        return tr("config.terminal.shell.option.auto", "Automatico (recomendado)");
+    }
+
+    private String toTerminalShellCode(String displayLabel) {
+        if (displayLabel == null || displayLabel.isBlank()) {
+            return ConfigModel.TERMINAL_SHELL_AUTO;
+        }
+        String mapped = terminalShellCodeByLabel.get(displayLabel);
+        return mapped != null ? mapped : ConfigModel.TERMINAL_SHELL_AUTO;
     }
 
     private void applyApplicationAppearanceToCurrentScene(String appearance) {

@@ -3,6 +3,7 @@ package com.retroeditor.util;
 import javafx.event.ActionEvent;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -56,7 +57,14 @@ public class FXUtils {
         SPECTRUM,
         SPECTRUM_SCREEN,
         GAMEBOY,
-        GAMEBOY_SPRITE
+        GAMEBOY_SPRITE,
+        CPC,
+        GCC,
+        GCC_CALC,
+        CC65,
+        GENERIC,
+        ASM,
+        MAKEFILE
     }
 
     private static class ProjectCreationOptions {
@@ -77,6 +85,60 @@ public class FXUtils {
     private boolean lastCreateGitignoreSelected = true;
     private String projectReadmeLanguage = "en";
     private String editorAppearance = ConfigModel.EDITOR_APPEARANCE_MODERN_DARK;
+    private java.util.function.BiConsumer<String, CodeArea> doubleClickHandler;
+
+    public void setDoubleClickHandler(java.util.function.BiConsumer<String, CodeArea> handler) {
+        this.doubleClickHandler = handler;
+    }
+
+    private void attachCodeAreaDoubleClickHandler(CodeArea codeArea) {
+        codeArea.setOnMouseClicked(event -> {
+            if (event.getClickCount() == 2 && doubleClickHandler != null) {
+                int caret = codeArea.getCaretPosition();
+                String text = codeArea.getText();
+                int end = caret;
+                while (end < text.length() && isWordCharStatic(text.charAt(end))) {
+                    end++;
+                }
+                int idx = end;
+                boolean isFuncCall = false;
+                while (idx < text.length()) {
+                    char c = text.charAt(idx);
+                    if (c == '(') {
+                        isFuncCall = true;
+                        break;
+                    }
+                    if (!Character.isWhitespace(c)) break;
+                    idx++;
+                }
+                if (isFuncCall) {
+                    String symbol = extractWordAtCaretStatic(text, caret);
+                    if (symbol != null && !symbol.isBlank()) {
+                        doubleClickHandler.accept(symbol, codeArea);
+                        event.consume();
+                    }
+                }
+            }
+        });
+    }
+
+    private static boolean isWordCharStatic(char c) {
+        return Character.isLetterOrDigit(c) || c == '_';
+    }
+
+    private static String extractWordAtCaretStatic(String text, int caret) {
+        if (text == null || text.isEmpty() || caret < 0 || caret > text.length()) return null;
+        int start = caret;
+        while (start > 0 && isWordCharStatic(text.charAt(start - 1))) {
+            start--;
+        }
+        int end = caret;
+        while (end < text.length() && isWordCharStatic(text.charAt(end))) {
+            end++;
+        }
+        if (start >= end) return null;
+        return text.substring(start, end);
+    }
 
     public boolean wasLastProjectCreationCancelled() {
         return lastProjectCreationCancelled;
@@ -134,6 +196,10 @@ public class FXUtils {
     public Tab addTab(String title, String content, SyntaxHighlighter syntaxHighlighter, TabPane tabPane) {
         CodeArea codeArea = new CodeArea();
         VirtualizedScrollPane<CodeArea> editorScrollPane = new VirtualizedScrollPane<>(codeArea);
+        CodeMinimapPane minimap = new CodeMinimapPane(codeArea);
+        BorderPane editorLayout = new BorderPane();
+        editorLayout.setCenter(editorScrollPane);
+        editorLayout.setRight(minimap);
         String initialText = content != null ? content : "";
 
         // Habilita la función de numeración de líneas para los párrafos. 
@@ -150,13 +216,30 @@ public class FXUtils {
                     try {
                         // Aplica el resaltado de sintaxis al texto modificado
                         codeArea.setStyleSpans(0, syntaxHighlighter.computeHighlighting(codeArea.getText(), title));
+                        
+                        int maxP = codeArea.getParagraphs().size();
+                        for (int p = 0; p < maxP; p++) {
+                            codeArea.setParagraphStyle(p, java.util.Collections.emptyList());
+                        }
+
+                        var diags = com.retroeditor.service.StaticAnalysisService.analyzeCode(codeArea.getText());
+                        for (var d : diags) {
+                            if (d.isError()) {
+                                int pIdx = d.line() - 1;
+                                if (pIdx >= 0 && pIdx < maxP) {
+                                    codeArea.setParagraphStyle(pIdx, java.util.Collections.singleton("compile-error-line"));
+                                }
+                            }
+                        }
                     } catch (Exception ex) {
                         ex.printStackTrace();
                     }
                 });
 
         applyEditorAppearance(codeArea);
-        Tab tab = new Tab(title, editorScrollPane);
+        attachCodeAreaDoubleClickHandler(codeArea);
+        MultiCursorManager.attach(codeArea);
+        Tab tab = new Tab(title, editorLayout);
         tab.getProperties().put(TAB_PROP_BASE_TITLE, title != null ? title : "");
         tab.getProperties().put(TAB_PROP_BASE_TEXT, initialText);
         tab.getProperties().put(TAB_PROP_CODE_AREA, codeArea);
@@ -178,6 +261,8 @@ public class FXUtils {
         codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
         codeArea.replaceText(initialText);
         applyEditorAppearance(codeArea);
+        attachCodeAreaDoubleClickHandler(codeArea);
+        MultiCursorManager.attach(codeArea);
         codeArea.setStyleSpans(0, syntaxHighlighter.computeHighlighting(initialText, title));
         codeArea.multiPlainChanges()
             .successionEnds(Duration.ofMillis(250))
@@ -671,13 +756,27 @@ public class FXUtils {
         labels.put(ProjectTemplate.SPECTRUM_SCREEN, msg(bundle, "dialog.project.new.template.option.spectrumScreen", "Spectrum - Pantalla inicial"));
         labels.put(ProjectTemplate.GAMEBOY, msg(bundle, "dialog.project.new.template.option.gameboy", "Game Boy - Basico"));
         labels.put(ProjectTemplate.GAMEBOY_SPRITE, msg(bundle, "dialog.project.new.template.option.gameboySprite", "Game Boy - Sprite demo"));
+        labels.put(ProjectTemplate.CPC, msg(bundle, "dialog.project.new.template.option.cpc", "Amstrad CPC - Basico"));
+        labels.put(ProjectTemplate.GCC, msg(bundle, "dialog.project.new.template.option.gcc", "C normal (gcc) - Basico"));
+        labels.put(ProjectTemplate.GCC_CALC, msg(bundle, "dialog.project.new.template.option.gccCalc", "C normal (gcc) - Calculadora"));
+        labels.put(ProjectTemplate.CC65, msg(bundle, "dialog.project.new.template.option.cc65", "CC65 (Atari XE/XL) - Basico"));
+        labels.put(ProjectTemplate.GENERIC, msg(bundle, "dialog.project.new.template.option.generic", "C generico"));
+        labels.put(ProjectTemplate.ASM, msg(bundle, "dialog.project.new.template.option.asm", "Ensamblador (z80 / Game Boy)"));
+        labels.put(ProjectTemplate.MAKEFILE, msg(bundle, "dialog.project.new.template.option.makefile", "Makefile / Custom"));
 
         java.util.Map<ProjectTemplate, String> descriptions = new java.util.HashMap<>();
         descriptions.put(ProjectTemplate.EMPTY, msg(bundle, "dialog.project.new.template.description.empty", "Estructura minima en C con src/main.c sin dependencias."));
-        descriptions.put(ProjectTemplate.SPECTRUM, msg(bundle, "dialog.project.new.template.description.spectrum", "Plantilla base para Spectrum con un main en C y salida por consola."));
+        descriptions.put(ProjectTemplate.SPECTRUM, msg(bundle, "dialog.project.new.template.description.spectrum", "Plantilla base para Spectrum con conio.h, pantalla limpia y espera de tecla."));
         descriptions.put(ProjectTemplate.SPECTRUM_SCREEN, msg(bundle, "dialog.project.new.template.description.spectrumScreen", "Ejemplo para Spectrum con mensaje de bienvenida y pausa por teclado."));
         descriptions.put(ProjectTemplate.GAMEBOY, msg(bundle, "dialog.project.new.template.description.gameboy", "Plantilla base de Game Boy con bucle principal y sincronizacion VBlank."));
         descriptions.put(ProjectTemplate.GAMEBOY_SPRITE, msg(bundle, "dialog.project.new.template.description.gameboySprite", "Demo de Game Boy con sprite cargado y mostrado en pantalla."));
+        descriptions.put(ProjectTemplate.CPC, msg(bundle, "dialog.project.new.template.description.cpc", "Plantilla basica para Amstrad CPC con Z88DK."));
+        descriptions.put(ProjectTemplate.GCC, msg(bundle, "dialog.project.new.template.description.gcc", "Plantilla basica de C normal para compilar y ejecutar de forma nativa con GCC."));
+        descriptions.put(ProjectTemplate.GCC_CALC, msg(bundle, "dialog.project.new.template.description.gccCalc", "Ejemplo de consola en C normal con bucles y entrada por teclado."));
+        descriptions.put(ProjectTemplate.CC65, msg(bundle, "dialog.project.new.template.description.cc65", "Plantilla basica para Atari XE/XL con CC65."));
+        descriptions.put(ProjectTemplate.GENERIC, msg(bundle, "dialog.project.new.template.description.generic", "Plantilla generica en C para cualquier plataforma."));
+        descriptions.put(ProjectTemplate.ASM, msg(bundle, "dialog.project.new.template.description.asm", "Plantilla de ensamblador z80 para Game Boy / ZX."));
+        descriptions.put(ProjectTemplate.MAKEFILE, msg(bundle, "dialog.project.new.template.description.makefile", "Proyecto basado en Makefile con estructura base."));
 
         javafx.scene.control.Dialog<ProjectCreationOptions> dialog = new javafx.scene.control.Dialog<>();
         dialog.setTitle(msg(bundle, "dialog.project.new.template.title", "Plantilla del proyecto"));
@@ -747,10 +846,17 @@ public class FXUtils {
         ProjectTemplate template = options != null ? options.template : ProjectTemplate.EMPTY;
         Path projectPath = projectDir.toPath();
         Path srcPath = projectPath.resolve("src");
-        Path mainFile = srcPath.resolve("main.c");
 
         Files.createDirectories(srcPath);
-        Files.writeString(mainFile, getTemplateMainContent(template));
+
+        if (template == ProjectTemplate.ASM) {
+            Files.writeString(srcPath.resolve("main.asm"), getTemplateMainContent(template));
+        } else if (template == ProjectTemplate.MAKEFILE) {
+            Files.writeString(srcPath.resolve("main.c"), getTemplateMainContent(template));
+            Files.writeString(projectPath.resolve("Makefile"), getMakefileContent());
+        } else {
+            Files.writeString(srcPath.resolve("main.c"), getTemplateMainContent(template));
+        }
 
         if (options != null && options.createReadme) {
             Files.writeString(projectPath.resolve("README.md"), getReadmeContent(projectDir.getName(), template));
@@ -761,6 +867,23 @@ public class FXUtils {
         }
 
         writeWorkspaceConfig(projectPath, template);
+    }
+
+    private String getMakefileContent() {
+        return String.join("\n",
+            "CC = gcc",
+            "CFLAGS = -Wall -std=c11",
+            "",
+            "all: out/main",
+            "",
+            "out/main: src/main.c",
+            "\t@mkdir -p out",
+            "\t$(CC) $(CFLAGS) -o out/main src/main.c",
+            "",
+            "clean:",
+            "\trm -rf out",
+            ""
+        );
     }
 
     private void writeWorkspaceConfig(Path projectPath, ProjectTemplate template) throws IOException {
@@ -798,6 +921,18 @@ public class FXUtils {
         }
         if (template == ProjectTemplate.SPECTRUM || template == ProjectTemplate.SPECTRUM_SCREEN) {
             return "spectrum";
+        }
+        if (template == ProjectTemplate.CPC) {
+            return "cpc";
+        }
+        if (template == ProjectTemplate.GCC || template == ProjectTemplate.GCC_CALC) {
+            return "gcc";
+        }
+        if (template == ProjectTemplate.CC65) {
+            return "cc65";
+        }
+        if (template == ProjectTemplate.MAKEFILE) {
+            return "make";
         }
         return "generic";
     }
@@ -1033,6 +1168,15 @@ public class FXUtils {
         sb.append("\n");
     }
 
+    private String loadResourceTemplate(String resourcePath) {
+        try (InputStream in = getClass().getResourceAsStream(resourcePath)) {
+            if (in == null) return "int main() { return 0; }\n";
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            return "int main() { return 0; }\n";
+        }
+    }
+
     private String getTemplateMainContent(ProjectTemplate template) {
         if (template == ProjectTemplate.EMPTY) {
             return String.join("\n",
@@ -1143,26 +1287,26 @@ public class FXUtils {
             );
         }
 
-        return String.join("\n",
-            "#include <conio.h>",
-            "",
-            "void main()",
-            "{",
-            "    clrscr();",
-            "    textcolor(7);",
-            "    textbackground(0);",
-            "    bordercolor(1);",
-            "",
-            "    gotoxy(6, 10);",
-            "    cputs(\"ZX SPECTRUM - BASIC\");",
-            "",
-            "    gotoxy(5, 12);",
-            "    cputs(\"Press any key...\");",
-            "",
-            "    getch();",
-            "}",
-            ""
-        );
+        if (template == ProjectTemplate.CPC) {
+            return loadResourceTemplate("/templates/cpc_main.c");
+        }
+        if (template == ProjectTemplate.GCC) {
+            return loadResourceTemplate("/templates/native_main.c");
+        }
+        if (template == ProjectTemplate.GCC_CALC) {
+            return loadResourceTemplate("/templates/native_calc.c");
+        }
+        if (template == ProjectTemplate.CC65) {
+            return loadResourceTemplate("/templates/cc65_main.c");
+        }
+        if (template == ProjectTemplate.GENERIC || template == ProjectTemplate.MAKEFILE) {
+            return loadResourceTemplate("/templates/generic_main.c");
+        }
+        if (template == ProjectTemplate.ASM) {
+            return loadResourceTemplate("/templates/asm_main.asm");
+        }
+
+        return loadResourceTemplate("/templates/zx_main.c");
     }
 
     /**
@@ -1400,5 +1544,71 @@ public class FXUtils {
             .replace("<", "&lt;")
             .replace(">", "&gt;")
             .replace("\"", "&quot;");
+    }
+
+    public static class CodeMinimapPane extends javafx.scene.layout.Pane {
+        private final CodeArea codeArea;
+        private final javafx.scene.canvas.Canvas canvas = new javafx.scene.canvas.Canvas(90, 600);
+
+        public CodeMinimapPane(CodeArea codeArea) {
+            this.codeArea = codeArea;
+            getChildren().add(canvas);
+            setMinWidth(90);
+            setMaxWidth(90);
+            prefWidthProperty().bind(widthProperty());
+            canvas.widthProperty().bind(widthProperty());
+            canvas.heightProperty().bind(heightProperty());
+
+            codeArea.textProperty().addListener((obs, oldV, newV) -> drawMinimap());
+            heightProperty().addListener((obs, oldV, newV) -> drawMinimap());
+            widthProperty().addListener((obs, oldV, newV) -> drawMinimap());
+
+            setOnMouseClicked(e -> {
+                double y = e.getY();
+                double totalLines = Math.max(1, codeArea.getParagraphs().size());
+                double ratio = y / Math.max(1, getHeight());
+                int targetParagraph = (int) Math.round(ratio * totalLines);
+                int p = Math.max(0, Math.min(targetParagraph, codeArea.getParagraphs().size() - 1));
+                codeArea.showParagraphAtTop(p);
+                codeArea.moveTo(p, 0);
+            });
+
+            setOnMouseDragged(e -> {
+                double y = e.getY();
+                double totalLines = Math.max(1, codeArea.getParagraphs().size());
+                double ratio = Math.max(0, Math.min(1.0, y / Math.max(1, getHeight())));
+                int targetParagraph = (int) Math.round(ratio * totalLines);
+                int p = Math.max(0, Math.min(targetParagraph, codeArea.getParagraphs().size() - 1));
+                codeArea.showParagraphAtTop(p);
+                codeArea.moveTo(p, 0);
+            });
+
+            drawMinimap();
+        }
+
+        public void drawMinimap() {
+            javafx.scene.canvas.GraphicsContext gc = canvas.getGraphicsContext2D();
+            double w = getWidth();
+            double h = getHeight();
+            if (w <= 0 || h <= 0) return;
+
+            gc.setFill(javafx.scene.paint.Color.web("#1e1e1e"));
+            gc.fillRect(0, 0, w, h);
+
+            var paragraphs = codeArea.getParagraphs();
+            int total = paragraphs.size();
+            if (total == 0) return;
+
+            double lineHeight = Math.max(2.0, h / Math.max(1, total));
+            gc.setFill(javafx.scene.paint.Color.web("#858585", 0.6));
+
+            for (int i = 0; i < total; i++) {
+                String text = paragraphs.get(i).getText();
+                if (text == null || text.isBlank()) continue;
+                double y = i * lineHeight;
+                double lineW = Math.min(w - 10, text.length() * 1.5);
+                gc.fillRect(5, y, Math.max(4, lineW), Math.max(1.5, lineHeight - 0.5));
+            }
+        }
     }
 }
