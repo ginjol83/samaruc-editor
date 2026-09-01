@@ -57,6 +57,10 @@
 
                     <Menu fx:id="menuHerramientas" text="Herramientas">
                         <MenuItem fx:id="menuItemTileEditor" text="Editor de Tiles (Game Boy)" onAction="#onOpenTileEditor" />
+<<<<<<< HEAD
+=======
+                        <MenuItem fx:id="menuItemTilemapEditor" text="Editor de Mapas de Tiles (Game Boy)" onAction="#onOpenTilemapEditor" />
+>>>>>>> b415254 (Release v1.3.0: Visual Tilemap Editor with DMG Game Boy palette, compact toolbar/icons, and enhancements)
                         <MenuItem fx:id="menuItemGameBoyAudioEditor" text="Editor de audio (Game Boy)" onAction="#onOpenGameBoyAudioEditor" />
                         <MenuItem fx:id="menuItemPngToGameBoy" text="Convertir PNG a C (Game Boy)" onAction="#onOpenPngToGameBoyConverter" />
                         <MenuItem fx:id="menuItemPngToZx" text="Convertir PNG a C (ZX Spectrum)" onAction="#onOpenPngToZxConverter" />

@@ -22,16 +22,19 @@
 
 .tool-bar {
     -fx-background-color: #2c313c;
-    -fx-spacing: 8;
-    -fx-padding: 6 10 6 10;
+    -fx-spacing: 6;
+    -fx-padding: 4 8 4 8;
+    -fx-pref-height: 38px;
 }
 .tool-bar .button {
     -fx-background-color: #393e4a;
     -fx-text-fill: #eee;
     -fx-font-size: 14px;
-    -fx-padding: 6 12 6 12;
-    -fx-background-radius: 6;
+    -fx-padding: 4 8 4 8;
+    -fx-background-radius: 6px;
     -fx-cursor: hand;
+    -fx-pref-width: 32px;
+    -fx-pref-height: 32px;
 }
 .tool-bar .button:focused, .tool-bar .button:hover {
     -fx-background-color: #50566b;

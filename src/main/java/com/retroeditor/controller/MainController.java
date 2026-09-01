@@ -30,6 +30,10 @@ import com.retroeditor.controller.config.ConfigDialogCoordinator;
 import com.retroeditor.controller.editor.EditOptionsController;
 import com.retroeditor.controller.editor.FileOptionsController;
 import com.retroeditor.controller.tools.TileEditorController;
+<<<<<<< HEAD
+=======
+import com.retroeditor.controller.tools.TilemapEditorController;
+>>>>>>> b415254 (Release v1.3.0: Visual Tilemap Editor with DMG Game Boy palette, compact toolbar/icons, and enhancements)
 import com.retroeditor.controller.tools.StructureViewController;
 import com.retroeditor.controller.tools.PngToZxConverterController;
 import com.retroeditor.controller.tools.PngToGameBoyConverterController;
@@ -128,6 +132,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private final EditOptionsController   editOptionsController   = new EditOptionsController();
     private final FileOptionsController   fileOptionsController   = new FileOptionsController();
     private final TileEditorController    tileEditorController    = new TileEditorController();
+    private final TilemapEditorController tilemapEditorController = new TilemapEditorController();
     private final PngToZxConverterController pngToZxConverterController = new PngToZxConverterController();
     private final PngToGameBoyConverterController pngToGameBoyConverterController = new PngToGameBoyConverterController();
     private final GameBoyAudioEditorController    gameBoyAudioEditorController    = new GameBoyAudioEditorController();
@@ -191,6 +196,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private MenuItem menuItemPegar;
     @FXML private MenuItem menuItemRename;
     @FXML private MenuItem menuItemTileEditor;
+    @FXML private MenuItem menuItemTilemapEditor;
     @FXML private MenuItem menuItemPngToZx;
     @FXML private MenuItem menuItemGoToLine;
     @FXML private MenuItem menuItemFind;
@@ -578,7 +584,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 b.getStyleClass().add("tb-button");
                 if (b.getGraphic() instanceof FontIcon) {
                     FontIcon fi = (FontIcon) b.getGraphic();
-                    try { fi.setIconSize(20); } catch (Exception ignore) {}
+                    try { fi.setIconSize(16); } catch (Exception ignore) {}
                 }
             }
         } catch (Exception ignored) {}
@@ -609,6 +615,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemPegar         != null) menuItemPegar.setText(bundle.getString("button.paste"));
         if (menuItemRename        != null) menuItemRename.setText(bundle.getString("menu.rename"));
         if (menuItemTileEditor    != null) menuItemTileEditor.setText(bundle.getString("menu.tools.tileEditor"));
+        if (menuItemTilemapEditor != null) menuItemTilemapEditor.setText(bundle.getString("menu.tools.tilemapEditor"));
         if (menuItemGoToLine      != null) menuItemGoToLine.setText(bundle.getString("menu.goto.line"));
         if (menuItemFind          != null) menuItemFind.setText(bundle.getString("menu.find.file"));
         if (menuItemFindProject   != null) menuItemFindProject.setText(bundle.getString("menu.find.project"));
@@ -1813,6 +1820,25 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     @FXML
+<<<<<<< HEAD
+=======
+    private void onOpenTilemapEditor(ActionEvent event) {
+        tilemapEditorController.open(
+            getStage(),
+            currentProjectDir,
+            bundle,
+            exportedFile -> {
+                if (projectExplorerController != null) {
+                    projectExplorerController.refreshTree();
+                }
+                openFileFromExplorer(exportedFile);
+                persistSessionState();
+            }
+        );
+    }
+
+    @FXML
+>>>>>>> b415254 (Release v1.3.0: Visual Tilemap Editor with DMG Game Boy palette, compact toolbar/icons, and enhancements)
     private void onOpenProjectStats(ActionEvent event) {
         if (currentProjectDir == null) {
             Alert alert = new Alert(Alert.AlertType.WARNING);

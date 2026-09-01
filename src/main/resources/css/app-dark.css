@@ -7,26 +7,27 @@
 }
 
 .tool-bar {
-    -fx-padding: 6px;
+    -fx-padding: 4px;
+    -fx-spacing: 4px;
     -fx-background-color: linear-gradient(#0b1220, #0f1721);
     -fx-border-color: #1f2937;
     -fx-border-width: 0 0 1 0;
-    -fx-pref-height: 56;
+    -fx-pref-height: 38px;
 }
 
 .tool-bar .button {
-    -fx-pref-width: 48px;
-    -fx-pref-height: 48px;
-    -fx-background-radius: 8px;
-    -fx-padding: 6px;
+    -fx-pref-width: 32px;
+    -fx-pref-height: 32px;
+    -fx-background-radius: 6px;
+    -fx-padding: 4px;
     -fx-background-color: transparent;
 }
 
 .tb-button {
-    -fx-pref-width: 48px;
-    -fx-pref-height: 48px;
-    -fx-background-radius: 8px;
-    -fx-padding: 6px;
+    -fx-pref-width: 32px;
+    -fx-pref-height: 32px;
+    -fx-background-radius: 6px;
+    -fx-padding: 4px;
     -fx-background-color: transparent;
 }
 
@@ -51,6 +52,16 @@
 
 .output-tab-pane .tab:selected {
     -fx-background-color: #1f2937;
+}
+
+/* Tooltips */
+.tooltip {
+    -fx-font-size: 11px;
+    -fx-background-color: #1e293b;
+    -fx-text-fill: #f8fafc;
+    -fx-background-radius: 4px;
+    -fx-padding: 4px 8px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.3), 6, 0, 0, 2);
 }
 
 .output-tab-pane .tab .tab-label {
@@ -81,7 +92,7 @@
 }
 
 .button .font-icon {
-    -fx-font-size: 20px;
+    -fx-font-size: 16px;
     -fx-fill: #e6eef8;
     -fx-icon-color: #e6eef8;
 }

@@ -11,25 +11,26 @@
 }
 
 .tool-bar {
-    -fx-padding: 6px;
+    -fx-padding: 4px;
+    -fx-spacing: 4px;
     -fx-background-color: linear-gradient(#f8fbff, #e9eef8);
     -fx-border-color: #d6dbe6;
     -fx-border-width: 0 0 1 0;
-    -fx-pref-height: 56;
+    -fx-pref-height: 38px;
 }
 
 .tool-bar .button,
 .tb-button {
-    -fx-pref-width: 48px;
-    -fx-pref-height: 48px;
-    -fx-background-radius: 8px;
-    -fx-padding: 6px;
+    -fx-pref-width: 32px;
+    -fx-pref-height: 32px;
+    -fx-background-radius: 6px;
+    -fx-padding: 4px;
     -fx-background-color: transparent;
     -fx-cursor: hand;
     -fx-alignment: center;
     -fx-border-color: transparent;
     -fx-border-width: 1px;
-    -fx-border-radius: 8px;
+    -fx-border-radius: 6px;
 }
 
 .tb-button:hover {
@@ -56,12 +57,17 @@
 }
 
 .button .font-icon {
-    -fx-font-size: 20px;
+    -fx-font-size: 16px;
 }
 
 /* Tooltips */
 .tooltip {
     -fx-font-size: 11px;
+    -fx-background-color: #1e293b;
+    -fx-text-fill: #f8fafc;
+    -fx-background-radius: 4px;
+    -fx-padding: 4px 8px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.15), 6, 0, 0, 2);
 }
 
 /* TabPane and editor adjustments */
