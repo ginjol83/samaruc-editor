@@ -1,6 +1,7 @@
 package com.retroeditor.controller.terminal;
 
 import com.techsenger.jeditermfx.core.TerminalColor;
+import com.techsenger.jeditermfx.core.TextStyle;
 import com.techsenger.jeditermfx.ui.settings.DefaultSettingsProvider;
 import javafx.scene.text.Font;
 
@@ -20,6 +21,11 @@ public class SamarucTerminalSettingsProvider extends DefaultSettingsProvider {
     @Override
     public TerminalColor getDefaultForeground() {
         return FOREGROUND;
+    }
+
+    @Override
+    public TextStyle getDefaultStyle() {
+        return new TextStyle(FOREGROUND, BACKGROUND);
     }
 
     @Override

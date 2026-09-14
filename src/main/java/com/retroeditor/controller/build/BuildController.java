@@ -319,21 +319,21 @@ public class BuildController {
             cmd = cc65Cmd.toArray(new String[0]);
 
         } else {
-            String gbdkBin = configModel.getConfigProperty("gbdk_bin", "");
+            File gbdkBinDir = resolveBundledGbdkBin();
 
-            if (gbdkBin == null || gbdkBin.isEmpty()) {
+            if (gbdkBinDir == null) {
                 Alert alert = new Alert(AlertType.ERROR);
                 alert.setTitle      ("Error de compilación");
-                alert.setHeaderText ("No se ha configurado la ruta de GBDK");
-                alert.setContentText("Por favor, configura la ruta del bin de GBDK en las opciones de configuración.");
+                alert.setHeaderText ("No se encontró GBDK integrado");
+                alert.setContentText("No se ha encontrado la distribución de GBDK incluida con Samaruc en la carpeta libs/gbdk/bin.");
                 alert.showAndWait   ();
 
-                terminalController.appendConsoleOutput("ERROR: No se ha configurado la ruta del bin de GBDK.",consoleOutputArea);
+                terminalController.appendConsoleOutput("ERROR: No se encontró la distribución de GBDK integrada en libs/gbdk/bin.", consoleOutputArea);
 
                 return;
             }
-            
-            String compiler = resolveCompilerExecutable(gbdkBin, "lcc");
+
+            String compiler = resolveCompilerExecutable(gbdkBinDir.getAbsolutePath(), "lcc");
             List<String> gbdkCmd = new ArrayList<>();
             gbdkCmd.add(compiler);
 
@@ -515,7 +515,10 @@ public class BuildController {
 
         if (isMakeCompiler(selectedCompiler)) {
             // Para Makefile añadimos bins de toolchains para que comandos como zcc/lcc se resuelvan.
-            prependToPath(pb.environment(), configModel.getConfigProperty("gbdk_bin", ""));
+            File gbdkBinDir = resolveBundledGbdkBin();
+            if (gbdkBinDir != null) {
+                prependToPath(pb.environment(), gbdkBinDir.getAbsolutePath());
+            }
             prependToPath(pb.environment(), resolveZ88dkBinForProfile(configModel, selectedCompiler));
         }
 
@@ -1209,6 +1212,14 @@ public class BuildController {
 
         Arrays.sort(matches);
         return matches[0];
+    }
+
+    private File resolveBundledGbdkBin() {
+        File binDir = new File(System.getProperty("user.dir"), "libs/gbdk/bin");
+        if (!binDir.isDirectory()) return null;
+        String lccName = isWindows() ? "lcc.exe" : "lcc";
+        File lcc = new File(binDir, lccName);
+        return lcc.isFile() ? binDir : null;
     }
 
     private File resolveSpectrumArtifact(File sourceFile, File projectRootDir) {

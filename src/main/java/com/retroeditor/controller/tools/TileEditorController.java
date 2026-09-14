@@ -11,7 +11,6 @@ import com.retroeditor.service.GameBoyTileCodeGenerator;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Alert;
@@ -25,12 +24,13 @@ import javafx.scene.control.TextField;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.MouseButton;
+import javafx.scene.Node;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
-import javafx.stage.Stage;
+import javafx.stage.Window;
 
 /**
  * Editor de Sprites Multiplataforma (Game Boy / ZX Spectrum / Atari 8-bit) con generación de código C y persistencia.
@@ -106,6 +106,7 @@ public class TileEditorController {
     private int currentWidth = 8;
     private int currentHeight = 8;
     private int[][] pixels = new int[8][8];
+    private Node rootNode;
     private final GameBoyTileCodeGenerator codeGenerator = new GameBoyTileCodeGenerator();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -130,11 +131,11 @@ public class TileEditorController {
         Color.web("#ff55ff"), Color.web("#8b0000"), Color.web("#00008b"), Color.web("#006400")
     };
 
-    public void open(Stage owner, File currentProjectDir, ResourceBundle bundle, Consumer<File> onExported) {
-        Stage stage = new Stage();
-        stage.initOwner(owner);
-        stage.setTitle("Editor de Sprites Multiplataforma (Game Boy / ZX Spectrum / Atari)");
+    public Node createNode(File currentProjectDir, ResourceBundle bundle, Consumer<File> onExported) {
+        return buildUi(currentProjectDir, bundle, onExported);
+    }
 
+    private Node buildUi(File currentProjectDir, ResourceBundle bundle, Consumer<File> onExported) {
         ChoiceBox<PlatformMode> platformChoice = new ChoiceBox<>();
         platformChoice.getItems().addAll(PlatformMode.values());
         platformChoice.setValue(PlatformMode.GAMEBOY);
@@ -230,15 +231,15 @@ public class TileEditorController {
             try { chooser.setInitialDirectory(initialDir); } catch (Exception ignored) {}
 
             chooser.setInitialFileName((symbolField.getText().isBlank() ? "sprite" : symbolField.getText()) + ".tile");
-            File file = chooser.showSaveDialog(stage);
+            File file = chooser.showSaveDialog(currentWindow());
             if (file != null) {
                 try {
                     TileProjectData data = new TileProjectData(currentPlatform.name(), currentWidth, currentHeight, pixels, symbolField.getText());
                     objectMapper.writerWithDefaultPrettyPrinter().writeValue(file, data);
                     lastUsedDirectory = file.getParentFile();
-                    showAlert("Guardado exitoso", "Proyecto de sprite guardado correctamente.", Alert.AlertType.INFORMATION, stage);
+                    showAlert("Guardado exitoso", "Proyecto de sprite guardado correctamente.", Alert.AlertType.INFORMATION, currentWindow());
                 } catch (Exception ex) {
-                    showAlert("Error al guardar", "No se pudo guardar: " + ex.getMessage(), Alert.AlertType.ERROR, stage);
+                    showAlert("Error al guardar", "No se pudo guardar: " + ex.getMessage(), Alert.AlertType.ERROR, currentWindow());
                 }
             }
         });
@@ -258,7 +259,7 @@ public class TileEditorController {
             }
             try { chooser.setInitialDirectory(initialDir); } catch (Exception ignored) {}
 
-            File file = chooser.showOpenDialog(stage);
+            File file = chooser.showOpenDialog(currentWindow());
             if (file != null) {
                 try {
                     TileProjectData data = objectMapper.readValue(file, TileProjectData.class);
@@ -289,7 +290,7 @@ public class TileEditorController {
                         updateAction.run();
                     }
                 } catch (Exception ex) {
-                    showAlert("Error al abrir", "No se pudo leer el archivo: " + ex.getMessage(), Alert.AlertType.ERROR, stage);
+                    showAlert("Error al abrir", "No se pudo leer el archivo: " + ex.getMessage(), Alert.AlertType.ERROR, currentWindow());
                 }
             }
         });
@@ -302,7 +303,7 @@ public class TileEditorController {
         });
 
         Button exportButton = new Button("Exportar al proyecto");
-        exportButton.setOnAction(e -> exportCodeToProject(stage, currentProjectDir, outputArea.getText(), symbolField.getText(), bundle, onExported));
+        exportButton.setOnAction(e -> exportCodeToProject(currentProjectDir, outputArea.getText(), symbolField.getText(), bundle, onExported));
 
         HBox editorTop = new HBox(8,
             new Label("Plataforma:"), platformChoice,
@@ -323,12 +324,19 @@ public class TileEditorController {
         scrollPane.setFitToWidth(true);
 
         BorderPane root = new BorderPane(scrollPane);
+        rootNode = root;
 
         redrawCanvas(canvas);
         updateAction.run();
 
-        stage.setScene(new Scene(root, 860, 720));
-        stage.show();
+        return root;
+    }
+
+    private Window currentWindow() {
+        if (rootNode != null && rootNode.getScene() != null) {
+            return rootNode.getScene().getWindow();
+        }
+        return null;
     }
 
     private void updateColorChoice(ChoiceBox<Integer> colorChoice, PlatformMode platform) {
@@ -466,7 +474,7 @@ public class TileEditorController {
         return sb.toString();
     }
 
-    private void exportCodeToProject(Stage owner, File currentProjectDir, String code, String symbolName, ResourceBundle bundle, Consumer<File> onExported) {
+    private void exportCodeToProject(File currentProjectDir, String code, String symbolName, ResourceBundle bundle, Consumer<File> onExported) {
         File initialDir = currentProjectDir;
         if (initialDir == null || !initialDir.exists() || !initialDir.isDirectory()) {
             initialDir = lastUsedDirectory;
@@ -480,7 +488,7 @@ public class TileEditorController {
         try { chooser.setInitialDirectory(initialDir); } catch (Exception ignored) {}
         chooser.setInitialFileName(suggestFileName(symbolName));
 
-        File selected = chooser.showSaveDialog(owner);
+        File selected = chooser.showSaveDialog(currentWindow());
         if (selected == null) return;
 
         try {
@@ -488,7 +496,7 @@ public class TileEditorController {
             lastUsedDirectory = selected.getParentFile();
             if (onExported != null) onExported.accept(selected);
         } catch (Exception ex) {
-            showAlert("Error de exportación", "No se pudo exportar: " + ex.getMessage(), Alert.AlertType.ERROR, owner);
+            showAlert("Error de exportación", "No se pudo exportar: " + ex.getMessage(), Alert.AlertType.ERROR, currentWindow());
         }
     }
 
@@ -498,7 +506,7 @@ public class TileEditorController {
         return raw + ".c";
     }
 
-    private void showAlert(String title, String content, Alert.AlertType type, Stage owner) {
+    private void showAlert(String title, String content, Alert.AlertType type, Window owner) {
         Alert alert = new Alert(type);
         alert.initOwner(owner);
         alert.setTitle(title);

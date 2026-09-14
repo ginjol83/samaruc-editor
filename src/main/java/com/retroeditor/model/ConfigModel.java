@@ -25,6 +25,8 @@ public class ConfigModel {
     public static final String Z88DK_CLIB_CLANG_IY = "clang_iy";
     public static final String EDITOR_APPEARANCE_MODERN_DARK = "modern_dark";
     public static final String EDITOR_APPEARANCE_CLASSIC = "classic";
+    public static final String EDITOR_THEME_DEFAULT = "modern_dark";
+    public static final String EDITOR_THEME_PROPERTY = "editor_theme";
     public static final String TERMINAL_SHELL_AUTO = "auto";
     public static final String TERMINAL_SHELL_CMD = "cmd";
     public static final String TERMINAL_SHELL_POWERSHELL = "powershell";
@@ -65,7 +67,7 @@ public class ConfigModel {
     private final StringProperty idioma                  = new SimpleStringProperty (this, "idioma", "es");
     private final StringProperty projectReadmeLanguage   = new SimpleStringProperty (this, "project_readme_language", "en");
     private final StringProperty editorAppearance        = new SimpleStringProperty (this, "editor_appearance", EDITOR_APPEARANCE_MODERN_DARK);
-    private final StringProperty gbdkBin                 = new SimpleStringProperty (this, "gbdk_bin", "");
+    private final StringProperty editorTheme             = new SimpleStringProperty (this, EDITOR_THEME_PROPERTY, EDITOR_THEME_DEFAULT);
     private final StringProperty compilador              = new SimpleStringProperty (this, "compilador", "gcc");
     private final StringProperty spectrumBin             = new SimpleStringProperty (this, "spectrum_bin", "");
     private final StringProperty cpcBin                  = new SimpleStringProperty (this, "cpc_bin", "");
@@ -155,8 +157,10 @@ public class ConfigModel {
      * @return Valor de la propiedad o el valor por defecto
      */
     public String getConfigProperty(String key, String defaultValue) {
+        // La apariencia es global: no se permite override por workspace
+        boolean isAppearanceKey = EDITOR_THEME_PROPERTY.equals(key) || "editor_appearance".equals(key);
         // Primero consultar el workspace si está activo
-        if (activeWorkspace != null) {
+        if (activeWorkspace != null && !isAppearanceKey) {
             String workspaceValue = activeWorkspace.getSetting(key);
             if (workspaceValue != null) {
                 return workspaceValue;
@@ -167,7 +171,7 @@ public class ConfigModel {
             case "idioma"                   : return getIdioma()                 != null ? getIdioma()                 : defaultValue;
             case "project_readme_language"  : return getProjectReadmeLanguage()  != null ? getProjectReadmeLanguage()  : defaultValue;
             case "editor_appearance"        : return getEditorAppearance()        != null ? getEditorAppearance()        : defaultValue;
-            case "gbdk_bin"                 : return getGbdkBin()                != null ? getGbdkBin()                : defaultValue;
+            case "editor_theme"             : return getEditorTheme()             != null ? getEditorTheme()             : defaultValue;
             case "compilador"               : return getCompilador()             != null ? getCompilador()             : defaultValue;
             case "spectrum_bin"             : return getSpectrumBin()            != null ? getSpectrumBin()            : defaultValue;
             case "cpc_bin"                  : return getCpcBin()                 != null ? getCpcBin()                 : defaultValue;
@@ -229,7 +233,7 @@ public class ConfigModel {
             case "idioma":                  setIdioma(value);                    break;
             case "project_readme_language": setProjectReadmeLanguage(value);     break;
             case "editor_appearance":       setEditorAppearance(value);           break;
-            case "gbdk_bin":                setGbdkBin(value);                   break;
+            case "editor_theme":            setEditorTheme(value);                break;
             case "compilador":              setCompilador(value);                break;
             case "spectrum_bin":            setSpectrumBin(value);               break;
             case "cpc_bin":                 setCpcBin(value);                    break;
@@ -293,10 +297,10 @@ public class ConfigModel {
         idioma                 .set(source.getProperty("idioma", "es"));
         projectReadmeLanguage  .set(normalizeReadmeLanguage(source.getProperty("project_readme_language", "en")));
         editorAppearance       .set(normalizeEditorAppearance(source.getProperty("editor_appearance", EDITOR_APPEARANCE_MODERN_DARK)));
+        editorTheme            .set(normalizeEditorTheme(source.getProperty("editor_theme", source.getProperty("editor_appearance", EDITOR_THEME_DEFAULT))));
         compilador             .set(source.getProperty("compilador", "gcc"));
         compiladorSeleccionado .set(compilerSelection);
         emuladorSeleccionado   .set(deriveEmulatorForCompilerAndProfile(compilerSelection, profile));
-        gbdkBin                .set(source.getProperty("gbdk_bin", ""));
         spectrumBin            .set(source.getProperty("spectrum_bin", ""));
         cpcBin                 .set(source.getProperty("cpc_bin", source.getProperty("spectrum_bin", "")));
         z88dkProfile           .set(profile);
@@ -348,7 +352,7 @@ public class ConfigModel {
         p.setProperty("idioma", getIdioma() != null ? getIdioma() : "es");
         p.setProperty("project_readme_language", getProjectReadmeLanguage() != null ? getProjectReadmeLanguage() : "en");
         p.setProperty("editor_appearance", getEditorAppearance() != null ? getEditorAppearance() : EDITOR_APPEARANCE_MODERN_DARK);
-        p.setProperty("gbdk_bin", getGbdkBin() != null ? getGbdkBin() : "");
+        p.setProperty("editor_theme", getEditorTheme() != null ? getEditorTheme() : EDITOR_THEME_DEFAULT);
         p.setProperty("compilador", getCompilador() != null ? getCompilador() : "gcc");
         p.setProperty("spectrum_bin", getSpectrumBin() != null ? getSpectrumBin() : "");
         p.setProperty("cpc_bin", getCpcBin() != null ? getCpcBin() : "");
@@ -439,6 +443,10 @@ public class ConfigModel {
     public String         getEditorAppearance()               { return normalizeEditorAppearance(editorAppearance.get()); }
     public void           setEditorAppearance(String v)       { editorAppearance.set(normalizeEditorAppearance(v)); }
 
+    public StringProperty editorThemeProperty()               { return editorTheme; }
+    public String         getEditorTheme()                    { return normalizeEditorTheme(editorTheme.get()); }
+    public void           setEditorTheme(String v)            { editorTheme.set(normalizeEditorTheme(v)); }
+
     public StringProperty compiladorProperty()                { return compilador; }
     public String         getCompilador()                     { return compilador.get(); }
     public void           setCompilador(String v)             { compilador.set(v); }
@@ -446,11 +454,6 @@ public class ConfigModel {
     public StringProperty compiladorSeleccionadoProperty()    { return compiladorSeleccionado; }
     public String         getCompiladorSeleccionado()         { return compiladorSeleccionado.get(); }
     public void           setCompiladorSeleccionado(String v) { compiladorSeleccionado.set(v); }
-
-    public StringProperty gbdkBinProperty()                   { return gbdkBin; }
-    public String         getGbdkBin()                        { return gbdkBin.get(); }
-    public void           setGbdkBin(String v)                { gbdkBin.set(v); }
-
 
     public StringProperty spectrumBinProperty()               { return spectrumBin; }
     public String         getSpectrumBin()                    { return spectrumBin.get(); }
@@ -733,6 +736,11 @@ public class ConfigModel {
         String normalized = appearance.trim().toLowerCase();
         if (EDITOR_APPEARANCE_CLASSIC.equals(normalized)) return EDITOR_APPEARANCE_CLASSIC;
         return EDITOR_APPEARANCE_MODERN_DARK;
+    }
+
+    private String normalizeEditorTheme(String themeId) {
+        if (themeId == null || themeId.isBlank()) return EDITOR_THEME_DEFAULT;
+        return themeId.trim();
     }
 
     private String deriveEmulatorForCompilerAndProfile(String compiler, String profile) {

@@ -8,6 +8,7 @@ import java.util.function.Consumer;
 import com.retroeditor.model.ConfigModel;
 import com.retroeditor.service.ConfigRepository;
 import com.retroeditor.service.PluginApplicationService;
+import com.retroeditor.service.ThemeService;
 
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
@@ -33,6 +34,7 @@ public class ConfigDialogCoordinator {
         File projectRoot,
         ConfigRepository configRepository,
         PluginApplicationService pluginApplicationService,
+        ThemeService themeService,
         ResourceBundle bundle,
         Runnable onLanguageChanged,
         Runnable onOpened,
@@ -55,6 +57,7 @@ public class ConfigDialogCoordinator {
             configController.setProjectRoot(projectRoot);
             configController.setConfigRepository(configRepository);
             configController.setPluginApplicationService(pluginApplicationService);
+            configController.setThemeService(themeService);
             configController.reloadFromModel();
             configController.setOnLanguageChanged(onLanguageChanged);
             configController.setOnCloseCallback(() -> {

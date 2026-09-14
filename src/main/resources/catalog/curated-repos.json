@@ -1,0 +1,142 @@
+[
+  {
+    "owner": "gbdk-2020", "repo": "gbdk-2020",
+    "category": "gbdk",
+    "descriptionEs": "SDK oficial para desarrollo de Game Boy en C con GBDK",
+    "descriptionEn": "Official SDK for Game Boy development in C with GBDK",
+    "stars": 600
+  },
+  {
+    "owner": "gbdk-2020", "repo": "gbdk-2020-examples",
+    "category": "gbdk",
+    "descriptionEs": "Ejemplos oficiales de GBDK-2020 para Game Boy",
+    "descriptionEn": "Official GBDK-2020 examples for Game Boy",
+    "stars": 150
+  },
+  {
+    "owner": "Zal0", "repo": "z80-decimal-library",
+    "category": "z88dk",
+    "descriptionEs": "Librería de decimales de alta precisión para Z80",
+    "descriptionEn": "High precision decimal library for Z80",
+    "stars": 30
+  },
+  {
+    "owner": "z88dk", "repo": "z88dk",
+    "category": "z88dk",
+    "descriptionEs": "Suite de desarrollo completa para Z80 (CPC, Spectrum, MSX)",
+    "descriptionEn": "Complete development suite for Z80 (CPC, Spectrum, MSX)",
+    "stars": 500
+  },
+  {
+    "owner": "Micronauts", "repo": "gbdk-2020",
+    "category": "gbdk",
+    "descriptionEs": "Repositorio original de GBDK con documentación",
+    "descriptionEn": "Original GBDK repository with documentation",
+    "stars": 120
+  },
+  {
+    "owner": "cppchriscpp", "repo": "pocomc-gb-dev-tutorial",
+    "category": "tutorial",
+    "descriptionEs": "Tutorial de desarrollo de juegos para Game Boy con GBDK",
+    "descriptionEn": "Game Boy game development tutorial with GBDK",
+    "stars": 40
+  },
+  {
+    "owner": "LostOracle", "repo": "gb-starter-kit",
+    "category": "tutorial",
+    "descriptionEs": "Kit de inicio para desarrollo de Game Boy",
+    "descriptionEn": "Starter kit for Game Boy development",
+    "stars": 25
+  },
+  {
+    "owner": "Gekkio", "repo": "gb-sm83",
+    "category": "tool",
+    "descriptionEs": "Documentación completa del CPU SM83 de Game Boy",
+    "descriptionEn": "Complete Game Boy SM83 CPU documentation",
+    "stars": 100
+  },
+  {
+    "owner": "binjr", "repo": "BINder",
+    "category": "tool",
+    "descriptionEs": "Editor de mapas y tiles para Game Boy",
+    "descriptionEn": "Map and tile editor for Game Boy",
+    "stars": 20
+  },
+  {
+    "owner": "AxORbit24", "repo": "gb-platformer-engine",
+    "category": "engine",
+    "descriptionEs": "Engine de plataformas para Game Boy en C",
+    "descriptionEn": "Platformer engine for Game Boy in C",
+    "stars": 15
+  },
+  {
+    "owner": "KasumiLovesAsuka", "repo": "gb-shmup-engine",
+    "category": "engine",
+    "descriptionEs": "Engine de shoot-em-up para Game Boy",
+    "descriptionEn": "Shoot-em-up engine for Game Boy",
+    "stars": 10
+  },
+  {
+    "owner": "mmzero", "repo": "sokoban-gb",
+    "category": "engine",
+    "descriptionEs": "Implementación de Sokoban para Game Boy, buen ejemplo de lógica de juego",
+    "descriptionEn": "Sokoban implementation for Game Boy, good example of game logic",
+    "stars": 35
+  },
+  {
+    "owner": "ISSOtm", "repo": "rgbds",
+    "category": "tool",
+    "descriptionEs": "Redneb Game Boy Development System - ensamblador y linker para GB",
+    "descriptionEn": "Redneb Game Boy Development System - assembler and linker for GB",
+    "stars": 800
+  },
+  {
+    "owner": "LIJI32", "repo": "SameBoy",
+    "category": "tool",
+    "descriptionEs": "Emulador y depurador de Game Boy de alta precisión",
+    "descriptionEn": "High precision Game Boy emulator and debugger",
+    "stars": 1500
+  },
+  {
+    "owner": "shadow Ramsey", "repo": "rgbds-web",
+    "category": "tool",
+    "descriptionEs": "Versión web de RGBDS para compilación en línea",
+    "descriptionEn": "Web version of RGBDS for online compilation",
+    "stars": 50
+  },
+  {
+    "owner": "danhardman", "repo": "gb-music-driver",
+    "category": "music",
+    "descriptionEs": "Driver de música para Game Boy compatible con GBDK",
+    "descriptionEn": "Music driver for Game Boy compatible with GBDK",
+    "stars": 18
+  },
+  {
+    "owner": "pinobatch", "repo": "gb-sound-engine",
+    "category": "music",
+    "descriptionEs": "Motor de sonido para Game Boy con instrumentos y efectos",
+    "descriptionEn": "Sound engine for Game Boy with instruments and effects",
+    "stars": 60
+  },
+  {
+    "owner": "Lunar DW", "repo": "LunarGB",
+    "category": "tool",
+    "descriptionEs": "Librería decompiladora para ROMs de Game Boy",
+    "descriptionEn": "Decompiler library for Game Boy ROMs",
+    "stars": 25
+  },
+  {
+    "owner": "DevEd2", "repo": "gbdk-2020-tutorials",
+    "category": "tutorial",
+    "descriptionEs": "Serie de tutoriales para GBDK-2020 con ejemplos progresivos",
+    "descriptionEn": "Tutorial series for GBDK-2020 with progressive examples",
+    "stars": 22
+  },
+  {
+    "owner": "quentin45", "repo": "z80golf",
+    "category": "z88dk",
+    "descriptionEs": "Golf programando en Z80 - juego educativo",
+    "descriptionEn": "Golf programming in Z80 - educational game",
+    "stars": 45
+  }
+]

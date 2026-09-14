@@ -58,6 +58,7 @@ public class FXUtils {
         SPECTRUM_SCREEN,
         GAMEBOY,
         GAMEBOY_SPRITE,
+        TRANSLATOR,
         CPC,
         GCC,
         GCC_CALC,
@@ -86,9 +87,29 @@ public class FXUtils {
     private String projectReadmeLanguage = "en";
     private String editorAppearance = ConfigModel.EDITOR_APPEARANCE_MODERN_DARK;
     private java.util.function.BiConsumer<String, CodeArea> doubleClickHandler;
+    private java.util.function.Consumer<CodeArea> editorThemeApplier;
 
     public void setDoubleClickHandler(java.util.function.BiConsumer<String, CodeArea> handler) {
         this.doubleClickHandler = handler;
+    }
+
+    /**
+     * Permite a MainController proporcionar el CSS del modo activo sin que
+     * FXUtils dependa de ThemeService/ThemeCssGenerator: al crear cada
+     * {@code CodeArea} se invoca al applier, que resuelve el modo activo y
+     * aplica la hoja generada. Si no hay applier se usa la hoja estática.
+     */
+    public void setEditorThemeApplier(java.util.function.Consumer<CodeArea> applier) {
+        this.editorThemeApplier = applier;
+    }
+
+    private void applyEditorThemeToNewCodeArea(CodeArea codeArea) {
+        if (codeArea == null) return;
+        if (editorThemeApplier != null) {
+            editorThemeApplier.accept(codeArea);
+        } else {
+            applyEditorAppearance(codeArea);
+        }
     }
 
     private void attachCodeAreaDoubleClickHandler(CodeArea codeArea) {
@@ -154,9 +175,13 @@ public class FXUtils {
             || lastCreatedProjectTemplate == ProjectTemplate.SPECTRUM_SCREEN;
     }
 
+    public boolean wasLastCreatedProjectTranslatorTemplate() {
+        return lastCreatedProjectTemplate == ProjectTemplate.TRANSLATOR;
+    }
+
     /**
-     * Obtiene un nombre de archivo predeterminado para guardar en función del título de la pestaña.
-     * @param tab Pestaña actual.
+     * Obtiene un nombre de archivo predeterminado para guardar en funciÃ³n del tÃ­tulo de la pestaÃ±a.
+     * @param tab PestaÃ±a actual.
      * @return Nombre de archivo sugerido.
      */
     public String getDefaultFileName(Tab tab) {
@@ -172,26 +197,26 @@ public class FXUtils {
     }
 
     /**
-     * Cierra una pestaña específica en el TabPane.
-     * @param tab Pestaña a cerrar.
-     * @param tabPane TabPane que contiene la pestaña.
+     * Cierra una pestaÃ±a especÃ­fica en el TabPane.
+     * @param tab PestaÃ±a a cerrar.
+     * @param tabPane TabPane que contiene la pestaÃ±a.
      */
     public void closeTab(Tab tab, TabPane tabPane)   { tabPane.getTabs().remove(tab); }
     
     /**
-     * Obtiene la pestaña actualmente seleccionada en el TabPane.
-     * @param tabPane TabPane que contiene las pestañas.
-     * @return Pestaña actualmente seleccionada.
+     * Obtiene la pestaÃ±a actualmente seleccionada en el TabPane.
+     * @param tabPane TabPane que contiene las pestaÃ±as.
+     * @return PestaÃ±a actualmente seleccionada.
      */
     public Tab getSelectedTab(TabPane tabPane)       { return tabPane.getSelectionModel().getSelectedItem(); }
 
     /**
-     * Añade una nueva pestaña con un CodeArea y resaltado de sintaxis.
-     * @param title Título de la pestaña.
+     * AÃ±ade una nueva pestaÃ±a con un CodeArea y resaltado de sintaxis.
+     * @param title TÃ­tulo de la pestaÃ±a.
      * @param content Contenido inicial del CodeArea.
      * @param syntaxHighlighter Resaltador de sintaxis a utilizar.
-     * @param tabPane TabPane donde se añadirá la nueva pestaña.
-     * @return La nueva pestaña creada.
+     * @param tabPane TabPane donde se aÃ±adirÃ¡ la nueva pestaÃ±a.
+     * @return La nueva pestaÃ±a creada.
      */
     public Tab addTab(String title, String content, SyntaxHighlighter syntaxHighlighter, TabPane tabPane) {
         CodeArea codeArea = new CodeArea();
@@ -202,14 +227,14 @@ public class FXUtils {
         editorLayout.setRight(minimap);
         String initialText = content != null ? content : "";
 
-        // Habilita la función de numeración de líneas para los párrafos. 
+        // Habilita la funciÃ³n de numeraciÃ³n de lÃ­neas para los pÃ¡rrafos. 
         codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
         codeArea.replaceText(initialText);
 
         // Aplica el resaltado inicial de sintaxis
         codeArea.setStyleSpans(0, syntaxHighlighter.computeHighlighting(initialText, title));
 
-        // Reduce el tiempo de ejecución de las ediciones posteriores para evitar actualizaciones de estilo demasiado frecuentes
+        // Reduce el tiempo de ejecuciÃ³n de las ediciones posteriores para evitar actualizaciones de estilo demasiado frecuentes
         codeArea.multiPlainChanges()
                 .successionEnds(Duration.ofMillis(250))
                 .subscribe(ignore -> {
@@ -236,7 +261,7 @@ public class FXUtils {
                     }
                 });
 
-        applyEditorAppearance(codeArea);
+        applyEditorThemeToNewCodeArea(codeArea);
         attachCodeAreaDoubleClickHandler(codeArea);
         MultiCursorManager.attach(codeArea);
         Tab tab = new Tab(title, editorLayout);
@@ -260,7 +285,7 @@ public class FXUtils {
 
         codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
         codeArea.replaceText(initialText);
-        applyEditorAppearance(codeArea);
+        applyEditorThemeToNewCodeArea(codeArea);
         attachCodeAreaDoubleClickHandler(codeArea);
         MultiCursorManager.attach(codeArea);
         codeArea.setStyleSpans(0, syntaxHighlighter.computeHighlighting(initialText, title));
@@ -281,7 +306,7 @@ public class FXUtils {
         previewView.setVisible(false);
         previewView.setManaged(false);
 
-        ToggleButton codeToggle = new ToggleButton("Código");
+        ToggleButton codeToggle = new ToggleButton("CÃ³digo");
         ToggleButton previewToggle = new ToggleButton("Vista previa");
         ToggleGroup group = new ToggleGroup();
         codeToggle.setToggleGroup(group);
@@ -304,6 +329,26 @@ public class FXUtils {
 
         codeArea.textProperty().addListener((obs, oldText, newText) -> updateTabDirtyIndicator(tab, codeArea));
 
+        tabPane.getTabs().add(tab);
+        tabPane.getSelectionModel().select(tab);
+        return tab;
+    }
+
+    public Tab addToolTab(String title, Node node, TabPane tabPane) {
+        Tab tab = new Tab(title != null ? title : "");
+        tab.setContent(node);
+        tab.setClosable(true);
+        tab.getProperties().put(TAB_PROP_BASE_TITLE, title != null ? title : "");
+        tabPane.getTabs().add(tab);
+        tabPane.getSelectionModel().select(tab);
+        return tab;
+    }
+
+    public Tab addTranslatorTab(String title, Node node, TabPane tabPane) {
+        Tab tab = new Tab(title != null ? title : "");
+        tab.setContent(node);
+        tab.setClosable(true);
+        tab.getProperties().put(TAB_PROP_BASE_TITLE, title != null ? title : "");
         tabPane.getTabs().add(tab);
         tabPane.getSelectionModel().select(tab);
         return tab;
@@ -347,6 +392,44 @@ public class FXUtils {
         }
     }
 
+    private static final String TAB_PROP_GENERATED_CSS = "editor.generatedCss";
+
+    public void applyGeneratedEditorCss(CodeArea codeArea, String cssUrl) {
+        if (codeArea == null) return;
+        Object previous = codeArea.getProperties().get(TAB_PROP_GENERATED_CSS);
+        if (previous instanceof String) {
+            codeArea.getStylesheets().remove((String) previous);
+        }
+        if (cssUrl != null && !codeArea.getStylesheets().contains(cssUrl)) {
+            codeArea.getStylesheets().add(cssUrl);
+            codeArea.getProperties().put(TAB_PROP_GENERATED_CSS, cssUrl);
+        }
+    }
+
+    public void applyGeneratedEditorTheme(CodeArea codeArea, String cssSource) {
+        if (codeArea == null) return;
+        applyGeneratedEditorCss(codeArea, dataCssUrl(cssSource));
+    }
+
+    /**
+     * Convierte texto CSS en una URL {@code data:text/css}. Los espacios se
+     * codifican como {@code %20} (nunca {@code +}): el decodificador de
+     * {@code DataURI} de JavaFX trata {@code +} como un signo más literal, por
+     * lo que {@code URLEncoder} por sí solo produce hojas que el parser CSS
+     * rechaza y el tema no llega a aplicarse.
+     *
+     * @return la URL data, o {@code null} si la entrada es nula/vacía
+     */
+    public static String dataCssUrl(String cssSource) {
+        if (cssSource == null || cssSource.isBlank()) return null;
+        try {
+            String encoded = java.net.URLEncoder.encode(cssSource, StandardCharsets.UTF_8).replace("+", "%20");
+            return "data:text/css;charset=utf-8," + encoded;
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
     public void markTabSaved(Tab tab, String baseTitle, String savedText) {
         if (tab == null) return;
 
@@ -382,7 +465,7 @@ public class FXUtils {
     }
 
     /**
-     * Añade una pestaña "Home" que carga un recurso HTML en un WebView.
+     * AÃ±ade una pestaÃ±a "Home" que carga un recurso HTML en un WebView.
      * @param resourcePath classpath del recurso (ej. "/views/home/home.html")
      */
     public Tab addHomeTab(String resourcePath, TabPane tabPane) {
@@ -390,11 +473,11 @@ public class FXUtils {
     }
 
     /**
-     * Añade una pestaña Home con título e id personalizados.
+     * AÃ±ade una pestaÃ±a Home con tÃ­tulo e id personalizados.
      * @param resourcePath classpath del recurso HTML
-     * @param tabPane contenedor de pestañas
-     * @param tabTitle texto de la pestaña
-     * @param tabId id opcional de la pestaña para localizarla luego
+     * @param tabPane contenedor de pestaÃ±as
+     * @param tabTitle texto de la pestaÃ±a
+     * @param tabId id opcional de la pestaÃ±a para localizarla luego
      */
     public Tab addHomeTab(String resourcePath, TabPane tabPane, String tabTitle, String tabId) {
         try {
@@ -408,7 +491,7 @@ public class FXUtils {
             tab.setClosable(true);
             if (tabId != null && !tabId.isEmpty()) tab.setId(tabId);
 
-            tabPane.getTabs().add(0, tab); // añade como primera pestaña
+            tabPane.getTabs().add(0, tab); // aÃ±ade como primera pestaÃ±a
             tabPane.getSelectionModel().select(tab);
 
             return tab;
@@ -420,11 +503,11 @@ public class FXUtils {
     }
 
     /**
-     * Añade una pestaña Home con contenido HTML ya renderizado.
+     * AÃ±ade una pestaÃ±a Home con contenido HTML ya renderizado.
      * @param htmlContent html completo
-     * @param tabPane contenedor de pestañas
-     * @param tabTitle texto de la pestaña
-     * @param tabId id opcional de la pestaña para localizarla luego
+     * @param tabPane contenedor de pestaÃ±as
+     * @param tabTitle texto de la pestaÃ±a
+     * @param tabId id opcional de la pestaÃ±a para localizarla luego
      */
     public Tab addHomeTabContent(String htmlContent, TabPane tabPane, String tabTitle, String tabId) {
         try {
@@ -457,7 +540,7 @@ public class FXUtils {
 
     /**
      * Obtiene el CodeArea del tab actualmente seleccionado en el TabPane.
-     * @param tabPane TabPane que contiene las pestañas.
+     * @param tabPane TabPane que contiene las pestaÃ±as.
      * @return CodeArea del tab seleccionado, o null si no hay tab seleccionado o no es un CodeArea.
      */
     public CodeArea getCurrentCodeArea(TabPane tabPane) {
@@ -471,7 +554,7 @@ public class FXUtils {
     }
 
     /**
-     * Actualiza los textos de la interfaz según el ResourceBundle proporcionado.
+     * Actualiza los textos de la interfaz segÃºn el ResourceBundle proporcionado.
      * @param uiElements
      * @param bundle
      */
@@ -518,9 +601,9 @@ public class FXUtils {
     }
 
     /**
-     * Obtiene el CodeArea contenido en una pestaña específica.
-     * @param tab Pestaña de la cual obtener el CodeArea.
-     * @return CodeArea contenido en la pestaña, o null si no es un CodeArea.
+     * Obtiene el CodeArea contenido en una pestaÃ±a especÃ­fica.
+     * @param tab PestaÃ±a de la cual obtener el CodeArea.
+     * @return CodeArea contenido en la pestaÃ±a, o null si no es un CodeArea.
      */
     public CodeArea getCodeArea(Tab tab) {
         if (tab == null) return null;
@@ -553,12 +636,12 @@ public class FXUtils {
     }
 
     /**
-     * Añade una nueva pestaña (tab) al TabPane y la asocia a un archivo en el mapa.
-     * @param file Archivo asociado a la pestaña (puede ser null para nuevo archivo).
+     * AÃ±ade una nueva pestaÃ±a (tab) al TabPane y la asocia a un archivo en el mapa.
+     * @param file Archivo asociado a la pestaÃ±a (puede ser null para nuevo archivo).
      * @param content Contenido inicial del CodeArea.
-     * @param tabFileMap Mapa que asocia pestañas a archivos.
+     * @param tabFileMap Mapa que asocia pestaÃ±as a archivos.
      * @param syntaxHighlighter Resaltador de sintaxis a utilizar.
-     * @param tabPane TabPane donde se añadirá la nueva pestaña.
+     * @param tabPane TabPane donde se aÃ±adirÃ¡ la nueva pestaÃ±a.
      * @param newFileCounter Contador para nombrar nuevos archivos sin guardar.
      */
     public void addNewTab(File file, String content, Map<Tab, File> tabFileMap, SyntaxHighlighter syntaxHighlighter, TabPane tabPane, int newFileCounter) {
@@ -577,8 +660,8 @@ public class FXUtils {
 
     /**
      * Crea un nuevo proyecto en una carpeta seleccionada por el usuario.
-     * @param parentStage La ventana principal (stage) de la aplicación.
-     * @return La carpeta del nuevo proyecto, o null si se cancela la operación.
+     * @param parentStage La ventana principal (stage) de la aplicaciÃ³n.
+     * @return La carpeta del nuevo proyecto, o null si se cancela la operaciÃ³n.
      */
     public File createNewProject(Stage parentStage) {
         return createNewProject(parentStage, null);
@@ -591,9 +674,9 @@ public class FXUtils {
 
     /**
      * Crea un nuevo proyecto en una carpeta seleccionada por el usuario.
-     * @param parentStage La ventana principal (stage) de la aplicación.
+     * @param parentStage La ventana principal (stage) de la aplicaciÃ³n.
      * @param bundle ResourceBundle opcional para i18n.
-     * @return La carpeta del nuevo proyecto, o null si se cancela la operación.
+     * @return La carpeta del nuevo proyecto, o null si se cancela la operaciÃ³n.
      */
     public File createNewProject(Stage parentStage, ResourceBundle bundle) {
         return createNewProject(parentStage, bundle, (File) null);
@@ -621,7 +704,7 @@ public class FXUtils {
 
                 if (!result.isPresent()) {
                     lastProjectCreationCancelled = true;
-                    return null; // Usuario canceló
+                    return null; // Usuario cancelÃ³
                 }
 
                 String nombre = result.get().trim();
@@ -713,10 +796,10 @@ public class FXUtils {
                             return null;
                         }
 
-                        continue; // Reintentar eliminación
+                        continue; // Reintentar eliminaciÃ³n
                     }
                     
-                    // En este punto, la carpeta antigua fue eliminada; intentar crear una nueva a continuación en el flujo normal
+                    // En este punto, la carpeta antigua fue eliminada; intentar crear una nueva a continuaciÃ³n en el flujo normal
                 }
 
                 try {
@@ -1044,7 +1127,7 @@ public class FXUtils {
             "",
             "## Estructura",
             "- Archivo principal: `src/main.c`",
-            "- Salida de compilación: `out/`",
+            "- Salida de compilaciÃ³n: `out/`",
             "",
             "## Toolchain recomendada",
             "- z88dk (`zcc`)",
@@ -1068,7 +1151,7 @@ public class FXUtils {
             "",
             "## Estructura",
             "- Archivo principal: `src/main.c`",
-            "- Salida de compilación: `out/`",
+            "- Salida de compilaciÃ³n: `out/`",
             "",
             "## Toolchain recomendada",
             "- GBDK (`lcc`)",
@@ -1094,7 +1177,7 @@ public class FXUtils {
             "- Game Boy (GBDK)",
             "",
             "## Notas",
-            "- Puedes cambiar la plataforma desde la configuración del compilador.",
+            "- Puedes cambiar la plataforma desde la configuraciÃ³n del compilador.",
             ""
         );
     }
@@ -1311,8 +1394,8 @@ public class FXUtils {
 
     /**
      * Abre un proyecto existente seleccionando una carpeta.
-     * @param parentStage La ventana principal (stage) de la aplicación.
-     * @return La carpeta del proyecto seleccionado, o null si se cancela la operación.
+     * @param parentStage La ventana principal (stage) de la aplicaciÃ³n.
+     * @return La carpeta del proyecto seleccionado, o null si se cancela la operaciÃ³n.
      */
     public File openExistingProject(Stage parentStage) {
         return openExistingProject(parentStage, null);
@@ -1320,9 +1403,9 @@ public class FXUtils {
 
     /**
      * Abre un proyecto existente seleccionando una carpeta.
-     * @param parentStage La ventana principal (stage) de la aplicación.
+     * @param parentStage La ventana principal (stage) de la aplicaciÃ³n.
      * @param bundle ResourceBundle opcional para i18n.
-     * @return La carpeta del proyecto seleccionado, o null si se cancela la operación.
+     * @return La carpeta del proyecto seleccionado, o null si se cancela la operaciÃ³n.
      */
     public File openExistingProject(Stage parentStage, ResourceBundle bundle) {
         return openExistingProject(parentStage, bundle, (File) null);
@@ -1351,11 +1434,11 @@ public class FXUtils {
     }
 
     /**
-     * Maneja la acción de crear una nueva pestaña.
-     * @param event Evento de acción.
+     * Maneja la acciÃ³n de crear una nueva pestaÃ±a.
+     * @param event Evento de acciÃ³n.
      * @param newFileCounter Contador para nombrar nuevos archivos sin guardar.
-     * @param tabPane TabPane donde se añadirá la nueva pestaña.
-     * @param tabFileMap Mapa que asocia pestañas a archivos.
+     * @param tabPane TabPane donde se aÃ±adirÃ¡ la nueva pestaÃ±a.
+     * @param tabFileMap Mapa que asocia pestaÃ±as a archivos.
      * @param syntaxHighlighter Resaltador de sintaxis a utilizar.
      */
     public void onNewTab(ActionEvent event, int newFileCounter, TabPane tabPane, Map<Tab, File> tabFileMap, SyntaxHighlighter syntaxHighlighter) {

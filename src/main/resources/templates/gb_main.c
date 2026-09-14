@@ -1,6 +1,6 @@
 /*
  * Plantilla basica para Game Boy (GBDK-2020).
- * Asegurate de tener configurada la ruta del bin de GBDK.
+ * GBDK se incluye integrado con Samaruc en libs/gbdk.
  */
 #include <gb/gb.h>
 

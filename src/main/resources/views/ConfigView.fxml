@@ -13,6 +13,8 @@
 <?import javafx.scene.control.CheckBox?>
 <?import javafx.scene.control.ProgressIndicator?>
 <?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.Spinner?>
 <BorderPane xmlns:fx="http://javafx.com/fxml" fx:controller="com.retroeditor.controller.config.ConfigController" prefWidth="760" prefHeight="640" style="-fx-padding: 14;">
     <center>
         <ScrollPane fitToWidth="true" fitToHeight="false" pannable="true" hbarPolicy="NEVER" vbarPolicy="ALWAYS">
@@ -46,9 +48,32 @@
         </Tab>
         <Tab fx:id="tabAppearance" text="Apariencia">
             <AnchorPane>
-                <VBox spacing="10" alignment="TOP_LEFT" style="-fx-padding: 14;" AnchorPane.topAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0">
-                    <Label fx:id="lblEditorAppearance" text="Apariencia del editor:" />
-                    <ComboBox fx:id="comboEditorAppearance" prefWidth="260" />
+                <ScrollPane fx:id="scrollAppearance" fitToWidth="true" vbarPolicy="AS_NEEDED" hbarPolicy="NEVER"
+                    AnchorPane.topAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.bottomAnchor="0.0">
+                    <VBox spacing="10" alignment="TOP_LEFT" style="-fx-padding: 14;" AnchorPane.topAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0">
+                        <Label fx:id="lblThemeMode" text="Modo:" />
+                    <HBox spacing="8" alignment="CENTER_LEFT">
+                        <ComboBox fx:id="comboThemeMode" prefWidth="290" />
+                        <Button fx:id="btnDuplicateTheme" text="Duplicar" onAction="#onDuplicateTheme" />
+                        <Button fx:id="btnDeleteTheme" text="Eliminar" onAction="#onDeleteTheme" />
+                        <Button fx:id="btnResetTheme" text="Restablecer" onAction="#onResetTheme" />
+                    </HBox>
+                    <Label fx:id="lblThemeName" text="Nombre del modo:" />
+                    <TextField fx:id="txtThemeName" prefWidth="290" editable="false" />
+                    <Label fx:id="lblThemeFont" text="Fuente del editor:" />
+                    <HBox spacing="8" alignment="CENTER_LEFT">
+                        <ComboBox fx:id="comboFontFamily" prefWidth="340" editable="true" />
+                        <Label fx:id="lblThemeFontSize" text="Tamaño:" />
+                        <Spinner fx:id="spFontSize" prefWidth="120" />
+                    </HBox>
+                    <HBox spacing="8" alignment="CENTER_LEFT">
+                        <CheckBox fx:id="chkLineNumberAuto" selected="true" text="Automatico (tamaño - 1)" />
+                        <Spinner fx:id="spLineNumberSize" prefWidth="120" />
+                    </HBox>
+                    <VBox fx:id="vboxThemeColors" spacing="8" />
+                    <Label fx:id="lblThemePreview" text="Vista previa:" />
+                    <VBox fx:id="vboxThemePreview" spacing="8" />
+                    <Separator />
                     <Label fx:id="lblTerminalShell" text="Shell del terminal:" />
                     <ComboBox fx:id="comboTerminalShell" prefWidth="260" />
                     <CheckBox fx:id="chkEnableLogs" text="Habilitar guardado de logs en archivo (samaruc.log)" />
@@ -56,7 +81,8 @@
                     <HBox spacing="8" alignment="CENTER_LEFT">
                         <Button fx:id="btnGuardarAppearance" text="Guardar cambios" onAction="#onSaveEditorAppearance" prefWidth="170" />
                     </HBox>
-                </VBox>
+                    </VBox>
+                </ScrollPane>
             </AnchorPane>
         </Tab>
         <Tab fx:id="tabCompilador" text="Compilador">
@@ -77,11 +103,7 @@
                         <ScrollPane fitToWidth="true" fitToHeight="false" prefHeight="340" hbarPolicy="NEVER" vbarPolicy="ALWAYS">
                         <content>
                         <VBox spacing="12" alignment="CENTER_LEFT" style="-fx-padding: 8 0 0 0;">
-                            <Label fx:id="lblGbdkBin" text="RUTA DE BIN DE GBDK:" />
-                            <HBox spacing="6" alignment="CENTER_LEFT">
-                                <TextField fx:id="txtGbdkBin" prefWidth="220" promptText="/ruta/a/gbdk/bin" />
-                                <Button fx:id="btnSeleccionarGbdkBin" text="..." onAction="#onSeleccionarGbdkBin" />
-                            </HBox>
+                            <Label fx:id="lblGbdkBundled" wrapText="true" text="GBDK se incluye con Samaruc (libs/gbdk/bin)" />
                             <Label fx:id="lblGbdkOpts" text="Opciones de optimización GBDK:" />
                             <HBox spacing="6" alignment="CENTER_LEFT">
                                 <Label fx:id="lblGbdkOptLevel" text="Nivel de optimización:" />

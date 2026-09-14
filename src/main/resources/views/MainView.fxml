@@ -19,6 +19,7 @@
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemNuevo" text="Nuevo" onAction="#onNewTab" />
                         <MenuItem fx:id="menuItemNuevoPlantilla" text="Nuevo archivo desde plantilla..." onAction="#onNuevoArchivoDesdePlantilla" />
+                        <MenuItem fx:id="menuItemNuevoTraduccion" text="Nuevo archivo de traducción..." onAction="#onNewTranslatorFile" />
                         <MenuItem fx:id="menuItemAbrir" text="Abrir" onAction="#onOpenFile" />
                         <MenuItem fx:id="menuItemGuardar" text="Guardar" onAction="#onSaveFile" />
                         <MenuItem fx:id="menuItemGuardarTodo" text="Guardar todo" onAction="#onSaveAllFiles" />
@@ -57,15 +58,18 @@
 
                     <Menu fx:id="menuHerramientas" text="Herramientas">
                         <MenuItem fx:id="menuItemTileEditor" text="Editor de Tiles (Game Boy)" onAction="#onOpenTileEditor" />
-<<<<<<< HEAD
-=======
                         <MenuItem fx:id="menuItemTilemapEditor" text="Editor de Mapas de Tiles (Game Boy)" onAction="#onOpenTilemapEditor" />
->>>>>>> b415254 (Release v1.3.0: Visual Tilemap Editor with DMG Game Boy palette, compact toolbar/icons, and enhancements)
                         <MenuItem fx:id="menuItemGameBoyAudioEditor" text="Editor de audio (Game Boy)" onAction="#onOpenGameBoyAudioEditor" />
                         <MenuItem fx:id="menuItemPngToGameBoy" text="Convertir PNG a C (Game Boy)" onAction="#onOpenPngToGameBoyConverter" />
                         <MenuItem fx:id="menuItemPngToZx" text="Convertir PNG a C (ZX Spectrum)" onAction="#onOpenPngToZxConverter" />
+                        <MenuItem fx:id="menuItemRomTextTranslator" text="Traductor de texto Game Boy" onAction="#onOpenRomTextTranslator" />
                         <SeparatorMenuItem />
+                        <MenuItem fx:id="menuItemGitHubRepos" text="Repositorios de GitHub" onAction="#onOpenGitHubRepoBrowser" />
                         <MenuItem fx:id="menuItemProjectStats" text="Estadísticas del proyecto" onAction="#onOpenProjectStats" />
+                    </Menu>
+
+                    <Menu fx:id="menuGit" text="Git">
+                        <MenuItem fx:id="menuItemGitPanel" text="Panel Git" onAction="#onOpenGitPanel" />
                     </Menu>
 
                     <Menu fx:id="menuAyuda" text="Ayuda">
@@ -147,6 +151,9 @@
                 <!-- Ayuda -->
                 <Button fx:id="btnManual" onAction="#onOpenManual">
                     <tooltip><Tooltip text="Abrir manual de usuario" /></tooltip>
+                </Button>
+                <Button fx:id="btnGit" onAction="#onOpenGitPanel">
+                    <tooltip><Tooltip text="Panel Git" /></tooltip>
                 </Button>
             </ToolBar>
         </VBox>

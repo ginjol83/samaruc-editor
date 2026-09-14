@@ -553,8 +553,9 @@ mvn javafx:run</code></pre>
 <h3>Subpestaña <code>GBDK</code></h3>
 <p>Esta subpestaña reúne la configuración específica para proyectos de Game Boy compilados con <code>GBDK</code>.</p>
 
-<h4>Ruta de binarios</h4>
-<p>Los primeros controles permiten indicar dónde está la carpeta <code>bin</code> de la toolchain. Si <strong>GBDK</strong> es el compilador activo, la ruta debe existir realmente. Si el campo está vacío o apunta a una carpeta inexistente, Samaruc no permitirá guardar la configuración completa.</p>
+<h4>Compilador integrado</h4>
+<p><strong>GBDK-2020 se distribuye integrado con Samaruc</strong> en la carpeta <code>libs/gbdk</code>. No es necesario descargarlo ni indicar ningún camino: Samaruc localiza automáticamente <code>libs/gbdk/bin</code> junto a la aplicación y compila directamente con <code>lcc</code>. No existe ningún campo de ruta de binarios en esta subpestaña.</p>
+<p class="nota">El compilador empaquetado es la distribución oficial de <strong>GBDK-2020 v4.2.0</strong> para Windows. Si además quieres actualizarlo o usar otra versión, puedes sustituir el contenido de <code>libs/gbdk</code> por la distribución que prefieras.</p>
 
 <h4>Nivel de optimización</h4>
 <p>El campo <strong>Nivel de optimización</strong> ofrece estos valores admitidos:</p>
@@ -586,7 +587,7 @@ mvn javafx:run</code></pre>
 <p>Esta subpestaña está pensada para proyectos de <strong>ZX Spectrum</strong> compilados con <code>z88dk</code>.</p>
 
 <h4>Ruta de binarios</h4>
-<p>La parte superior funciona igual que en GBDK y está definida por un campo de ruta, botón <code>...</code> y botón <strong>Guardar Z88DK</strong>.</p>
+<p>La parte superior de esta subpestaña está definida por un campo de ruta, botón <code>...</code> y botón <strong>Guardar Z88DK</strong>.</p>
 <p>Si el perfil activo es <code>z88dk</code> para Spectrum, Samaruc exige que la ruta <code>bin</code> exista. Si no existe, el guardado global fallará.</p>
 
 <h4>Selector <code>-clib</code></h4>

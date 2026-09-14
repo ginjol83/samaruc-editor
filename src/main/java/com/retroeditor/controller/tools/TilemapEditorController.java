@@ -1,25 +1,34 @@
 package com.retroeditor.controller.tools;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.ResourceBundle;
+import java.util.function.Consumer;
+
+import javax.imageio.ImageIO;
 
 import javafx.geometry.Insets;
-import javafx.scene.Scene;
+import javafx.scene.Node;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
+import javafx.scene.image.ImageView;
+import javafx.scene.image.PixelWriter;
+import javafx.scene.image.WritableImage;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
-import javafx.stage.Stage;
+import javafx.stage.Window;
 
 /**
- * Editor visual de Mapas de Tiles (Tilemap Editor) con scroll, capas de colisión y generación de C arrays para Game Boy y ZX Spectrum.
+ * Editor visual de Mapas de Tiles (Tilemap Editor) con scroll, capas de colisión, carga de tileset PNG con paleta Game Boy y generación de C arrays.
  */
 public class TilemapEditorController {
 
@@ -33,14 +42,22 @@ public class TilemapEditorController {
     private int selectedTileIndex = 0;
     private boolean collisionMode = false;
 
+    private final List<javafx.scene.image.Image> tileImages = new ArrayList<>();
+    private final ListView<Integer> tileListView = new ListView<>();
+
+    private Node rootNode;
+
     private final Canvas mapCanvas = new Canvas(MAP_WIDTH * TILE_SIZE, MAP_HEIGHT * TILE_SIZE);
     private final TextArea codeOutputArea = new TextArea();
 
-    public void openWindow(Stage ownerStage) {
-        Stage stage = new Stage();
-        stage.initOwner(ownerStage);
-        stage.setTitle("Editor de Mapas de Tiles (Tilemap Editor)");
+    /**
+     * Crea la UI de la herramienta para mostrarla como pestaña del editor.
+     */
+    public Node createNode(File projectDir, ResourceBundle bundle, Consumer<File> onExported) {
+        return buildUi(projectDir, bundle, onExported);
+    }
 
+    private Node buildUi(File projectDir, ResourceBundle bundle, Consumer<File> onExported) {
         // Controles superiores
         Button btnClear = new Button("Limpiar Mapa");
         btnClear.setOnAction(e -> {
@@ -54,13 +71,16 @@ public class TilemapEditorController {
             updateCode();
         });
 
+        Button btnLoadTileset = new Button("Cargar Tileset (PNG)");
+        btnLoadTileset.setOnAction(e -> loadTileset(projectDir));
+
         ToggleButton btnToggleCollision = new ToggleButton("Modo Colisión");
         btnToggleCollision.selectedProperty().addListener((obs, oldV, newV) -> collisionMode = newV);
 
         Button btnExportC = new Button("Exportar Código C");
-        btnExportC.setOnAction(e -> exportCode(stage));
+        btnExportC.setOnAction(e -> exportCode(projectDir, onExported));
 
-        HBox toolbar = new HBox(10, btnClear, btnToggleCollision, btnExportC);
+        HBox toolbar = new HBox(10, btnClear, btnLoadTileset, btnToggleCollision, btnExportC);
         toolbar.setPadding(new Insets(8));
 
         // Canvas interactivo del mapa con ScrollPane
@@ -77,7 +97,7 @@ public class TilemapEditorController {
         sidebar.setPadding(new Insets(10));
         sidebar.getChildren().add(new Label("Seleccionar Tile:"));
         
-        ListView<Integer> tileListView = new ListView<>();
+        tileListView.getItems().clear();
         for (int i = 0; i < 64; i++) {
             tileListView.getItems().add(i);
         }
@@ -85,7 +105,33 @@ public class TilemapEditorController {
         tileListView.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> {
             if (newV != null) selectedTileIndex = newV;
         });
-        tileListView.setPrefSize(120, 380);
+
+        tileListView.setCellFactory(param -> new ListCell<Integer>() {
+            private final ImageView iv = new ImageView();
+            {
+                iv.setFitWidth(24);
+                iv.setFitHeight(24);
+                iv.setPreserveRatio(true);
+            }
+            @Override
+            protected void updateItem(Integer item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    setText("Tile #" + item);
+                    if (item < tileImages.size() && tileImages.get(item) != null) {
+                        iv.setImage(tileImages.get(item));
+                        setGraphic(iv);
+                    } else {
+                        setGraphic(null);
+                    }
+                }
+            }
+        });
+
+        tileListView.setPrefSize(160, 380);
         sidebar.getChildren().add(tileListView);
 
         // Área de código C generado abajo
@@ -99,9 +145,95 @@ public class TilemapEditorController {
         root.setRight(sidebar);
         root.setBottom(new VBox(5, new Label("Código C Generado:"), codeOutputArea));
         ((VBox)root.getBottom()).setPadding(new Insets(8));
+        rootNode = root;
 
-        stage.setScene(new Scene(root, 760, 680));
-        stage.show();
+        return root;
+    }
+
+    private Window currentWindow() {
+        if (rootNode != null && rootNode.getScene() != null) {
+            return rootNode.getScene().getWindow();
+        }
+        return null;
+    }
+
+    private void loadTileset(File projectDir) {
+        FileChooser chooser = new FileChooser();
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PNG Images", "*.png"));
+        if (projectDir != null && projectDir.exists()) {
+            chooser.setInitialDirectory(projectDir);
+        }
+        File file = chooser.showOpenDialog(currentWindow());
+        if (file != null) {
+            try {
+                BufferedImage sheet = ImageIO.read(file);
+                if (sheet != null) {
+                    tileImages.clear();
+                    int cols = sheet.getWidth() / 8;
+                    int rows = sheet.getHeight() / 8;
+                    for (int r = 0; r < rows; r++) {
+                        for (int c = 0; c < cols; c++) {
+                            BufferedImage sub = sheet.getSubimage(c * 8, r * 8, Math.min(8, sheet.getWidth() - c * 8), Math.min(8, sheet.getHeight() - r * 8));
+                            BufferedImage gbTile = convertToGameBoyTile(sub);
+                            tileImages.add(bufferedImageToFxImage(gbTile));
+                        }
+                    }
+                    tileListView.getItems().clear();
+                    for (int i = 0; i < tileImages.size(); i++) {
+                        tileListView.getItems().add(i);
+                    }
+                    tileListView.getSelectionModel().select(0);
+                    redrawMap();
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    private BufferedImage convertToGameBoyTile(BufferedImage src) {
+        BufferedImage dest = new BufferedImage(src.getWidth(), src.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        // Classic Game Boy DMG Green Palette (4 shades)
+        int[] gbPalette = {
+            0xFFE0F8D0, // 0: Lightest green
+            0xFF88C070, // 1: Light green
+            0xFF346856, // 2: Dark green
+            0xFF081820  // 3: Darkest green
+        };
+        
+        for (int x = 0; x < src.getWidth(); x++) {
+            for (int y = 0; y < src.getHeight(); y++) {
+                int argb = src.getRGB(x, y);
+                int a = (argb >> 24) & 0xFF;
+                if (a < 128) {
+                    dest.setRGB(x, y, 0x00000000);
+                    continue;
+                }
+                int r = (argb >> 16) & 0xFF;
+                int g = (argb >> 8) & 0xFF;
+                int b = argb & 0xFF;
+                int lum = (int)(0.299 * r + 0.587 * g + 0.114 * b);
+                int idx;
+                if (lum > 192) idx = 0;
+                else if (lum > 128) idx = 1;
+                else if (lum > 64) idx = 2;
+                else idx = 3;
+                
+                dest.setRGB(x, y, gbPalette[idx]);
+            }
+        }
+        return dest;
+    }
+
+    private javafx.scene.image.Image bufferedImageToFxImage(BufferedImage bi) {
+        WritableImage wi = new WritableImage(bi.getWidth(), bi.getHeight());
+        PixelWriter pw = wi.getPixelWriter();
+        for (int x = 0; x < bi.getWidth(); x++) {
+            for (int y = 0; y < bi.getHeight(); y++) {
+                pw.setArgb(x, y, bi.getRGB(x, y));
+            }
+        }
+        return wi;
     }
 
     private void handleCanvasClick(double x, double y, MouseButton button) {
@@ -124,7 +256,8 @@ public class TilemapEditorController {
         double w = mapCanvas.getWidth();
         double h = mapCanvas.getHeight();
 
-        gc.setFill(Color.web("#1e1e1e"));
+        // Fondo estilo Game Boy (Lightest green)
+        gc.setFill(Color.web("#e0f8d0"));
         gc.fillRect(0, 0, w, h);
 
         for (int r = 0; r < MAP_HEIGHT; r++) {
@@ -133,18 +266,22 @@ public class TilemapEditorController {
                 double y = r * TILE_SIZE;
 
                 int tile = tilemap[r][c];
-                if (tile > 0) {
-                    gc.setFill(Color.web("#4e9a06"));
+                if (tile > 0 && tile < tileImages.size() && tileImages.get(tile) != null) {
+                    gc.drawImage(tileImages.get(tile), x, y, TILE_SIZE, TILE_SIZE);
+                    gc.setStroke(Color.web("#346856", 0.25));
+                    gc.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
+                } else if (tile > 0) {
+                    gc.setFill(Color.web("#346856"));
                     gc.fillRect(x + 1, y + 1, TILE_SIZE - 2, TILE_SIZE - 2);
-                    gc.setFill(Color.WHITE);
+                    gc.setFill(Color.web("#e0f8d0"));
                     gc.fillText(String.valueOf(tile), x + 3, y + 12);
                 } else {
-                    gc.setStroke(Color.web("#333333"));
+                    gc.setStroke(Color.web("#c2e8b0", 0.6));
                     gc.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
                 }
 
                 if (collisions[r][c]) {
-                    gc.setFill(Color.web("#cc0000", 0.5));
+                    gc.setFill(Color.web("#081820", 0.35));
                     gc.fillRect(x, y, TILE_SIZE, TILE_SIZE);
                 }
             }
@@ -186,14 +323,20 @@ public class TilemapEditorController {
         codeOutputArea.setText(sb.toString());
     }
 
-    private void exportCode(Stage stage) {
+    private void exportCode(File projectDir, Consumer<File> onExported) {
         FileChooser chooser = new FileChooser();
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("C Source", "*.c"));
         chooser.setInitialFileName("map.c");
-        File file = chooser.showSaveDialog(stage);
+        if (projectDir != null && projectDir.exists()) {
+            chooser.setInitialDirectory(projectDir);
+        }
+        File file = chooser.showSaveDialog(currentWindow());
         if (file != null) {
             try {
                 Files.writeString(file.toPath(), codeOutputArea.getText(), StandardCharsets.UTF_8);
+                if (onExported != null) {
+                    onExported.accept(file);
+                }
             } catch (Exception ex) {
                 ex.printStackTrace();
             }

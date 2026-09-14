@@ -19,7 +19,6 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.scene.Cursor;
-import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
@@ -31,7 +30,8 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
-import javafx.stage.Stage;
+import javafx.scene.Node;
+import javafx.stage.Window;
 
 /**
  * Editor de audio / efectos de sonido y compositor visual con Timeline, Silencios e Importador Tracker (.mod/.vgm) para Game Boy.
@@ -64,11 +64,30 @@ public class GameBoyAudioEditorController {
 
     private static final String[] CHANNELS = {"Square 1", "Square 2", "Wave Channel", "Noise Channel"};
 
-    public void open(Stage owner, File currentProjectDir, ResourceBundle bundle, Consumer<File> onExported) {
-        Stage stage = new Stage();
-        stage.initOwner(owner);
-        stage.setTitle("Editor de Audio, Tracker e Importador .MOD/.VGM (Game Boy)");
+    private Node rootNode;
+    private AnimationTimer playheadTimer;
 
+    /**
+     * Crea la UI de la herramienta para mostrarla como pestaña del editor.
+     */
+    public Node createNode(File currentProjectDir, ResourceBundle bundle, Consumer<File> onExported) {
+        return buildUi(currentProjectDir, onExported);
+    }
+
+    private void stopPlayback() {
+        if (playheadTimer != null) {
+            playheadTimer.stop();
+        }
+    }
+
+    /**
+     * Detiene la reproducción en curso cuando se cierra la herramienta.
+     */
+    public void closeTool() {
+        stopPlayback();
+    }
+
+    private Node buildUi(File currentProjectDir, Consumer<File> onExported) {
         TabPane tabPane = new TabPane();
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
 
@@ -148,7 +167,7 @@ public class GameBoyAudioEditorController {
         });
 
         Button btnExportSfx = new Button("Exportar al proyecto");
-        btnExportSfx.setOnAction(e -> exportCode(stage, currentProjectDir, txtSymbol.getText(), outputAreaSfx.getText(), onExported));
+        btnExportSfx.setOnAction(e -> exportCode(currentProjectDir, txtSymbol.getText(), outputAreaSfx.getText(), onExported));
 
         VBox formSfx = new VBox(10,
             new HBox(10, new Label("Canal APU:"), comboChannel),
@@ -333,7 +352,7 @@ public class GameBoyAudioEditorController {
 
         final long[] startTime = {0};
         final boolean[] isPlaying = {false};
-        AnimationTimer playheadTimer = new AnimationTimer() {
+        playheadTimer = new AnimationTimer() {
             @Override
             public void handle(long now) {
                 if (!isPlaying[0]) return;
@@ -409,15 +428,15 @@ public class GameBoyAudioEditorController {
             }
             try { chooser.setInitialDirectory(initialDir); } catch (Exception ignored) {}
 
-            File selected = chooser.showOpenDialog(stage);
+            File selected = chooser.showOpenDialog(currentWindow());
             if (selected != null) {
                 List<GameBoyAudioPlayer.NoteStep> imported = modVgmImportService.importFile(selected);
                 if (imported != null && !imported.isEmpty()) {
                     melodyNotesList.setAll(imported);
                     drawTrackerGrid.run();
-                    showAlert("Importación exitosa", "Se han importado " + imported.size() + " notas del archivo tracker.", Alert.AlertType.INFORMATION, stage);
+                    showAlert("Importación exitosa", "Se han importado " + imported.size() + " notas del archivo tracker.", Alert.AlertType.INFORMATION, currentWindow());
                 } else {
-                    showAlert("Aviso", "No se pudieron extraer notas del archivo seleccionado.", Alert.AlertType.WARNING, stage);
+                    showAlert("Aviso", "No se pudieron extraer notas del archivo seleccionado.", Alert.AlertType.WARNING, currentWindow());
                 }
             }
         });
@@ -475,7 +494,7 @@ public class GameBoyAudioEditorController {
         });
 
         Button btnExportMelody = new Button("Exportar melodía al proyecto");
-        btnExportMelody.setOnAction(e -> exportCode(stage, currentProjectDir, txtMelodySymbol.getText(), outputAreaMelody.getText(), onExported));
+        btnExportMelody.setOnAction(e -> exportCode(currentProjectDir, txtMelodySymbol.getText(), outputAreaMelody.getText(), onExported));
 
         VBox formMelody = new VBox(10,
             new HBox(10, new Label("Canal:"), comboMelodyChannel, new Label("Nota:"), comboNotes),
@@ -493,11 +512,20 @@ public class GameBoyAudioEditorController {
 
         tabPane.getTabs().addAll(tabSfx, tabMelody);
 
-        stage.setScene(new Scene(new BorderPane(tabPane), 720, 740));
-        stage.show();
+        BorderPane root = new BorderPane(tabPane);
+        rootNode = root;
+
+        return root;
     }
 
-    private void exportCode(Stage stage, File currentProjectDir, String symbol, String code, Consumer<File> onExported) {
+    private Window currentWindow() {
+        if (rootNode != null && rootNode.getScene() != null) {
+            return rootNode.getScene().getWindow();
+        }
+        return null;
+    }
+
+    private void exportCode(File currentProjectDir, String symbol, String code, Consumer<File> onExported) {
         File initialDir = currentProjectDir;
         if (initialDir == null || !initialDir.exists() || !initialDir.isDirectory()) {
             initialDir = lastUsedDirectory;
@@ -511,7 +539,7 @@ public class GameBoyAudioEditorController {
         try { chooser.setInitialDirectory(initialDir); } catch (Exception ignored) {}
         chooser.setInitialFileName((symbol == null || symbol.isBlank() ? "sound" : symbol) + ".c");
 
-        File selected = chooser.showSaveDialog(stage);
+        File selected = chooser.showSaveDialog(currentWindow());
         if (selected == null) return;
 
         try {
@@ -519,11 +547,11 @@ public class GameBoyAudioEditorController {
             lastUsedDirectory = selected.getParentFile();
             if (onExported != null) onExported.accept(selected);
         } catch (Exception ex) {
-            showAlert("Error de exportación", "No se pudo exportar: " + ex.getMessage(), Alert.AlertType.ERROR, stage);
+            showAlert("Error de exportación", "No se pudo exportar: " + ex.getMessage(), Alert.AlertType.ERROR, currentWindow());
         }
     }
 
-    private void showAlert(String title, String content, Alert.AlertType type, Stage owner) {
+    private void showAlert(String title, String content, Alert.AlertType type, Window owner) {
         Alert alert = new Alert(type);
         alert.initOwner(owner);
         alert.setTitle(title);

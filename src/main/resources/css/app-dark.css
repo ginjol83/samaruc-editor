@@ -230,3 +230,9 @@
 .diag-legend-dot-warning {
     -fx-text-fill: #facc15;
 }
+
+/* Indicador de cambios git sin commitear en pestañas de archivos */
+.git-dirty-dot {
+    -fx-font-size: 9px;
+    -fx-text-fill: #f59e0b;
+}

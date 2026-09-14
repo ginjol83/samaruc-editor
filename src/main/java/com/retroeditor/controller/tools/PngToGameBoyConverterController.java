@@ -10,17 +10,17 @@ import com.retroeditor.service.gameboy.PngToGameBoyTilemapConverter;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
 import javafx.scene.input.Clipboard;
+import javafx.scene.Node;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
-import javafx.stage.Stage;
+import javafx.stage.Window;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -55,11 +55,30 @@ public class PngToGameBoyConverterController {
     private byte[] convertedData;
     private GameBoyTilemapResult tilemapResult;
 
-    public void open(Stage owner, File currentProjectDir, ResourceBundle bundle, Consumer<File> onExported) {
-        Stage stage = new Stage();
-        stage.initOwner(owner);
-        stage.setTitle(msg(bundle, "tool.pngToGameBoy.title", "Convertir PNG a C (Game Boy)"));
+    private Node rootNode;
+    private Runnable closeHandler;
 
+    /**
+     * Crea la UI de la herramienta para mostrarla como pestaña del editor.
+     */
+    public Node createNode(File currentProjectDir, ResourceBundle bundle, Consumer<File> onExported) {
+        return buildUi(currentProjectDir, bundle, onExported);
+    }
+
+    /**
+     * Registra la acción a ejecutar cuando la pestaña de la herramienta se cierra.
+     */
+    public void setOnCloseRequest(Runnable onClose) {
+        this.closeHandler = onClose;
+    }
+
+    private void requestClose() {
+        if (closeHandler != null) {
+            closeHandler.run();
+        }
+    }
+
+    private Node buildUi(File currentProjectDir, ResourceBundle bundle, Consumer<File> onExported) {
         // === TOP: File selection ===
         Button btnSelectFile = new Button(msg(bundle, "tool.pngToGameBoy.selectFile", "Seleccionar PNG"));
         Label lblFileSelected = new Label("-");
@@ -170,7 +189,7 @@ public class PngToGameBoyConverterController {
             if (currentProjectDir != null && currentProjectDir.isDirectory()) {
                 chooser.setInitialDirectory(currentProjectDir);
             }
-            File file = chooser.showOpenDialog(owner);
+            File file = chooser.showOpenDialog(currentWindow());
             if (file != null) {
                 selectedPng = file;
                 lblFileSelected.setText(file.getName());
@@ -205,9 +224,9 @@ public class PngToGameBoyConverterController {
             updatePreview(previewCanvas, outputArea, txtArrayName, spinWidth, spinHeight, 
                          sliderContrast, chkInvertColors, chkIncludeConst, chkIncludeDefines, comboExportMode));
 
-        btnExport.setOnAction(e -> exportToProject(stage, owner, currentProjectDir, outputArea, onExported));
+        btnExport.setOnAction(e -> exportToProject(currentProjectDir, outputArea, onExported));
         btnClipboard.setOnAction(e -> copyToClipboard(outputArea));
-        btnCancel.setOnAction(e -> stage.close());
+        btnCancel.setOnAction(e -> requestClose());
 
         // === LAYOUT ===
         VBox root = new VBox(10,
@@ -219,9 +238,16 @@ public class PngToGameBoyConverterController {
             buttonBox
         );
         root.setPadding(new Insets(10));
+        rootNode = root;
 
-        stage.setScene(new Scene(root, 900, 700));
-        stage.show();
+        return root;
+    }
+
+    private Window currentWindow() {
+        if (rootNode != null && rootNode.getScene() != null) {
+            return rootNode.getScene().getWindow();
+        }
+        return null;
     }
 
     private void updatePreview(Canvas canvas, TextArea outputArea, TextField txtArrayName, 
@@ -394,11 +420,11 @@ public class PngToGameBoyConverterController {
         Clipboard.getSystemClipboard().setContent(content);
     }
 
-    private void exportToProject(Stage stage, Stage owner, File currentProjectDir, TextArea outputArea, 
+private void exportToProject(File currentProjectDir, TextArea outputArea,
                                 Consumer<File> onExported) {
         if (currentProjectDir == null || !currentProjectDir.exists()) {
             Alert alert = new Alert(Alert.AlertType.WARNING);
-            alert.initOwner(owner);
+            alert.initOwner(currentWindow());
             alert.setTitle("Proyecto no abierto");
             alert.setContentText("Abre un proyecto para poder exportar el código.");
             alert.showAndWait();
@@ -408,7 +434,7 @@ public class PngToGameBoyConverterController {
         String code = outputArea.getText();
         if (code.isEmpty() || code.startsWith("ERROR")) {
             Alert alert = new Alert(Alert.AlertType.WARNING);
-            alert.initOwner(owner);
+            alert.initOwner(currentWindow());
             alert.setTitle("Conversión no válida");
             alert.setContentText("Realiza una conversión válida antes de exportar.");
             alert.showAndWait();
@@ -423,7 +449,7 @@ public class PngToGameBoyConverterController {
         boolean isTilemap = tilemapResult != null;
         chooser.setInitialFileName(isTilemap ? "tilemap.h" : "bitmap.h");
 
-        File selected = chooser.showSaveDialog(owner);
+        File selected = chooser.showSaveDialog(currentWindow());
         if (selected == null) return;
 
         try {
@@ -446,7 +472,7 @@ public class PngToGameBoyConverterController {
                 Files.write(sourceFile.toPath(), sourceCode.getBytes(StandardCharsets.UTF_8));
 
                 Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                alert.initOwner(owner);
+                alert.initOwner(currentWindow());
                 alert.setTitle("Exportado");
                 alert.setContentText("Tilemap exportado a:\n" + headerFile.getName() + "\n" + sourceFile.getName());
                 alert.showAndWait();
@@ -456,7 +482,7 @@ public class PngToGameBoyConverterController {
                 // Exportar bitmap como un único archivo
                 Files.write(selected.toPath(), code.getBytes(StandardCharsets.UTF_8));
                 Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                alert.initOwner(owner);
+                alert.initOwner(currentWindow());
                 alert.setTitle("Exportado");
                 alert.setContentText("Código exportado a: " + selected.getName());
                 alert.showAndWait();
@@ -464,10 +490,10 @@ public class PngToGameBoyConverterController {
                 onExported.accept(selected);
             }
 
-            stage.close();
+            requestClose();
         } catch (IOException ex) {
             Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.initOwner(owner);
+            alert.initOwner(currentWindow());
             alert.setTitle("Error");
             alert.setContentText("No se pudo exportar: " + ex.getMessage());
             alert.showAndWait();

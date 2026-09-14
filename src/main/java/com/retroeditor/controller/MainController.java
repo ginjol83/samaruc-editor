@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Collections;
+import java.util.function.Consumer;
 
 import java.awt.Desktop;
 import java.net.URI;
@@ -30,14 +31,13 @@ import com.retroeditor.controller.config.ConfigDialogCoordinator;
 import com.retroeditor.controller.editor.EditOptionsController;
 import com.retroeditor.controller.editor.FileOptionsController;
 import com.retroeditor.controller.tools.TileEditorController;
-<<<<<<< HEAD
-=======
 import com.retroeditor.controller.tools.TilemapEditorController;
->>>>>>> b415254 (Release v1.3.0: Visual Tilemap Editor with DMG Game Boy palette, compact toolbar/icons, and enhancements)
 import com.retroeditor.controller.tools.StructureViewController;
 import com.retroeditor.controller.tools.PngToZxConverterController;
 import com.retroeditor.controller.tools.PngToGameBoyConverterController;
 import com.retroeditor.controller.tools.GameBoyAudioEditorController;
+import com.retroeditor.controller.tools.TranslatorTabManager;
+import com.retroeditor.controller.tools.GitHubRepoBrowserController;
 import com.retroeditor.controller.terminal.TerminalController;
 import com.retroeditor.controller.search.ProjectContextPort;
 import com.retroeditor.controller.search.SearchController;
@@ -58,10 +58,14 @@ import com.retroeditor.service.ProjectStatisticsService;
 import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.service.ConfigRepository;
 import com.retroeditor.service.WorkspaceService;
+import com.retroeditor.service.TranslatorPersistenceService;
 import com.retroeditor.service.CodeFormatterService;
 import com.retroeditor.model.WorkspaceModel;
 import com.retroeditor.service.LanguageService;
 import com.retroeditor.service.AppLogger;
+import com.retroeditor.service.ThemeService;
+import com.retroeditor.service.ThemeCssGenerator;
+import com.retroeditor.model.EditorTheme;
 
 import com.retroeditor.model.ConfigModel;
 import com.retroeditor.model.EditorModel;
@@ -79,6 +83,7 @@ import javafx.fxml.FXMLLoader;
 
 import javafx.scene.Scene;
 import javafx.scene.Parent;
+import javafx.scene.Node;
 
 import javafx.scene.control.Tab;
 import javafx.scene.control.Menu;
@@ -128,6 +133,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     private       FXUtils     fxUtils        = new FXUtils();
     private final ConfigModel configModel    = new ConfigModel();
+    private final ThemeService themeService  = new ThemeService();
 
     private final EditOptionsController   editOptionsController   = new EditOptionsController();
     private final FileOptionsController   fileOptionsController   = new FileOptionsController();
@@ -136,6 +142,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private final PngToZxConverterController pngToZxConverterController = new PngToZxConverterController();
     private final PngToGameBoyConverterController pngToGameBoyConverterController = new PngToGameBoyConverterController();
     private final GameBoyAudioEditorController    gameBoyAudioEditorController    = new GameBoyAudioEditorController();
+    private final TranslatorTabManager            translatorTabManager            = new TranslatorTabManager();
+    private final GitHubRepoBrowserController     gitHubRepoBrowserController     = new GitHubRepoBrowserController();
+    private final GitPanelController              gitPanelController              = new GitPanelController();
     private final TerminalController      terminalController      = new TerminalController();
     private final BuildController         buildController         = new BuildController();
     private final HelpController          helpController          = new HelpController();
@@ -156,6 +165,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private ResourceBundle bundle;
     private EditorModel editorModel;
     private File currentProjectDir;
+    private Tab gitPanelTab;
 
     private SyntaxHighlighter syntaxHighlighter;
     private ProjectExplorerController projectExplorerController;
@@ -171,6 +181,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private Menu menuRefactor;
     @FXML private Menu menuHerramientas;
     @FXML private Menu menuCompilacion;
+    @FXML private Menu menuGit;
     @FXML private Menu menuAyuda;
     @FXML private ToolBar toolBar;
     @FXML private TabPane tabPane;
@@ -193,10 +204,14 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private Button btnNuevoProyecto;
     @FXML private Button btnAbrirProyecto;
     @FXML private Button btnManual;
+    @FXML private Button btnGit;
     @FXML private MenuItem menuItemPegar;
     @FXML private MenuItem menuItemRename;
     @FXML private MenuItem menuItemTileEditor;
     @FXML private MenuItem menuItemTilemapEditor;
+    @FXML private MenuItem menuItemRomTextTranslator;
+    @FXML private MenuItem menuItemGitHubRepos;
+    @FXML private MenuItem menuItemGitPanel;
     @FXML private MenuItem menuItemPngToZx;
     @FXML private MenuItem menuItemGoToLine;
     @FXML private MenuItem menuItemFind;
@@ -211,6 +226,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private MenuItem menuItemAbrirProyecto;
     @FXML private MenuItem menuItemNuevo;
     @FXML private MenuItem menuItemNuevoPlantilla;
+    @FXML private MenuItem menuItemNuevoTraduccion;
     @FXML private MenuItem menuItemAbrir;
     @FXML private MenuItem menuItemSalir;
     @FXML private MenuItem menuItemCerrar;
@@ -299,6 +315,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     private static final String HOME_TAB_ID             = "home-tab";
     private static final String HOME_LINK_HOOKED        = "home-link-hooked";
+    private static final String TAB_PROP_GIT_DIRTY       = "git.dirtyDot";
     private volatile boolean lastCompilationHasErrors   = false;
     private volatile boolean lastCompilationHasWarnings = false;
 
@@ -330,7 +347,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     @FXML
     public void initialize() {
-        // Cargar configuración del usuario (incluye gbdk_bin)
+        // Cargar configuración del usuario (incluye toolchains de usuario)
         configModel.applyProperties(configRepository.load(userConfigFile));
 
         buildController.setEmbeddedTerminalController(terminalController);
@@ -348,6 +365,11 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         syntaxHighlighter   = new SyntaxHighlighter();
         fxUtils             = new FXUtils();
         fxUtils.setEditorAppearance(configModel.getConfigProperty(EDITOR_APPEARANCE_PROPERTY, ConfigModel.EDITOR_APPEARANCE_MODERN_DARK));
+        fxUtils.setEditorThemeApplier(codeArea -> {
+            String activeId = themeService.resolveActiveThemeId(configModel);
+            String css = ThemeCssGenerator.generateCss(themeService.getThemeOrDefault(activeId));
+            fxUtils.applyGeneratedEditorTheme(codeArea, css);
+        });
         fxUtils.setDoubleClickHandler((symbol, area) -> navigateToDefinition(symbol));
         restoreDialogDirectories();
         setupRecentMenus();
@@ -364,6 +386,8 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                     applyBundleToUI();
                     updateCompileStatusUI();
                     refreshHomeTabLanguage();
+                    gitPanelController.setBundle(bundle);
+                    gitPanelController.refreshLanguage();
                 });
             } catch (Exception ex) {
                 ex.printStackTrace();
@@ -375,6 +399,14 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 applyEditorAppearanceToOpenTabs();
                 if (tabPane != null && tabPane.getScene() != null) {
                     applyApplicationAppearance(tabPane.getScene(), newV);
+                }
+            });
+        });
+        configModel.editorThemeProperty().addListener((obs, oldV, newV) -> {
+            Platform.runLater(() -> {
+                applyEditorThemeToOpenTabs(newV);
+                if (tabPane != null && tabPane.getScene() != null) {
+                    applyApplicationAppearance(tabPane.getScene(), themeToShellAppearance(newV));
                 }
             });
         });
@@ -479,6 +511,14 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             }
         }
 
+        // Panel Git acoplable en el área de salida
+        if (outputTabPane != null) {
+            gitPanelController.setBundle(bundle);
+            gitPanelController.setOnDirtyPathsChanged(this::updateGitDirtyTabMarkers);
+            gitPanelTab = gitPanelController.createTab();
+            outputTabPane.getTabs().add(gitPanelTab);
+        }
+
         if (lblCompileStatus != null) {
             lblCompileStatus.setOnMouseClicked(event -> onCompileStatusLabelClicked());
         }
@@ -531,6 +571,10 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             btnManual.setGraphic(new FontIcon("fas-question-circle"));
             btnManual.setTooltip(new Tooltip(bundle.getString("tooltip.manual.open")));
         }
+        if (btnGit != null) {
+            btnGit.setGraphic(new FontIcon("fas-code-branch"));
+            btnGit.setTooltip(new Tooltip(msg("tooltip.git.openPanel", "Abrir panel Git")));
+        }
         if (btnUndo != null) {
             btnUndo.setGraphic(new FontIcon("fas-undo"));
             btnUndo.setTooltip(new Tooltip(bundle.getString("button.undo")));
@@ -578,7 +622,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 toolBar.getStyleClass().add("tool-bar");
             }
 
-            Button[] tbButtons = new Button[] { btnNuevoProyecto, btnAbrirProyecto, btnNuevo, btnOpen, btnSave, btnClose, btnUndo, btnRedo, btnFind, btnFindProject, btnCut, btnCopy, btnPaste, btnCompilar, btnCancelarCompilacion, btnEjecutar, btnConfig, btnManual };
+            Button[] tbButtons = new Button[] { btnNuevoProyecto, btnAbrirProyecto, btnNuevo, btnOpen, btnSave, btnClose, btnUndo, btnRedo, btnFind, btnFindProject, btnCut, btnCopy, btnPaste, btnCompilar, btnCancelarCompilacion, btnEjecutar, btnConfig, btnManual, btnGit };
             for (Button b : tbButtons) {
                 if (b == null) continue;
                 b.getStyleClass().add("tb-button");
@@ -595,6 +639,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuEdicion           != null) menuEdicion.setText(bundle.getString("menu.edit"));
         if (menuRefactor          != null) menuRefactor.setText(bundle.getString("menu.refactor"));
         if (menuHerramientas      != null) menuHerramientas.setText(bundle.getString("menu.tools"));
+        if (menuGit               != null) menuGit.setText(bundle.getString("menu.git"));
         if (menuAyuda             != null) menuAyuda.setText(bundle.getString("menu.help"));
         if (menuItemNuevoProyecto != null) menuItemNuevoProyecto.setText(bundle.getString("button.newProject"));
         if (menuItemAbrirProyecto != null) menuItemAbrirProyecto.setText(bundle.getString("button.openProject"));
@@ -649,11 +694,12 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         Platform.runLater(() -> {
             try {
                 if (tabPane != null && tabPane.getScene() != null) {
-                    applyApplicationAppearance(tabPane.getScene(), configModel.getConfigProperty(EDITOR_APPEARANCE_PROPERTY, ConfigModel.EDITOR_APPEARANCE_MODERN_DARK));
+                    applyApplicationAppearance(tabPane.getScene(), themeToShellAppearance(null));
                 }
             } catch (Exception ignored) {}
         });
         Platform.runLater(this::restoreLastSessionState);
+        Platform.runLater(() -> applyEditorThemeToOpenTabs());
 
         if (menuItemCompilar != null) {
             menuItemCompilar.disableProperty().bind(buildController.compilationRunningProperty());
@@ -817,7 +863,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private void onNuevoProyecto(ActionEvent event) {
         File creado = fxUtils.createNewProject(getStage(), bundle, resolveInitialProjectDirectory());
         if (creado != null) {
-            if (fxUtils.wasLastCreatedProjectGameBoyTemplate()) {
+            if (fxUtils.wasLastCreatedProjectGameBoyTemplate() || fxUtils.wasLastCreatedProjectTranslatorTemplate()) {
                 configModel.applyGameBoyProfile();
                 configRepository.save(userConfigFile, configModel.toProperties());
             } else if (fxUtils.wasLastCreatedProjectSpectrumTemplate()) {
@@ -831,6 +877,11 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             File defaultMainFile = new File(creado, "src/main.c");
             if (defaultMainFile.isFile()) {
                 openFileFromExplorer(defaultMainFile);
+            } else {
+                File translatorFile = new File(creado, "translation.smt");
+                if (translatorFile.isFile()) {
+                    openFileFromExplorer(translatorFile);
+                }
             }
         } else {
             if (fxUtils.wasLastProjectCreationCancelled()) {
@@ -953,6 +1004,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         }
 
         if (projectExplorerController != null) projectExplorerController.setRootDirectory(carpeta);
+        gitPanelController.setProject(carpeta);
         try {
             if (carpeta != null) {
                 fileOptionsController.setDefaultOpenDirectory(carpeta);
@@ -993,6 +1045,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 applyDiagnosticsForTab(entry.getKey());
                 return; 
             }
+        }
+
+        if (TranslatorPersistenceService.isSmtFile(file)) {
+            Tab translatorTab = translatorTabManager.openTranslatorTab(file, fxUtils, tabPane, bundle);
+            if (translatorTab != null) {
+                tabFileMap.put(translatorTab, file.getAbsoluteFile());
+            }
+            persistSessionState();
+            return;
         }
 
         OpenChoice openChoice = shouldAskOpenMode(file) ? askHowToOpenFile(file) : OpenChoice.EDITOR_TEXT;
@@ -1059,6 +1120,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     private void openFileInEditorTab(File file, boolean forceSingleByteText) throws IOException {
+        if (TranslatorPersistenceService.isSmtFile(file)) {
+            Tab translatorTab = translatorTabManager.openTranslatorTab(file, fxUtils, tabPane, bundle);
+            if (translatorTab != null) {
+                tabFileMap.put(translatorTab, file.getAbsoluteFile());
+            }
+            persistSessionState();
+            return;
+        }
+
         if (forceSingleByteText) {
             editorModel.openFileAsSingleByteText(file);
         } else {
@@ -1504,6 +1574,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             currentProjectDir,
             configRepository,
             pluginApplicationService,
+            themeService,
             bundle,
             () -> {
                 String langCode = configModel.getConfigProperty("idioma", "es");
@@ -1551,6 +1622,26 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             return;
         }
         fxUtils.onNewTab(event, newFileCounter, tabPane, tabFileMap, syntaxHighlighter);
+    }
+
+    @FXML
+    private void onNewTranslatorFile(ActionEvent event) {
+        if (this.currentProjectDir == null) {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle(bundle.getString("alert.project.notOpen.title"));
+            alert.setHeaderText(null);
+            alert.setContentText(bundle.getString("alert.project.notOpen.content"));
+            alert.showAndWait();
+            return;
+        }
+        Tab translatorTab = translatorTabManager.createNewTranslator(currentProjectDir, fxUtils, tabPane, bundle);
+        if (translatorTab != null) {
+            File smtFile = translatorTabManager.getFileForTab(translatorTab);
+            if (smtFile != null) {
+                tabFileMap.put(translatorTab, smtFile);
+            }
+        }
+        persistSessionState();
     }
 
     @FXML
@@ -1697,6 +1788,18 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     @FXML
     private void onSaveFile(ActionEvent event) {
+        Tab selectedTab = tabPane != null ? tabPane.getSelectionModel().getSelectedItem() : null;
+        if (selectedTab != null && translatorTabManager.isTranslatorTab(selectedTab)) {
+            File smtFile = tabFileMap.get(selectedTab);
+            if (smtFile != null) {
+                translatorTabManager.saveTranslatorTab(selectedTab, smtFile);
+                if (projectExplorerController != null) {
+                    projectExplorerController.refreshTree();
+                }
+                persistSessionState();
+            }
+            return;
+        }
         boolean saved = fileOptionsController.onSaveFile(event, tabPane, tabFileMap, editorModel);
         if (saved && projectExplorerController != null) {
             projectExplorerController.refreshTree();
@@ -1722,11 +1825,19 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
             for (Tab tab : tabsToSave) {
                 tabPane.getSelectionModel().select(tab);
-                boolean saved = fileOptionsController.onSaveFile(event, tabPane, tabFileMap, editorModel);
-                if (!saved) {
-                    break;
+                if (translatorTabManager.isTranslatorTab(tab)) {
+                    File smtFile = tabFileMap.get(tab);
+                    if (smtFile != null) {
+                        translatorTabManager.saveTranslatorTab(tab, smtFile);
+                        savedAny = true;
+                    }
+                } else {
+                    boolean saved = fileOptionsController.onSaveFile(event, tabPane, tabFileMap, editorModel);
+                    if (!saved) {
+                        break;
+                    }
+                    savedAny = true;
                 }
-                savedAny = true;
             }
         } finally {
             if (originalTab != null && tabPane.getTabs().contains(originalTab)) {
@@ -1765,6 +1876,25 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     @FXML
     private void onSaveAsFile(ActionEvent event) {
+        Tab selectedTab = tabPane != null ? tabPane.getSelectionModel().getSelectedItem() : null;
+        if (selectedTab != null && translatorTabManager.isTranslatorTab(selectedTab)) {
+            javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
+            fileChooser.setTitle("Guardar como");
+            fileChooser.getExtensionFilters().add(new javafx.stage.FileChooser.ExtensionFilter("Archivos de traducción", "*.smt"));
+            String defaultName = fxUtils.getDefaultFileName(selectedTab);
+            fileChooser.setInitialFileName(defaultName);
+            File file = fileChooser.showSaveDialog(getStage());
+            if (file != null) {
+                tabFileMap.put(selectedTab, file);
+                translatorTabManager.saveTranslatorTab(selectedTab, file);
+                selectedTab.setText(file.getName());
+                if (projectExplorerController != null) {
+                    projectExplorerController.refreshTree();
+                }
+                persistSessionState();
+            }
+            return;
+        }
         boolean saved = fileOptionsController.onSaveAsFile(event, tabPane, tabFileMap, editorModel);
         if (saved && projectExplorerController != null) {
             projectExplorerController.refreshTree();
@@ -1805,40 +1935,42 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     @FXML
     private void onOpenTileEditor(ActionEvent event) {
-        tileEditorController.open(
-            getStage(),
-            currentProjectDir,
-            bundle,
-            exportedFile -> {
-                if (projectExplorerController != null) {
-                    projectExplorerController.refreshTree();
-                }
-                openFileFromExplorer(exportedFile);
-                persistSessionState();
+        String title = toolTitle("menu.tools.tileEditor", "Editor de Tiles (Game Boy)");
+        Consumer<File> onExported = exportedFile -> {
+            if (projectExplorerController != null) {
+                projectExplorerController.refreshTree();
             }
-        );
+            openFileFromExplorer(exportedFile);
+            persistSessionState();
+        };
+        Node node = tileEditorController.createNode(currentProjectDir, bundle, onExported);
+        fxUtils.addToolTab(title, node, tabPane);
     }
 
     @FXML
-<<<<<<< HEAD
-=======
     private void onOpenTilemapEditor(ActionEvent event) {
-        tilemapEditorController.open(
-            getStage(),
-            currentProjectDir,
-            bundle,
-            exportedFile -> {
-                if (projectExplorerController != null) {
-                    projectExplorerController.refreshTree();
-                }
-                openFileFromExplorer(exportedFile);
-                persistSessionState();
+        String title = toolTitle("menu.tools.tilemapEditor", "Editor de Mapas de Tiles (Game Boy)");
+        Consumer<File> onExported = exportedFile -> {
+            if (projectExplorerController != null) {
+                projectExplorerController.refreshTree();
             }
-        );
+            openFileFromExplorer(exportedFile);
+            persistSessionState();
+        };
+        Node node = tilemapEditorController.createNode(currentProjectDir, bundle, onExported);
+        fxUtils.addToolTab(title, node, tabPane);
+    }
+
+    private String toolTitle(String key, String fallback) {
+        if (bundle == null) return fallback;
+        try {
+            return bundle.getString(key);
+        } catch (Exception e) {
+            return fallback;
+        }
     }
 
     @FXML
->>>>>>> b415254 (Release v1.3.0: Visual Tilemap Editor with DMG Game Boy palette, compact toolbar/icons, and enhancements)
     private void onOpenProjectStats(ActionEvent event) {
         if (currentProjectDir == null) {
             Alert alert = new Alert(Alert.AlertType.WARNING);
@@ -1867,50 +1999,127 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     @FXML
     private void onOpenPngToZxConverter(ActionEvent event) {
-        pngToZxConverterController.open(
-            getStage(),
-            currentProjectDir,
-            bundle,
-            exportedFile -> {
-                if (projectExplorerController != null) {
-                    projectExplorerController.refreshTree();
-                }
-                openFileFromExplorer(exportedFile);
-                persistSessionState();
+        String title = toolTitle("tool.pngToZx.title", "Convertir PNG a C (ZX Spectrum)");
+        Consumer<File> onExported = exportedFile -> {
+            if (projectExplorerController != null) {
+                projectExplorerController.refreshTree();
             }
-        );
+            openFileFromExplorer(exportedFile);
+            persistSessionState();
+        };
+        Node node = pngToZxConverterController.createNode(currentProjectDir, bundle, onExported);
+        Tab toolTab = fxUtils.addToolTab(title, node, tabPane);
+        pngToZxConverterController.setOnCloseRequest(() -> tabPane.getTabs().remove(toolTab));
     }
 
     @FXML
     private void onOpenPngToGameBoyConverter(ActionEvent event) {
-        pngToGameBoyConverterController.open(
-            getStage(),
-            currentProjectDir,
-            bundle,
-            exportedFile -> {
-                if (projectExplorerController != null) {
-                    projectExplorerController.refreshTree();
-                }
-                openFileFromExplorer(exportedFile);
-                persistSessionState();
+        String title = toolTitle("tool.pngToGameBoy.title", "Convertir PNG a C (Game Boy)");
+        Consumer<File> onExported = exportedFile -> {
+            if (projectExplorerController != null) {
+                projectExplorerController.refreshTree();
             }
-        );
+            openFileFromExplorer(exportedFile);
+            persistSessionState();
+        };
+        Node node = pngToGameBoyConverterController.createNode(currentProjectDir, bundle, onExported);
+        Tab toolTab = fxUtils.addToolTab(title, node, tabPane);
+        pngToGameBoyConverterController.setOnCloseRequest(() -> tabPane.getTabs().remove(toolTab));
     }
 
     @FXML
     private void onOpenGameBoyAudioEditor(ActionEvent event) {
-        gameBoyAudioEditorController.open(
-            getStage(),
-            currentProjectDir,
-            bundle,
-            exportedFile -> {
-                if (projectExplorerController != null) {
-                    projectExplorerController.refreshTree();
-                }
-                openFileFromExplorer(exportedFile);
-                persistSessionState();
+        String title = toolTitle("tool.gameBoyAudio.title", "Editor de Audio (Game Boy)");
+        Consumer<File> onExported = exportedFile -> {
+            if (projectExplorerController != null) {
+                projectExplorerController.refreshTree();
             }
-        );
+            openFileFromExplorer(exportedFile);
+            persistSessionState();
+        };
+        Node node = gameBoyAudioEditorController.createNode(currentProjectDir, bundle, onExported);
+        Tab toolTab = fxUtils.addToolTab(title, node, tabPane);
+        toolTab.setOnClosed(e -> gameBoyAudioEditorController.closeTool());
+    }
+
+    @FXML
+    private void onOpenRomTextTranslator(ActionEvent event) {
+        Tab translatorTab = translatorTabManager.createNewTranslator(currentProjectDir, fxUtils, tabPane, bundle);
+        if (translatorTab != null) {
+            File smtFile = translatorTabManager.getFileForTab(translatorTab);
+            if (smtFile != null) {
+                tabFileMap.put(translatorTab, smtFile);
+            }
+        }
+        persistSessionState();
+    }
+
+    @FXML
+    private void onOpenGitHubRepoBrowser(ActionEvent event) {
+        String title = toolTitle("tool.github.title", "Repositorios de GitHub");
+        Consumer<File> onCloned = clonedDir -> {
+            if (clonedDir != null && clonedDir.isDirectory()) {
+                Platform.runLater(() -> setProyectoActual(clonedDir));
+            }
+        };
+        Node node = gitHubRepoBrowserController.createNode(currentProjectDir, bundle, onCloned);
+        Tab toolTab = fxUtils.addToolTab(title, node, tabPane);
+        gitHubRepoBrowserController.setOnCloseRequest(() -> tabPane.getTabs().remove(toolTab));
+    }
+
+    @FXML
+    private void onOpenGitPanel(ActionEvent event) {
+        if (outputTabPane != null && gitPanelTab != null) {
+            if (!outputTabPane.getTabs().contains(gitPanelTab)) {
+                outputTabPane.getTabs().add(gitPanelTab);
+            }
+            outputTabPane.getSelectionModel().select(gitPanelTab);
+        }
+        gitPanelController.requestRefresh();
+    }
+
+    /**
+     * Marca con un punto las pestañas de archivos que tienen cambios git sin commitear
+     * (reutiliza tab.getGraphic, que los tabs de editor no usan para otra cosa).
+     */
+    private void updateGitDirtyTabMarkers(Set<String> dirtyPaths) {
+        if (currentProjectDir == null) {
+            return;
+        }
+        for (Map.Entry<Tab, File> entry : tabFileMap.entrySet()) {
+            Tab tab = entry.getKey();
+            File file = entry.getValue();
+            if (tab == null || file == null) continue;
+            String relativePath = toGitRelativePath(file);
+            setGitDirtyMarker(tab, relativePath != null && dirtyPaths.contains(relativePath));
+        }
+    }
+
+    private String toGitRelativePath(File file) {
+        if (currentProjectDir == null || file == null) return null;
+        try {
+            Path projectPath = currentProjectDir.getCanonicalFile().toPath();
+            Path filePath = file.getCanonicalFile().toPath();
+            if (!filePath.startsWith(projectPath)) return null;
+            return projectPath.relativize(filePath).toString().replace('\\', '/');
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    private void setGitDirtyMarker(Tab tab, boolean dirty) {
+        Node marker = (Node) tab.getProperties().get(TAB_PROP_GIT_DIRTY);
+        if (dirty) {
+            if (marker == null) {
+                Label dot = new Label("\u25CF");
+                dot.getStyleClass().add("git-dirty-dot");
+                marker = dot;
+                tab.getProperties().put(TAB_PROP_GIT_DIRTY, marker);
+            }
+            tab.setGraphic(marker);
+        } else if (marker != null) {
+            tab.setGraphic(null);
+        }
     }
 
     @FXML
@@ -2048,11 +2257,13 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuEdicion         != null) menuEdicion.setText(bundle.getString("menu.edit"));
         if (menuRefactor        != null) menuRefactor.setText(bundle.getString("menu.refactor"));
         if (menuHerramientas    != null) menuHerramientas.setText(bundle.getString("menu.tools"));
+        if (menuGit             != null) menuGit.setText(bundle.getString("menu.git"));
         if (menuAyuda           != null) menuAyuda.setText(bundle.getString("menu.help"));
         if (menuItemNuevoProyecto != null) menuItemNuevoProyecto.setText(bundle.getString("button.newProject"));
         if (menuItemAbrirProyecto != null) menuItemAbrirProyecto.setText(bundle.getString("button.openProject"));
         if (menuItemNuevo       != null) menuItemNuevo.setText(bundle.getString("button.new"));
         if (menuItemNuevoPlantilla != null) menuItemNuevoPlantilla.setText(bundle.getString("menu.file.newFromTemplate"));
+        if (menuItemNuevoTraduccion != null) menuItemNuevoTraduccion.setText(bundle.getString("menu.file.newTranslator"));
         if (menuItemAbrir       != null) menuItemAbrir.setText(bundle.getString("button.open"));
         if (menuItemGuardar     != null) menuItemGuardar.setText(bundle.getString("button.save"));
         if (menuItemGuardarComo != null) menuItemGuardarComo.setText(bundle.getString("button.saveAs"));
@@ -2068,6 +2279,10 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemPegar       != null) menuItemPegar.setText(bundle.getString("button.paste"));
         if (menuItemRename      != null) menuItemRename.setText(bundle.getString("menu.rename"));
         if (menuItemTileEditor  != null) menuItemTileEditor.setText(bundle.getString("menu.tools.tileEditor"));
+        if (menuItemRomTextTranslator != null) menuItemRomTextTranslator.setText(bundle.getString("menu.tools.romTextTranslator"));
+        if (menuItemGitHubRepos != null) menuItemGitHubRepos.setText(bundle.getString("menu.tools.githubRepos"));
+        if (menuItemGitPanel    != null) menuItemGitPanel.setText(bundle.getString("menu.git.panel"));
+        if (btnGit              != null) btnGit.setTooltip(new Tooltip(msg("tooltip.git.openPanel", "Abrir panel Git")));
         if (menuItemGoToLine    != null) menuItemGoToLine.setText(bundle.getString("menu.goto.line"));
         if (menuItemFind        != null) menuItemFind.setText(bundle.getString("menu.find.file"));
         if (menuItemFindProject != null) menuItemFindProject.setText(bundle.getString("menu.find.project"));
@@ -2590,13 +2805,38 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     private void applyEditorAppearanceToOpenTabs() {
+        applyEditorThemeToOpenTabs();
+    }
+
+    /**
+     * Mapea un id de modo al valor de apariencia legacy usado por
+     * {@code applyApplicationAppearance} para elegir la hoja del shell:
+     * los modos de base clara usan {@code app.css} (classic) y el resto
+     * {@code app-dark.css}.
+     */
+    private String themeToShellAppearance(String themeId) {
+        EditorTheme theme = themeService.getThemeOrDefault(themeId);
+        return theme != null && !theme.isDarkBase()
+            ? ConfigModel.EDITOR_APPEARANCE_CLASSIC
+            : ConfigModel.EDITOR_APPEARANCE_MODERN_DARK;
+    }
+
+    private void applyEditorThemeToOpenTabs(String themeId) {
         if (tabPane == null) return;
+        EditorTheme theme = themeService.getThemeOrDefault(themeId);
+        String generatedCss = ThemeCssGenerator.generateCss(theme);
         for (Tab tab : tabPane.getTabs()) {
             CodeArea codeArea = fxUtils.getCodeArea(tab);
             if (codeArea != null) {
-                fxUtils.applyEditorAppearance(codeArea);
+                fxUtils.applyGeneratedEditorTheme(codeArea, generatedCss);
             }
         }
+    }
+
+    private void applyEditorThemeToOpenTabs() {
+        if (tabPane == null) return;
+        String activeThemeId = themeService.resolveActiveThemeId(configModel);
+        applyEditorThemeToOpenTabs(activeThemeId);
     }
 
     private void applyApplicationAppearance(Scene scene, String appearance) {

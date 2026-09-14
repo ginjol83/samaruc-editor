@@ -16,6 +16,8 @@ import com.retroeditor.model.ConfigModel;
 import com.retroeditor.model.LanguageMarketplaceItem;
 import com.retroeditor.model.WorkspaceModel;
 import com.retroeditor.model.PluginMarketplaceItem;
+import com.retroeditor.model.EditorTheme;
+import com.retroeditor.model.BuiltInThemes;
 import com.retroeditor.plugin.PluginInfo;
 import com.retroeditor.plugin.PluginManager;
 import com.retroeditor.service.ConfigRepository;
@@ -25,27 +27,41 @@ import com.retroeditor.service.LanguageService;
 import com.retroeditor.service.PluginApplicationService;
 import com.retroeditor.service.PluginMarketplaceService;
 import com.retroeditor.service.PropertiesConfigRepository;
+import com.retroeditor.service.ThemeCssGenerator;
+import com.retroeditor.service.ThemeService;
 import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.service.WorkspaceService;
+import com.retroeditor.service.syntax.SyntaxHighlighter;
 
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.ColorPicker;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.control.ProgressIndicator;
+import javafx.scene.control.Spinner;
+import javafx.scene.control.SpinnerValueFactory;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
-import javafx.scene.control.Alert;
+import javafx.scene.control.TextInputDialog;
+import javafx.scene.control.TitledPane;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+
+import org.fxmisc.richtext.CodeArea;
+import org.fxmisc.richtext.LineNumberFactory;
 
 public class ConfigController {
     private static final String COMPILER_GBDK      = "GBDK";
@@ -63,7 +79,6 @@ public class ConfigController {
 
     @FXML private TabPane          tabPaneConfig;
     @FXML private TabPane          tabPaneCompilerOptions;
-    @FXML private TextField        txtGbdkBin;
     @FXML private TextField        txtCompilador;
     @FXML private TextField        txtSpectrumBin;
     @FXML private TextField        txtCpcBin;
@@ -137,9 +152,14 @@ public class ConfigController {
     @FXML private Label            lblError;
     @FXML private Label            lblIdioma;
     @FXML private Label            lblEditorAppearance;
+    @FXML private Label            lblThemeMode;
+    @FXML private Label            lblThemeName;
+    @FXML private Label            lblThemeFont;
+    @FXML private Label            lblThemeFontSize;
+    @FXML private Label            lblThemePreview;
     @FXML private Label            lblReadmeLanguage;
     @FXML private Label            lblCompilador;
-    @FXML private Label            lblGbdkBin;
+    @FXML private Label            lblGbdkBundled;
     @FXML private Label            lblGbdkOpts;
     @FXML private Label            lblGbdkOptLevel;
     @FXML private Label            lblZ88dkSpectrumBin;
@@ -172,13 +192,21 @@ public class ConfigController {
     @FXML private Button           btnGuardarWorkspace;
     @FXML private Button           btnSaveMakeOpts;
     @FXML private ComboBox<String> comboIdioma;
-    @FXML private ComboBox<String> comboEditorAppearance;
+    @FXML private ComboBox<EditorTheme> comboThemeMode;
+    @FXML private TextField        txtThemeName;
+    @FXML private ComboBox<String> comboFontFamily;
+    @FXML private Spinner<Double>  spFontSize;
+    @FXML private CheckBox         chkLineNumberAuto;
+    @FXML private Spinner<Double>  spLineNumberSize;
+    @FXML private Button           btnDuplicateTheme;
+    @FXML private Button           btnDeleteTheme;
+    @FXML private Button           btnResetTheme;
+    @FXML private VBox             vboxThemeColors;
+    @FXML private VBox             vboxThemePreview;
     @FXML private ComboBox<String> comboTerminalShell;
     @FXML private ComboBox<String> comboReadmeLanguage;
     @FXML private ComboBox<String> comboCompilador;
 
-    @FXML private Button           btnSeleccionarGbdkBin;
-    @FXML private Button           btnGuardarGbdkBin;
     @FXML private Button           btnSeleccionarSpectrumBin;
     @FXML private Button           btnGuardarSpectrumBin;
     @FXML private Button           btnSeleccionarCpcBin;
@@ -215,8 +243,14 @@ public class ConfigController {
     private Runnable onCloseCallback;
     private Runnable onLanguageChanged;
     private boolean syncingCompilerUi = false;
-    private final Map<String, String> editorAppearanceCodeByLabel = new HashMap<>();
     private final Map<String, String> terminalShellCodeByLabel = new HashMap<>();
+
+    private ThemeService themeService = new ThemeService();
+    private EditorTheme editingTheme;
+    private boolean syncingThemeUi = false;
+    private final Map<String, ColorPicker> themeColorPickers = new HashMap<>();
+    private final List<CodeArea> previewAreas = new ArrayList<>();
+    private final SyntaxHighlighter previewHighlighter = new SyntaxHighlighter();
 
     private ConfigModel configModel = new ConfigModel();
     private ConfigRepository configRepository = new PropertiesConfigRepository();
@@ -269,6 +303,67 @@ public class ConfigController {
     public void setPluginMarketplaceService(PluginMarketplaceService pluginMarketplaceService) {
         if (pluginMarketplaceService != null) this.pluginMarketplaceService = pluginMarketplaceService;
     }
+
+    public void setThemeService(ThemeService themeService) {
+        if (themeService != null) this.themeService = themeService;
+    }
+
+    private static record ThemeToken(String colorKey, String labelKey) {}
+    private static record ThemeSection(String titleKey, List<ThemeToken> tokens) {
+        static ThemeSection of(String titleKey, ThemeToken... tokens) {
+            return new ThemeSection(titleKey, List.of(tokens));
+        }
+    }
+
+    private static final List<ThemeSection> THEME_SECTIONS = List.of(
+        ThemeSection.of("config.theme.section.editor",
+            new ThemeToken(EditorTheme.KEY_EDITOR_BACKGROUND,     "config.theme.token.editor_background"),
+            new ThemeToken(EditorTheme.KEY_EDITOR_TEXT,           "config.theme.token.editor_text"),
+            new ThemeToken(EditorTheme.KEY_HIGHLIGHT_FILL,        "config.theme.token.highlight_fill"),
+            new ThemeToken(EditorTheme.KEY_HIGHLIGHT_TEXT_FILL,   "config.theme.token.highlight_text_fill"),
+            new ThemeToken(EditorTheme.KEY_CARET,                 "config.theme.token.caret"),
+            new ThemeToken(EditorTheme.KEY_LINENO,                "config.theme.token.lineno"),
+            new ThemeToken(EditorTheme.KEY_LINENO_BACKGROUND,     "config.theme.token.lineno_background"),
+            new ThemeToken(EditorTheme.KEY_SELECTION,             "config.theme.token.selection"),
+            new ThemeToken(EditorTheme.KEY_CURRENT_LINE,          "config.theme.token.current_line")),
+        ThemeSection.of("config.theme.section.c",
+            new ThemeToken(EditorTheme.KEY_SYNTAX_KEYWORD,        "config.theme.token.keyword"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_PREPROCESSOR,   "config.theme.token.preprocessor"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_COMMENT,        "config.theme.token.comment"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_STRING,         "config.theme.token.string"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_CHARACTER,      "config.theme.token.character"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_OPERATOR,       "config.theme.token.operator"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_ZX_FUNCTION,    "config.theme.token.zx_function"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_GBDK_FUNCTION,  "config.theme.token.gbdk_function")),
+        ThemeSection.of("config.theme.section.asm",
+            new ThemeToken(EditorTheme.KEY_SYNTAX_ASM_LABEL,      "config.theme.token.asm_label"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_ASM_DIRECTIVE,  "config.theme.token.asm_directive"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_ASM_INSTRUCTION,"config.theme.token.asm_instruction"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_ASM_REGISTER,   "config.theme.token.asm_register"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_ASM_NUMBER,     "config.theme.token.asm_number")),
+        ThemeSection.of("config.theme.section.md",
+            new ThemeToken(EditorTheme.KEY_SYNTAX_MD_HEADING,     "config.theme.token.md_heading"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_MD_BLOCKQUOTE,  "config.theme.token.md_blockquote"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_MD_LIST,        "config.theme.token.md_list"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_MD_CHECKLIST,   "config.theme.token.md_checklist"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_MD_CHECKLIST_PENDING, "config.theme.token.md_checklist_pending"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_MD_CHECKLIST_DONE, "config.theme.token.md_checklist_done"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_MD_TABLE,       "config.theme.token.md_table"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_MD_LINK,        "config.theme.token.md_link"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_MD_BOLD,        "config.theme.token.md_bold"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_MD_ITALIC,      "config.theme.token.md_italic"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_MD_CODE,        "config.theme.token.md_code"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_MD_CODE_BLOCK,  "config.theme.token.md_code_block")),
+        ThemeSection.of("config.theme.section.json",
+            new ThemeToken(EditorTheme.KEY_SYNTAX_JSON_KEY,       "config.theme.token.json_key"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_JSON_NUMBER,    "config.theme.token.json_number"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_JSON_LITERAL,   "config.theme.token.json_literal")),
+        ThemeSection.of("config.theme.section.diagnostico",
+            new ThemeToken(EditorTheme.KEY_COMPILE_ERROR_LINE,    "config.theme.token.compile_error_line"),
+            new ThemeToken(EditorTheme.KEY_COMPILE_WARNING_LINE,  "config.theme.token.compile_warning_line"),
+            new ThemeToken(EditorTheme.KEY_GUTTER_ERROR,          "config.theme.token.gutter_error"),
+            new ThemeToken(EditorTheme.KEY_GUTTER_WARNING,        "config.theme.token.gutter_warning"))
+    );
 
     private void loadConfigFromDisk() {
         java.util.Properties loaded = configRepository.load(configFile);
@@ -338,7 +433,7 @@ public class ConfigController {
         }
 
         loadLanguageSelectionsFromConfig();
-        loadEditorAppearanceFromConfig();
+        loadThemeUiFromConfig();
         loadTerminalShellFromConfig();
 
         if (chkEnableLogs != null) {
@@ -346,10 +441,6 @@ public class ConfigController {
         }
         if (chkShowHomeOnStartup != null) {
             chkShowHomeOnStartup.setSelected(configModel.isShowHomeOnStartup());
-        }
-
-        if (txtGbdkBin != null) {
-            txtGbdkBin.setText(configModel.getConfigProperty("gbdk_bin", ""));
         }
 
         loadZ88dkFlagsFromConfig();
@@ -414,11 +505,7 @@ public class ConfigController {
         }
 
         loadLanguageSelectionsFromConfig();
-        loadEditorAppearanceFromConfig();
-
-        if (txtGbdkBin != null) {
-            txtGbdkBin.setText(configModel.getConfigProperty("gbdk_bin", ""));
-        }
+        loadThemeUiFromConfig();
 
         loadZ88dkFlagsFromConfig();
         loadGbdkOptsFromConfig();
@@ -1049,39 +1136,6 @@ public class ConfigController {
         return result.isPresent() && result.get() == ButtonType.OK;
     }
 
-    /**
-     * Guardar ruta de bin de GBDK
-     * @param event
-     */
-    @FXML
-    public void onSaveGbdkBin(ActionEvent event) {
-        if (txtGbdkBin != null) {
-            String path = txtGbdkBin.getText();
-            configModel.setConfigProperty("gbdk_bin", path);
-            persistConfig();
-            persistCompilerSettingsToActiveWorkspace();
-            UserActionMonitor.compilerPathUpdated("GBDK", path);
-        }
-    }
-
-    /**
-     * Seleccionar carpeta para bin de GBDK
-     * @param event
-     */
-    @FXML
-    public void onSeleccionarGbdkBin(ActionEvent event) {
-        javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
-
-        chooser.setTitle("Seleccionar carpeta bin de GBDK");
-
-        File selectedDir = chooser.showDialog(txtGbdkBin.getScene().getWindow());
-
-        if (selectedDir != null) {
-            txtGbdkBin.setText(selectedDir.getAbsolutePath());
-            UserActionMonitor.compilerPathUpdated("GBDK", selectedDir.getAbsolutePath());
-        }
-    }
-
     @FXML
     public void onSaveWorkspace(ActionEvent event) {
         if (projectRoot == null || !projectRoot.isDirectory()) {
@@ -1114,7 +1168,6 @@ public class ConfigController {
         workspace.setSetting("compilador_seleccionado", normalizeCompiler(selectedCompiler));
 
         // GBDK
-        if (txtGbdkBin != null) workspace.setSetting("gbdk_bin", txtGbdkBin.getText());
         if (comboGbdkOptLevel != null) workspace.setSetting("gbdk_opt_level", comboGbdkOptLevel.getSelectionModel().getSelectedItem());
         if (chkGbdkOptSpeed != null) workspace.setSetting("gbdk_opt_speed", String.valueOf(chkGbdkOptSpeed.isSelected()));
         if (chkGbdkOptSize != null) workspace.setSetting("gbdk_opt_size", String.valueOf(chkGbdkOptSize.isSelected()));
@@ -1183,18 +1236,12 @@ public class ConfigController {
     private void onSaveCompilador(ActionEvent event) {
         String selectedCompilerLabel = comboCompilador != null ? comboCompilador.getSelectionModel().getSelectedItem() : null;
         String selectedCompiler = normalizeCompiler(selectedCompilerLabel);
-        String gbdkPath         = txtGbdkBin        != null ? txtGbdkBin.getText().trim()        : "";
         String spectrumPath     = txtSpectrumBin    != null ? txtSpectrumBin.getText().trim()    : "";
         String cpcPath          = txtCpcBin         != null ? txtCpcBin.getText().trim()         : "";
         String z88dkProfile     = resolveZ88dkProfileFromSelection(selectedCompilerLabel, getSelectedZ88dkProfile());
 
         if (selectedCompiler == null || selectedCompiler.isEmpty()) {
             showError("Debe seleccionar un compilador.");
-            return;
-        }
-
-        if (COMPILER_GBDK.equals(selectedCompiler) && (gbdkPath.isEmpty() || !(new File(gbdkPath).exists()))) {
-            showError("Debe especificar una ruta válida para el bin de GBDK.");
             return;
         }
 
@@ -1224,7 +1271,6 @@ public class ConfigController {
             return;
         }
 
-        configModel.setConfigProperty("gbdk_bin", gbdkPath);
         configModel.setConfigProperty("spectrum_bin", spectrumPath);
         configModel.setConfigProperty("cpc_bin", cpcPath);
 
@@ -2000,10 +2046,25 @@ public class ConfigController {
 
     @FXML
     public void onSaveEditorAppearance(ActionEvent event) {
-        String selectedAppearance = comboEditorAppearance != null
-            ? comboEditorAppearance.getSelectionModel().getSelectedItem()
-            : null;
-        String appearance = toEditorAppearanceCode(selectedAppearance);
+        String appearance = ConfigModel.EDITOR_APPEARANCE_MODERN_DARK;
+        if (editingTheme != null) {
+            syncThemeControlsToModel();
+            if (editingTheme.isBuiltIn()) {
+                configModel.setEditorTheme(editingTheme.getId());
+            } else {
+                String name = txtThemeName != null ? txtThemeName.getText() : null;
+                if (name != null && !name.isBlank()) {
+                    editingTheme.setName(name.trim());
+                }
+                themeService.saveCustom(editingTheme);
+                configModel.setEditorTheme(editingTheme.getId());
+            }
+            appearance = editingTheme.isDarkBase()
+                ? ConfigModel.EDITOR_APPEARANCE_MODERN_DARK
+                : ConfigModel.EDITOR_APPEARANCE_CLASSIC;
+            refreshThemeComboItems();
+            selectThemeInUi(editingTheme.getId());
+        }
         configModel.setConfigProperty("editor_appearance", appearance);
         if (comboTerminalShell != null) {
             String selectedShell = comboTerminalShell.getSelectionModel().getSelectedItem();
@@ -2049,6 +2110,15 @@ public class ConfigController {
         if (tabAppearance        != null) tabAppearance        .setText(bundle.getString("label.appearanceTab"));
         if (lblIdioma            != null) lblIdioma            .setText(bundle.getString("label.language"));
         if (lblEditorAppearance  != null) lblEditorAppearance  .setText(bundle.getString("label.editorAppearance"));
+        if (lblThemeMode != null) lblThemeMode.setText(bundle.containsKey("config.theme.mode") ? bundle.getString("config.theme.mode") : "Modo:");
+        if (lblThemeName != null) lblThemeName.setText(bundle.containsKey("config.theme.name") ? bundle.getString("config.theme.name") : "Nombre del modo:");
+        if (lblThemeFont != null) lblThemeFont.setText(bundle.containsKey("config.theme.font.family") ? bundle.getString("config.theme.font.family") : "Fuente del editor:");
+        if (lblThemeFontSize != null) lblThemeFontSize.setText(bundle.containsKey("config.theme.font.size") ? bundle.getString("config.theme.font.size") : "Tamaño:");
+        if (lblThemePreview != null) lblThemePreview.setText(bundle.containsKey("config.theme.preview") ? bundle.getString("config.theme.preview") : "Vista previa:");
+        if (btnDuplicateTheme != null) btnDuplicateTheme.setText(bundle.containsKey("config.theme.duplicate.button") ? bundle.getString("config.theme.duplicate.button") : "Duplicar");
+        if (btnDeleteTheme   != null) btnDeleteTheme  .setText(bundle.containsKey("config.theme.delete.button") ? bundle.getString("config.theme.delete.button") : "Eliminar");
+        if (btnResetTheme    != null) btnResetTheme   .setText(bundle.containsKey("config.theme.reset.button") ? bundle.getString("config.theme.reset.button") : "Restablecer");
+        if (chkLineNumberAuto != null) chkLineNumberAuto.setText(bundle.containsKey("config.theme.lineno.auto") ? bundle.getString("config.theme.lineno.auto") : "Automatico (tamaño - 1)");
         if (lblReadmeLanguage    != null) lblReadmeLanguage    .setText(bundle.getString("config.readmeLanguage"));
         if (tabCompilador        != null) tabCompilador        .setText(bundle.getString("label.compilerTab"));
         if (tabCompilerGbdk      != null) tabCompilerGbdk      .setText(bundle.getString("label.compiler.gbdkTab"));
@@ -2058,7 +2128,7 @@ public class ConfigController {
         if (tabPlugins           != null) tabPlugins           .setText(bundle.getString("config.plugins.tab"));
         if (lblPluginsInstalled  != null) lblPluginsInstalled  .setText(bundle.getString("config.plugins.installed"));
         if (lblCompilador        != null) lblCompilador        .setText(bundle.getString("label.compiler"));
-        if (lblGbdkBin           != null) lblGbdkBin           .setText(bundle.getString("label.compiler.gbdk.bin"));
+        if (lblGbdkBundled       != null) lblGbdkBundled       .setText(bundle.getString("label.compiler.gbdk.bundled"));
         if (lblGbdkOpts          != null) lblGbdkOpts          .setText(bundle.getString("label.compiler.gbdk.opts"));
         if (lblGbdkOptLevel      != null) lblGbdkOptLevel      .setText(bundle.getString("label.compiler.gbdk.opt.level"));
         if (lblGbdkDefines       != null) lblGbdkDefines       .setText(bundle.getString("label.compiler.gbdk.defines"));
@@ -2102,7 +2172,6 @@ public class ConfigController {
         if (chkShowHomeOnStartup != null) chkShowHomeOnStartup.setText(bundle.containsKey("config.appearance.show_home_on_startup") ? bundle.getString("config.appearance.show_home_on_startup") : "Mostrar página de inicio al arrancar");
         if (btnGuardarCompilador != null) btnGuardarCompilador .setText(bundle.getString("button.saveConfig"));
         if (btnSaveMakeOpts      != null) btnSaveMakeOpts      .setText(bundle.getString("button.saveMake"));
-        if (btnGuardarGbdkBin    != null) btnGuardarGbdkBin    .setText(bundle.getString("button.saveGbdk"));
         if (btnGuardarSpectrumBin!= null) btnGuardarSpectrumBin.setText(bundle.getString("button.saveZ88dk"));
         if (btnGuardarCpcBin     != null) btnGuardarCpcBin     .setText(bundle.getString("button.saveZ88dk"));
         if (btnInstallPlugin     != null) btnInstallPlugin     .setText(bundle.getString("config.plugins.install"));
@@ -2151,7 +2220,7 @@ public class ConfigController {
         languageService.setExternalI18nDir(i18nDir);
 
         loadLanguageSelectionsFromConfig();
-        loadEditorAppearanceFromConfig();
+        loadThemeUiFromConfig();
         refreshCompilerComboItems();
     }
 
@@ -2220,40 +2289,450 @@ public class ConfigController {
     }
 
 
-    private void loadEditorAppearanceFromConfig() {
-        if (comboEditorAppearance == null) return;
+    private void loadThemeUiFromConfig() {
+        if (comboThemeMode == null) return;
+        buildThemeControls();
+        buildThemePreview();
+        wireThemeControls();
+        refreshThemeComboItems();
+        selectThemeInUi(themeService.resolveActiveThemeId(configModel));
+    }
 
-        ResourceBundle bundle = getCurrentBundle();
-        String modernLabel = bundle.containsKey("config.editorAppearance.option.modernDark")
-            ? bundle.getString("config.editorAppearance.option.modernDark")
-            : "Oscuro";
-        String classicLabel = bundle.containsKey("config.editorAppearance.option.classic")
-            ? bundle.getString("config.editorAppearance.option.classic")
-            : "Clasico";
-
-        comboEditorAppearance.getItems().clear();
-        comboEditorAppearance.getItems().addAll(modernLabel, classicLabel);
-        editorAppearanceCodeByLabel.clear();
-        editorAppearanceCodeByLabel.put(modernLabel, ConfigModel.EDITOR_APPEARANCE_MODERN_DARK);
-        editorAppearanceCodeByLabel.put(classicLabel, ConfigModel.EDITOR_APPEARANCE_CLASSIC);
-
-        String appearance = configModel.getConfigProperty("editor_appearance", ConfigModel.EDITOR_APPEARANCE_MODERN_DARK);
-        if (ConfigModel.EDITOR_APPEARANCE_CLASSIC.equalsIgnoreCase(appearance)) {
-            comboEditorAppearance.getSelectionModel().select(classicLabel);
-        } else {
-            comboEditorAppearance.getSelectionModel().select(modernLabel);
+    private void refreshThemeComboItems() {
+        if (comboThemeMode == null) return;
+        String selectedId = currentThemeId();
+        comboThemeMode.getItems().clear();
+        comboThemeMode.getItems().addAll(themeService.getAllThemes());
+        if (selectedId != null && themeService.getTheme(selectedId) != null) {
+            comboThemeMode.getSelectionModel().select(themeService.getTheme(selectedId));
         }
     }
 
-    private String toEditorAppearanceCode(String displayValue) {
-        if (displayValue == null || displayValue.isBlank()) {
-            return ConfigModel.EDITOR_APPEARANCE_MODERN_DARK;
+    private String currentThemeId() {
+        return editingTheme != null && editingTheme.getId() != null
+            ? editingTheme.getId()
+            : BuiltInThemes.MODERN_DARK_ID;
+    }
+
+    private String themeItemLabel(EditorTheme theme) {
+        if (theme == null) return "";
+        return theme.getName() != null ? theme.getName() : theme.getId();
+    }
+
+    /**
+     * Construye una vez las secciones de colores y los selectores asociados.
+     */
+    private void buildThemeControls() {
+        if (vboxThemeColors == null || !vboxThemeColors.getChildren().isEmpty()) return;
+
+        if (comboThemeMode != null) {
+            comboThemeMode.setCellFactory(list -> new javafx.scene.control.ListCell<EditorTheme>() {
+                @Override
+                protected void updateItem(EditorTheme item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : themeItemLabel(item));
+                }
+            });
+            comboThemeMode.setButtonCell(new javafx.scene.control.ListCell<EditorTheme>() {
+                @Override
+                protected void updateItem(EditorTheme item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : themeItemLabel(item));
+                }
+            });
         }
-        String mapped = editorAppearanceCodeByLabel.get(displayValue);
-        if (mapped != null) return mapped;
-        return displayValue.toLowerCase(Locale.ROOT).contains("classic")
-            ? ConfigModel.EDITOR_APPEARANCE_CLASSIC
-            : ConfigModel.EDITOR_APPEARANCE_MODERN_DARK;
+
+        if (comboFontFamily != null) {
+            comboFontFamily.setEditable(true);
+            List<String> families = new ArrayList<>();
+            families.add("JetBrains Mono");
+            families.add("Cascadia Mono");
+            families.add("Source Code Pro");
+            families.add("Consolas");
+            families.add("Fira Code");
+            families.add("DejaVu Sans Mono");
+            for (String family : javafx.scene.text.Font.getFamilies()) {
+                if (!families.contains(family)) {
+                    families.add(family);
+                }
+            }
+            comboFontFamily.getItems().setAll(families);
+        }
+
+        if (spFontSize != null && spFontSize.getValueFactory() == null) {
+            spFontSize.setValueFactory(new SpinnerValueFactory.DoubleSpinnerValueFactory(8, 32, 13, 0.5));
+        }
+        if (spLineNumberSize != null && spLineNumberSize.getValueFactory() == null) {
+            spLineNumberSize.setValueFactory(new SpinnerValueFactory.DoubleSpinnerValueFactory(6, 40, 12, 0.5));
+        }
+
+        ResourceBundle bundle = getCurrentBundle();
+        for (ThemeSection section : THEME_SECTIONS) {
+            String title = tr(section.titleKey(), "Colores");
+            GridPane grid = new GridPane();
+            grid.setHgap(10);
+            grid.setVgap(6);
+            int row = 0;
+            for (ThemeToken token : section.tokens()) {
+                String labelText = tr(token.labelKey(), token.colorKey());
+                Label label = new Label(labelText);
+                ColorPicker picker = new ColorPicker();
+                picker.setPrefWidth(150);
+                picker.setOnAction(e -> {
+                    if (syncingThemeUi || editingTheme == null) return;
+                    editingTheme.setColor(token.colorKey(), colorToString(picker.getValue()));
+                    refreshThemePreviews();
+                });
+                themeColorPickers.put(token.colorKey(), picker);
+                grid.add(label, 0, row);
+                grid.add(picker, 1, row);
+                row++;
+            }
+            TitledPane pane = new TitledPane(title, grid);
+            pane.setAnimated(false);
+            pane.setCollapsible(true);
+            vboxThemeColors.getChildren().add(pane);
+        }
+    }
+
+    /**
+     * Construye una vez la vista previa en vivo (uno ventral por lenguaje).
+     */
+    private void buildThemePreview() {
+        if (vboxThemePreview == null || !vboxThemePreview.getChildren().isEmpty()) return;
+
+        for (Map.Entry<String, String> entry : ThemePreviewBuilder.buildSampleTexts().entrySet()) {
+            String extension = entry.getKey();
+            String sample = entry.getValue();
+
+            CodeArea area = new CodeArea();
+            area.setEditable(false);
+            area.setParagraphGraphicFactory(LineNumberFactory.get(area));
+            area.replaceText(sample);
+            area.getStyleClass().add("code-area");
+            area.setPrefHeight(110);
+            area.setMaxHeight(130);
+
+            try {
+                area.setStyleSpans(0, previewHighlighter.computeHighlighting(sample, "preview." + extension));
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+
+            Label caption = new Label(extension.toUpperCase(Locale.ROOT));
+            caption.setStyle("-fx-font-weight: bold;");
+            VBox box = new VBox(4, caption, area);
+            previewAreas.add(area);
+            vboxThemePreview.getChildren().add(box);
+        }
+    }
+
+    private void wireThemeControls() {
+        if (tabAppearance != null && Boolean.TRUE.equals(tabAppearance.getProperties().get("themeControlsWired"))) {
+            return;
+        }
+        if (tabAppearance != null) {
+            tabAppearance.getProperties().put("themeControlsWired", Boolean.TRUE);
+        }
+
+        if (comboThemeMode != null) {
+            comboThemeMode.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> {
+                if (syncingThemeUi) return;
+                syncThemeControlsToModel();
+                if (newV != null) {
+                    selectThemeInUi(newV.getId());
+                }
+            });
+        }
+
+        if (txtThemeName != null) {
+            txtThemeName.textProperty().addListener((obs, oldV, newV) -> {
+                if (syncingThemeUi || editingTheme == null || editingTheme.isBuiltIn()) return;
+                editingTheme.setName(newV);
+            });
+        }
+
+        if (comboFontFamily != null) {
+            comboFontFamily.getEditor().textProperty().addListener((obs, oldV, newV) -> {
+                if (syncingThemeUi || editingTheme == null) return;
+                editingTheme.setFontFamily(trimFontFamily(newV));
+                refreshThemePreviews();
+            });
+        }
+
+        if (spFontSize != null) {
+            spFontSize.valueProperty().addListener((obs, oldV, newV) -> {
+                if (syncingThemeUi || editingTheme == null || newV == null) return;
+                editingTheme.setFontSize(newV);
+                if (chkLineNumberAuto != null && chkLineNumberAuto.isSelected() && spLineNumberSize != null) {
+                    spLineNumberSize.getValueFactory().setValue(Math.max(1, newV - 1));
+                }
+                refreshThemePreviews();
+            });
+        }
+
+        if (chkLineNumberAuto != null) {
+            chkLineNumberAuto.selectedProperty().addListener((obs, oldV, newV) -> {
+                if (syncingThemeUi || editingTheme == null) return;
+                if (Boolean.TRUE.equals(newV)) {
+                    editingTheme.setLineNumberSize(-1);
+                    if (spLineNumberSize != null) {
+                        spLineNumberSize.setDisable(true);
+                    }
+                } else {
+                    if (spLineNumberSize != null) {
+                        spLineNumberSize.setDisable(false);
+                        editingTheme.setLineNumberSize(spLineNumberSize.getValue());
+                    }
+                }
+                refreshThemePreviews();
+            });
+        }
+
+        if (spLineNumberSize != null) {
+            spLineNumberSize.valueProperty().addListener((obs, oldV, newV) -> {
+                if (syncingThemeUi || editingTheme == null || newV == null) return;
+                if (chkLineNumberAuto == null || !chkLineNumberAuto.isSelected()) {
+                    editingTheme.setLineNumberSize(newV);
+                    refreshThemePreviews();
+                }
+            });
+        }
+    }
+
+    private void selectThemeInUi(String themeId) {
+        EditorTheme theme = themeService.getTheme(themeId);
+        if (theme == null) {
+            theme = BuiltInThemes.modernDark();
+        }
+        editingTheme = theme.copy();
+
+        syncingThemeUi = true;
+        try {
+            final EditorTheme target = theme;
+            if (comboThemeMode != null && comboThemeMode.getSelectionModel().getSelectedItem() == null
+                || comboThemeMode != null && comboThemeMode.getSelectionModel().getSelectedItem() != null
+                    && !target.getId().equals(comboThemeMode.getSelectionModel().getSelectedItem().getId())) {
+                comboThemeMode.getItems().stream()
+                    .filter(t -> target.getId().equals(t.getId()))
+                    .findFirst()
+                    .ifPresent(t -> comboThemeMode.getSelectionModel().select(t));
+            }
+            if (txtThemeName != null) {
+                txtThemeName.setText(theme.getName() != null ? theme.getName() : "");
+            }
+            if (comboFontFamily != null) {
+                comboFontFamily.setValue(displayFont(theme.getFontFamily()));
+            }
+            boolean autoLineNumbers = theme.getLineNumberSize() <= 0;
+            if (chkLineNumberAuto != null) {
+                chkLineNumberAuto.setSelected(autoLineNumbers);
+            }
+            if (spFontSize != null) {
+                spFontSize.getValueFactory().setValue(theme.getFontSize());
+            }
+            if (spLineNumberSize != null) {
+                double ln = autoLineNumbers ? Math.max(1, theme.getFontSize() - 1) : theme.getLineNumberSize();
+                spLineNumberSize.getValueFactory().setValue(ln);
+                spLineNumberSize.setDisable(autoLineNumbers);
+            }
+            for (Map.Entry<String, ColorPicker> entry : themeColorPickers.entrySet()) {
+                String raw = theme.getColor(entry.getKey());
+                Color color = parseColor(raw);
+                if (color != null) {
+                    entry.getValue().setValue(color);
+                }
+            }
+            setThemeEditEnabled(!theme.isBuiltIn());
+        } finally {
+            syncingThemeUi = false;
+        }
+        refreshThemePreviews();
+    }
+
+    private void setThemeEditEnabled(boolean enabled) {
+        if (txtThemeName != null) txtThemeName.setEditable(enabled);
+        if (comboFontFamily != null) comboFontFamily.setDisable(!enabled);
+        if (spFontSize != null) spFontSize.setDisable(!enabled);
+        if (chkLineNumberAuto != null) chkLineNumberAuto.setDisable(!enabled);
+        if (spLineNumberSize != null) {
+            boolean auto = editingTheme != null && editingTheme.getLineNumberSize() <= 0;
+            spLineNumberSize.setDisable(!enabled || auto);
+        }
+        for (ColorPicker picker : themeColorPickers.values()) {
+            picker.setDisable(!enabled);
+        }
+    }
+
+    private void refreshThemePreviews() {
+        if (editingTheme == null || previewAreas.isEmpty()) return;
+        String css = ThemeCssGenerator.generateCss(editingTheme);
+        String url = com.retroeditor.util.FXUtils.dataCssUrl(css);
+        for (CodeArea area : previewAreas) {
+            area.getStylesheets().clear();
+            if (url != null) {
+                area.getStylesheets().add(url);
+            }
+        }
+    }
+
+    private void syncThemeControlsToModel() {
+        if (editingTheme == null || syncingThemeUi) return;
+
+        if (txtThemeName != null && !editingTheme.isBuiltIn()) {
+            String name = txtThemeName.getText();
+            if (name != null && !name.isBlank()) {
+                editingTheme.setName(name.trim());
+            }
+        }
+        if (comboFontFamily != null) {
+            editingTheme.setFontFamily(trimFontFamily(comboFontFamily.getEditor().getText()));
+        }
+        if (spFontSize != null && spFontSize.getValue() != null) {
+            editingTheme.setFontSize(spFontSize.getValue());
+        }
+        boolean autoLineNumbers = chkLineNumberAuto != null && chkLineNumberAuto.isSelected();
+        if (autoLineNumbers) {
+            editingTheme.setLineNumberSize(-1);
+        } else if (spLineNumberSize != null && spLineNumberSize.getValue() != null) {
+            editingTheme.setLineNumberSize(spLineNumberSize.getValue());
+        }
+    }
+
+    @FXML
+    public void onDuplicateTheme(ActionEvent event) {
+        if (event != null) event.consume();
+        try {
+            AppLogger.logMonitor("CONFIG",
+                "Boton Duplicar pulsado (tema actual: " + currentThemeId() + ", combo items: "
+                    + (comboThemeMode == null ? "null" : comboThemeMode.getItems().size()) + ")");
+            syncThemeControlsToModel();
+
+            TextInputDialog dialog = new TextInputDialog(tr("config.theme.duplicate.defaultName", "Modo personalizado"));
+            dialog.setTitle(tr("config.theme.duplicate.title", "Duplicar modo"));
+            dialog.setHeaderText(tr("config.theme.duplicate.header", "Nombre del nuevo modo personalizado:"));
+            initDialogOwner(dialog, event);
+            Optional<String> result = dialog.showAndWait();
+            if (result.isEmpty() || result.get().isBlank()) return;
+            AppLogger.logMonitor("CONFIG", "Nombre aceptado: " + result.get());
+
+            EditorTheme created = duplicateCurrentTheme(result.get());
+            AppLogger.logMonitor("CONFIG", "Modo duplicado: " + created.getId());
+        } catch (Exception ex) {
+            AppLogger.logMonitor("CONFIG", "Error al duplicar modo: " + ex.getMessage());
+            ex.printStackTrace();
+            showError("Error al duplicar modo: " + ex.getMessage());
+        }
+    }
+
+    /**
+     * Asigna la ventana de la configuracion como propietaria de un dialogo para
+     * que no quede detras del editor en Windows.
+     */
+    private void initDialogOwner(javafx.scene.control.Dialog<?> dialog, ActionEvent event) {
+        try {
+            javafx.scene.Node source = event != null ? (javafx.scene.Node) event.getSource() : null;
+            javafx.stage.Window owner = source != null ? source.getScene().getWindow() : null;
+            if (owner != null) {
+                dialog.initOwner(owner);
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    /**
+     * Crea un modo personalizado a partir del modo actualmente seleccionado y
+     * lo selecciona en la interfaz. Separado de {@link #onDuplicateTheme(ActionEvent)}
+     * para poder probar el flujo sin abrir el dialogo.
+     *
+     * @param themeName nombre visible del nuevo modo
+     * @return el modo personalizado creado
+     */
+    EditorTheme duplicateCurrentTheme(String themeName) {
+        EditorTheme created = themeService.duplicate(currentThemeId(), themeName);
+        selectThemeInUi(created.getId());
+        refreshThemeComboItems();
+        showError("");
+        return created;
+    }
+
+    @FXML
+    public void onDeleteTheme(ActionEvent event) {
+        if (event != null) event.consume();
+        if (editingTheme == null || editingTheme.isBuiltIn()) return;
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle(tr("config.theme.delete.title", "Eliminar modo"));
+        confirm.setHeaderText(tr("config.theme.delete.header", "Eliminar el modo personalizado")
+            + ": " + editingTheme.getName());
+        confirm.setContentText(tr("config.theme.delete.body", "Esta accion no se puede deshacer."));
+        initDialogOwner(confirm, event);
+        try {
+            if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) return;
+
+            themeService.deleteCustom(editingTheme.getId());
+            if (BuiltInThemes.MODERN_DARK_ID.equals(currentThemeId())) {
+                configModel.setEditorTheme(BuiltInThemes.MODERN_DARK_ID);
+            } else if (themeService.getTheme(currentThemeId()) == null) {
+                configModel.setEditorTheme(BuiltInThemes.MODERN_DARK_ID);
+            }
+            selectThemeInUi(BuiltInThemes.MODERN_DARK_ID);
+            refreshThemeComboItems();
+            showError("");
+        } catch (Exception ex) {
+            AppLogger.logMonitor("CONFIG", "Error al eliminar modo: " + ex.getMessage());
+            ex.printStackTrace();
+            showError("Error al eliminar modo: " + ex.getMessage());
+        }
+    }
+
+    @FXML
+    public void onResetTheme(ActionEvent event) {
+        if (event != null) event.consume();
+        if (editingTheme == null || editingTheme.isBuiltIn()) return;
+
+        EditorTheme base = editingTheme.isDarkBase() ? BuiltInThemes.modernDark() : BuiltInThemes.classic();
+        for (Map.Entry<String, String> colors : base.getColors().entrySet()) {
+            editingTheme.setColor(colors.getKey(), colors.getValue());
+        }
+        editingTheme.setFontFamily(base.getFontFamily());
+        editingTheme.setFontSize(base.getFontSize());
+        editingTheme.setLineNumberSize(base.getLineNumberSize());
+        selectThemeInUi(editingTheme.getId());
+        showError("");
+    }
+
+    private static String displayFont(String fullFamily) {
+        if (fullFamily == null || fullFamily.isBlank()) return "";
+        return fullFamily.split(",")[0].trim();
+    }
+
+    private static String trimFontFamily(String value) {
+        return value != null ? value.trim() : "";
+    }
+
+    private static String colorToString(Color color) {
+        if (color == null) return "";
+        if (color.getOpacity() >= 0.999) {
+            return String.format("#%02x%02x%02x",
+                Math.round(color.getRed() * 255),
+                Math.round(color.getGreen() * 255),
+                Math.round(color.getBlue() * 255));
+        }
+        return String.format("rgba(%d, %d, %d, %s)",
+            Math.round(color.getRed() * 255),
+            Math.round(color.getGreen() * 255),
+            Math.round(color.getBlue() * 255),
+            String.format(Locale.ROOT, "%.2f", color.getOpacity()));
+    }
+
+    private static Color parseColor(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return Color.web(value.trim());
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     private void loadTerminalShellFromConfig() {

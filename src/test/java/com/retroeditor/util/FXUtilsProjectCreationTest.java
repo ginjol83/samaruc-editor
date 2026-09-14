@@ -94,4 +94,37 @@ class FXUtilsProjectCreationTest {
         Assertions.assertTrue(Files.exists(projectDir.resolve("Makefile")));
         Assertions.assertTrue(Files.exists(projectDir.resolve("src/main.c")));
     }
+
+    @Test
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    void createProjectFromTranslatorTemplateWritesSmTFileAndNoMain() throws Exception {
+        FXUtils utils = new FXUtils();
+
+        Path projectDir = tempDir.resolve("translator-project");
+
+        Class templateClass = Class.forName("com.retroeditor.util.FXUtils$ProjectTemplate");
+        Object translatorTemplate = Enum.valueOf(templateClass, "TRANSLATOR");
+
+        Class optionsClass = Class.forName("com.retroeditor.util.FXUtils$ProjectCreationOptions");
+        Constructor ctor = optionsClass.getDeclaredConstructor(templateClass, boolean.class, boolean.class);
+        ctor.setAccessible(true);
+        Object options = ctor.newInstance(translatorTemplate, true, true);
+
+        Method createProjectMethod = FXUtils.class.getDeclaredMethod("createProjectFromTemplate", File.class, optionsClass);
+        createProjectMethod.setAccessible(true);
+        createProjectMethod.invoke(utils, projectDir.toFile(), options);
+
+        Assertions.assertTrue(Files.exists(projectDir.resolve("translation.smt")), "Debe generarse translation.smt");
+
+        String smt = Files.readString(projectDir.resolve("translation.smt"), StandardCharsets.UTF_8);
+        Assertions.assertTrue(smt.contains("romPath"));
+        Assertions.assertTrue(smt.contains("fontTable"));
+
+        Assertions.assertFalse(Files.exists(projectDir.resolve("src/main.c")), "No debe generarse src/main.c");
+
+        String json = Files.readString(projectDir.resolve(".samarucws").resolve("settings.json"), StandardCharsets.UTF_8);
+        Assertions.assertTrue(json.contains("\"samaruc.target\": \"gameboy\""));
+        Assertions.assertTrue(Files.exists(projectDir.resolve("README.md")));
+        Assertions.assertTrue(Files.exists(projectDir.resolve(".gitignore")));
+    }
 }
