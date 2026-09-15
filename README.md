@@ -4,6 +4,17 @@ Samaruc es un editor para C retro en JavaFX con compilacion integrada para GBDK 
 
 Soporta resaltado de sintaxis para `.c`, `.h`, `.asm` y `.s`, y compila archivos Assembly con los toolchains de GBDK y z88dk.
 
+Incluye integracion completa con Git y GitHub:
+
+- **Control de versiones local**: commit, branch, stash, diff inline, restore desde el panel Git.
+- **Remoto**: pull/push con credenciales resueltas automaticamente (cascade gh → env → settings).
+- **Share to GitHub**: publicar el proyecto actual con un clic.
+- **Navegador de repos**: catalogo offline, busqueda con cache, clonar por git o ZIP, vista previa de README, estrellas.
+- **Publicar releases**: crear tags y subir artefactos del build a GitHub Releases.
+- **Issues**: listar y crear issues desde el IDE.
+
+Para una guia completa de uso, consultar `docs/guia-uso-integracion-github.md`.
+
 ## Requisitos
 
 - Java 17+ (JDK)
