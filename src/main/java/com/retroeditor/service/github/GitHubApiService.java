@@ -139,6 +139,86 @@ public class GitHubApiService {
     }
 
     /**
+     * Añade una estrella al repositorio indicado. Requiere un servicio autenticado.
+     *
+     * @param owner dueño del repositorio
+     * @param repo  nombre del repositorio
+     * @return {@code true} si se marcó la estrella
+     */
+    public boolean starRepo(String owner, String repo) throws IOException, InterruptedException {
+        if (token == null) {
+            throw new IOException("Token de GitHub no configurado");
+        }
+        HttpRequest request = HttpRequest.newBuilder(
+                URI.create(API_BASE + "/user/starred/" + enc(owner) + "/" + enc(repo)))
+            .timeout(Duration.ofSeconds(15))
+            .header("Accept", "application/vnd.github+json")
+            .header("Authorization", "token " + token)
+            .header("User-Agent", "Samaruc-Editor")
+            .PUT(HttpRequest.BodyPublishers.noBody())
+            .build();
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() == 204 || response.statusCode() == 200) {
+            return true;
+        }
+        throw new IOException("GitHub API status: " + response.statusCode());
+    }
+
+    /**
+     * Quita la estrella al repositorio indicado. Requiere un servicio autenticado.
+     *
+     * @return {@code true} si se quitó la estrella
+     */
+    public boolean unstarRepo(String owner, String repo) throws IOException, InterruptedException {
+        if (token == null) {
+            throw new IOException("Token de GitHub no configurado");
+        }
+        HttpRequest request = HttpRequest.newBuilder(
+                URI.create(API_BASE + "/user/starred/" + enc(owner) + "/" + enc(repo)))
+            .timeout(Duration.ofSeconds(15))
+            .header("Accept", "application/vnd.github+json")
+            .header("Authorization", "token " + token)
+            .header("User-Agent", "Samaruc-Editor")
+            .DELETE()
+            .build();
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() == 204 || response.statusCode() == 200 || response.statusCode() == 404) {
+            return true;
+        }
+        throw new IOException("GitHub API status: " + response.statusCode());
+    }
+
+    /**
+     * Comprueba si el usuario autenticado marcó con estrella el repositorio.
+     * Requiere un servicio autenticado.
+     */
+    public boolean isStarred(String owner, String repo) throws IOException, InterruptedException {
+        if (token == null) {
+            throw new IOException("Token de GitHub no configurado");
+        }
+        HttpRequest request = HttpRequest.newBuilder(
+                URI.create(API_BASE + "/user/starred/" + enc(owner) + "/" + enc(repo)))
+            .timeout(Duration.ofSeconds(15))
+            .header("Accept", "application/vnd.github+json")
+            .header("Authorization", "token " + token)
+            .header("User-Agent", "Samaruc-Editor")
+            .GET()
+            .build();
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() == 200 || response.statusCode() == 204) {
+            return true;
+        }
+        if (response.statusCode() == 404 || response.statusCode() < 200 || response.statusCode() >= 300) {
+            return false;
+        }
+        return false;
+    }
+
+    private static String enc(String value) {
+        return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8).replace("+", "%20");
+    }
+
+    /**
      * Parsea el JSON de resultados de búsqueda.
      */
     List<GitHubRepo> parseSearchResults(String json) throws IOException {

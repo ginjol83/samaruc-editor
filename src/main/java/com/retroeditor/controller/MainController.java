@@ -72,7 +72,10 @@ import com.retroeditor.model.ConfigModel;
 import com.retroeditor.model.EditorModel;
 
 import com.retroeditor.service.git.GitService;
+import com.retroeditor.service.git.GitOperationsException;
 import com.retroeditor.service.github.GitHubAuthService;
+import com.retroeditor.service.github.GitHubReleaseService;
+import com.retroeditor.service.github.GitHubIssueService;
 import com.retroeditor.service.github.GitHubShareService;
 
 import com.retroeditor.util.CompilationDiagnosticsUiHelper;
@@ -94,7 +97,9 @@ import javafx.geometry.Insets;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextArea;
 import javafx.scene.layout.VBox;
+import javafx.scene.layout.HBox;
 
 import javafx.scene.control.Tab;
 import javafx.scene.control.Menu;
@@ -157,6 +162,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private final GitHubRepoBrowserController     gitHubRepoBrowserController     = new GitHubRepoBrowserController();
     private final GitPanelController              gitPanelController              = new GitPanelController();
     private final GitHubShareService              gitHubShareService              = new GitHubShareService();
+    private final GitHubReleaseService            gitHubReleaseService            = new GitHubReleaseService();
+    private final GitService                      gitService                       = new GitService();
+    private final GitHubIssueService              gitHubIssueService                = new GitHubIssueService();
     private final TerminalController      terminalController      = new TerminalController();
     private final BuildController         buildController         = new BuildController();
     private final HelpController          helpController          = new HelpController();
@@ -226,6 +234,8 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private MenuItem menuItemGitHubRepos;
     @FXML private MenuItem menuItemGitPanel;
     @FXML private MenuItem menuItemShareToGithub;
+    @FXML private MenuItem menuItemPublishRelease;
+    @FXML private MenuItem menuItemIssues;
     @FXML private MenuItem menuItemPngToZx;
     @FXML private MenuItem menuItemGoToLine;
     @FXML private MenuItem menuItemFind;
@@ -901,6 +911,10 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 }
             }
         } else {
+            if (fxUtils.wasLastCreatedProjectGitHubTemplate()) {
+                onOpenGitHubRepoBrowser(null);
+                return;
+            }
             if (fxUtils.wasLastProjectCreationCancelled()) {
                 UserActionMonitor.errorOccurred("PROJECT_CREATE", "Dialogo de proyecto cancelado");
                 return;
@@ -2259,6 +2273,277 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         return dialog.showAndWait().orElse(null);
     }
 
+    /** Abre el diálogo de publicación de release (invocable desde el explorador de proyectos). */
+    public void publishRelease() {
+        onPublishRelease(null);
+    }
+
+    /**
+     * Publica un GitHub Release con los artefactos compilados del proyecto (ROMs en
+     * out/). Reutiliza el remoto origin para localizar owner/repo.
+     */
+    @FXML
+    private void onPublishRelease(ActionEvent event) {
+        if (currentProjectDir == null || !currentProjectDir.isDirectory()) {
+            showGitReleaseError(msg("git.release.noProject", "No hay ningún proyecto abierto para publicar."));
+            return;
+        }
+
+        List<File> artifacts = buildController.resolveBuildArtifacts(currentProjectDir);
+        if (artifacts.isEmpty()) {
+            showGitReleaseError(msg("git.release.noArtifacts",
+                "No se encontraron artefactos compilados en la carpeta out/. Compila primero el proyecto."));
+            return;
+        }
+
+        String remoteUrl;
+        try {
+            remoteUrl = gitService.remoteUrl(currentProjectDir.toPath(), "origin").orElse("");
+        } catch (GitOperationsException ex) {
+            remoteUrl = "";
+        }
+        GitHubReleaseService.OwnerRepo ownerRepo = GitHubReleaseService.parseOwnerRepo(remoteUrl).orElse(null);
+        if (ownerRepo == null) {
+            showGitReleaseError(msg("git.release.hasRemote",
+                "Publica tus cambios en GitHub primero (Compartir proyecto)."));
+            return;
+        }
+
+        showPublishReleaseDialog(ownerRepo, artifacts);
+    }
+
+    /** Diálogo con los datos del release y los artefactos a subir. Devuelve {@code null} si se cancela. */
+    private void showPublishReleaseDialog(GitHubReleaseService.OwnerRepo ownerRepo, List<File> artifacts) {
+        Dialog<GitHubReleaseService.NewRelease> dialog = new Dialog<>();
+        dialog.setTitle(msg("git.release.title", "Publicar Release"));
+        dialog.setHeaderText(ownerRepo.owner() + "/" + ownerRepo.repo());
+
+        ButtonType publishType = new ButtonType(msg("git.release.publish", "Publicar"), ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(publishType, ButtonType.CANCEL);
+
+        TextField txtTag = new TextField("v1.0.0");
+        TextField txtName = new TextField();
+        txtName.setPromptText(msg("git.release.tag", "Tag (ej. v1.0.0)"));
+        TextArea txtDescription = new TextArea();
+        txtDescription.setPrefRowCount(3);
+        CheckBox chkDraft = new CheckBox(msg("git.release.draft", "Borrador"));
+        CheckBox chkPrerelease = new CheckBox(msg("git.release.prerelease", "Prerelease"));
+
+        VBox assetBox = new VBox(4);
+        assetBox.setStyle("-fx-border-color: #cccccc; -fx-border-radius: 4; -fx-padding: 6;");
+        List<javafx.scene.control.CheckBox> assetChecks = new ArrayList<>();
+        for (File artifact : artifacts) {
+            CheckBox chk = new CheckBox(artifact.getName());
+            chk.setSelected(true);
+            assetChecks.add(chk);
+            assetBox.getChildren().add(chk);
+        }
+
+        VBox vbox = new VBox(8,
+            new Label(msg("git.release.tag", "Tag (ej. v1.0.0):")), txtTag,
+            new Label(msg("git.release.name", "Nombre del release:")), txtName,
+            new Label(msg("git.release.description", "Descripción:")), txtDescription,
+            new HBox(12, chkDraft, chkPrerelease),
+            new Label(msg("git.release.assets", "Artefactos a subir:")), assetBox);
+        vbox.setPadding(new Insets(12));
+        dialog.getDialogPane().setContent(vbox);
+
+        dialog.setResultConverter(buttonType -> {
+            if (buttonType != publishType) {
+                return null;
+            }
+            List<File> selected = new ArrayList<>();
+            for (int i = 0; i < assetChecks.size(); i++) {
+                if (assetChecks.get(i).isSelected()) {
+                    selected.add(artifacts.get(i));
+                }
+            }
+            if (selected.isEmpty()) {
+                return null;
+            }
+            return new GitHubReleaseService.NewRelease(
+                txtTag.getText().trim(),
+                txtName.getText().trim(),
+                txtDescription.getText(),
+                chkDraft.isSelected(),
+                chkPrerelease.isSelected());
+        });
+
+        dialog.showAndWait().ifPresent(release -> publishReleaseAsync(ownerRepo, release, artifacts));
+    }
+
+    /** Publica la release y sube los artefactos en segundo plano (sin bloquear el hilo de JavaFX). */
+    private void publishReleaseAsync(GitHubReleaseService.OwnerRepo ownerRepo,
+                                     GitHubReleaseService.NewRelease release, List<File> artifacts) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                GitHubAuthService auth = new GitHubAuthService(
+                    () -> configModel.getConfigProperty(GitHubAuthService.CONFIG_KEY, ""));
+                GitHubAuthService.ResolvedToken resolved = auth.resolveToken();
+                if (!resolved.isPresent()) {
+                    throw new IOException(msg("git.release.noToken",
+                        "No hay token de GitHub configurado. Configúralo en Configuración > GitHub."));
+                }
+
+                GitHubReleaseService.ReleaseCreated created =
+                    gitHubReleaseService.createRelease(resolved.token(), ownerRepo.owner(), ownerRepo.repo(), release);
+
+                for (File artifact : artifacts) {
+                    gitHubReleaseService.uploadAsset(resolved.token(), created.uploadUrl(), artifact.toPath());
+                }
+
+                Platform.runLater(() -> {
+                    String message = msg("git.release.success", "Release publicado: {0}")
+                        .replace("{0}", created.htmlUrl());
+                    Alert success = new Alert(Alert.AlertType.INFORMATION);
+                    success.setTitle(msg("git.release.title", "Publicar Release"));
+                    success.setHeaderText(null);
+                    success.setContentText(message);
+                    success.showAndWait();
+                    openInSystemBrowser(created.htmlUrl());
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> showGitReleaseError(e.getMessage()));
+            }
+        });
+    }
+
+    private void showGitReleaseError(String message) {
+        Alert error = new Alert(Alert.AlertType.ERROR);
+        error.setTitle(msg("git.release.title", "Publicar Release"));
+        error.setHeaderText(null);
+        error.setContentText(message);
+        error.showAndWait();
+    }
+
+    /** Abre el diálogo de issues del proyecto (invocable desde el explorador de proyectos). */
+    public void showIssues() {
+        onShowIssues(null);
+    }
+
+    /** Lista y crea issues del repositorio remoto del proyecto abierto. */
+    @FXML
+    private void onShowIssues(ActionEvent event) {
+        if (currentProjectDir == null || !currentProjectDir.isDirectory()) {
+            showGitReleaseError(msg("git.issue.empty", "No hay issues."));
+            return;
+        }
+        String remoteUrl;
+        try {
+            remoteUrl = gitService.remoteUrl(currentProjectDir.toPath(), "origin").orElse("");
+        } catch (GitOperationsException ex) {
+            remoteUrl = "";
+        }
+        GitHubReleaseService.OwnerRepo ownerRepo = GitHubReleaseService.parseOwnerRepo(remoteUrl).orElse(null);
+        if (ownerRepo == null) {
+            showGitReleaseError(msg("git.release.hasRemote",
+                "Publica tus cambios en GitHub primero (Compartir proyecto)."));
+            return;
+        }
+        showIssuesDialog(ownerRepo);
+    }
+
+    /** Diálogo con la lista de issues y un formulario de creación. */
+    private void showIssuesDialog(GitHubReleaseService.OwnerRepo ownerRepo) {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle(msg("git.issue.title", "Issues") + " — " + ownerRepo.owner() + "/" + ownerRepo.repo());
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+
+        ListView<GitHubIssueService.Issue> listView = new ListView<>();
+        listView.setCellFactory(list -> new ListCell<>() {
+            @Override
+            protected void updateItem(GitHubIssueService.Issue item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    return;
+                }
+                setText("#" + item.number() + "  " + item.title());
+            }
+        });
+        listView.setPrefHeight(220);
+
+        TextField txtTitle = new TextField();
+        txtTitle.setPromptText(msg("git.issue.titleLabel", "Título"));
+        TextArea txtBody = new TextArea();
+        txtBody.setPromptText(msg("git.issue.bodyLabel", "Descripción"));
+        txtBody.setPrefRowCount(2);
+        Button btnCreate = new Button(msg("git.issue.createBtn", "Crear"));
+        VBox form = new VBox(6, txtTitle, txtBody, btnCreate);
+
+        VBox root = new VBox(10, listView, form);
+        root.setPadding(new Insets(12));
+        dialog.getDialogPane().setContent(root);
+
+        dialog.setOnShown(e -> loadIssues(ownerRepo, listView, btnCreate));
+
+        btnCreate.setOnAction(e -> {
+            String title = txtTitle.getText() == null ? "" : txtTitle.getText().trim();
+            if (title.isEmpty()) {
+                return;
+            }
+            btnCreate.setDisable(true);
+            CompletableFuture.runAsync(() -> {
+                try {
+                    GitHubAuthService auth = new GitHubAuthService(
+                        () -> configModel.getConfigProperty(GitHubAuthService.CONFIG_KEY, ""));
+                    GitHubAuthService.ResolvedToken resolved = auth.resolveToken();
+                    if (!resolved.isPresent()) {
+                        throw new IOException(msg("git.release.noToken",
+                            "No hay token de GitHub configurado. Configúralo en Configuración > GitHub."));
+                    }
+                    gitHubIssueService.createIssue(resolved.token(), ownerRepo.owner(), ownerRepo.repo(),
+                        title, txtBody.getText());
+                    Platform.runLater(() -> {
+                        txtTitle.clear();
+                        txtBody.clear();
+                        btnCreate.setDisable(false);
+                        loadIssues(ownerRepo, listView, btnCreate);
+                    });
+                } catch (Exception ex) {
+                    Platform.runLater(() -> {
+                        btnCreate.setDisable(false);
+                        showGitReleaseError(msg("git.issue.error", "Error: ") + ex.getMessage());
+                    });
+                }
+            });
+        });
+
+        dialog.showAndWait();
+    }
+
+    /** Recarga la lista de issues en segundo plano. */
+    private void loadIssues(GitHubReleaseService.OwnerRepo ownerRepo,
+                            ListView<GitHubIssueService.Issue> listView, Button btnCreate) {
+        btnCreate.setDisable(true);
+        CompletableFuture.runAsync(() -> {
+            try {
+                GitHubAuthService auth = new GitHubAuthService(
+                    () -> configModel.getConfigProperty(GitHubAuthService.CONFIG_KEY, ""));
+                GitHubAuthService.ResolvedToken resolved = auth.resolveToken();
+                if (!resolved.isPresent()) {
+                    Platform.runLater(() -> {
+                        listView.getItems().clear();
+                        btnCreate.setDisable(false);
+                    });
+                    return;
+                }
+                List<GitHubIssueService.Issue> issues = gitHubIssueService.listOpenIssues(
+                    resolved.token(), ownerRepo.owner(), ownerRepo.repo());
+                Platform.runLater(() -> {
+                    listView.getItems().setAll(issues);
+                    btnCreate.setDisable(false);
+                });
+            } catch (Exception ex) {
+                Platform.runLater(() -> {
+                    listView.getItems().clear();
+                    btnCreate.setDisable(false);
+                    showGitReleaseError(msg("git.issue.listError", "Error cargando issues: ") + ex.getMessage());
+                });
+            }
+        });
+    }
+
     /**
      * Marca con un punto las pestañas de archivos que tienen cambios git sin commitear
      * (reutiliza tab.getGraphic, que los tabs de editor no usan para otra cosa).
@@ -2473,6 +2758,8 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemGitHubRepos != null) menuItemGitHubRepos.setText(bundle.getString("menu.tools.githubRepos"));
         if (menuItemGitPanel    != null) menuItemGitPanel.setText(bundle.getString("menu.git.panel"));
         if (menuItemShareToGithub != null) menuItemShareToGithub.setText(bundle.getString("menu.git.share"));
+        if (menuItemPublishRelease != null) menuItemPublishRelease.setText(bundle.containsKey("menu.git.release") ? bundle.getString("menu.git.release") : "Publicar release...");
+        if (menuItemIssues != null) menuItemIssues.setText(bundle.containsKey("menu.git.issues") ? bundle.getString("menu.git.issues") : "Issues...");
         if (btnGit              != null) btnGit.setTooltip(new Tooltip(msg("tooltip.git.openPanel", "Abrir panel Git")));
         if (menuItemGoToLine    != null) menuItemGoToLine.setText(bundle.getString("menu.goto.line"));
         if (menuItemFind        != null) menuItemFind.setText(bundle.getString("menu.find.file"));

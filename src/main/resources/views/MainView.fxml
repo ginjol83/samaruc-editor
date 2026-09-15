@@ -72,6 +72,8 @@
                         <MenuItem fx:id="menuItemGitPanel" text="Panel Git" onAction="#onOpenGitPanel" />
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemShareToGithub" text="Publicar en GitHub..." onAction="#onShareToGithub" />
+                        <MenuItem fx:id="menuItemPublishRelease" text="Publicar release..." onAction="#onPublishRelease" />
+                        <MenuItem fx:id="menuItemIssues" text="Issues..." onAction="#onShowIssues" />
                     </Menu>
 
                     <Menu fx:id="menuAyuda" text="Ayuda">

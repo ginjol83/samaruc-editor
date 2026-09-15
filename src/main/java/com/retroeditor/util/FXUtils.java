@@ -59,6 +59,7 @@ public class FXUtils {
         GAMEBOY,
         GAMEBOY_SPRITE,
         TRANSLATOR,
+        GITHUB,
         CPC,
         GCC,
         GCC_CALC,
@@ -177,6 +178,11 @@ public class FXUtils {
 
     public boolean wasLastCreatedProjectTranslatorTemplate() {
         return lastCreatedProjectTemplate == ProjectTemplate.TRANSLATOR;
+    }
+
+    /** True si el usuario eligió "Desde repositorio GitHub..." en el asistente. */
+    public boolean wasLastCreatedProjectGitHubTemplate() {
+        return lastCreatedProjectTemplate == ProjectTemplate.GITHUB;
     }
 
     /**
@@ -736,6 +742,12 @@ public class FXUtils {
                     return null;
                 }
 
+                // La plantilla GITHUB abre el explorador en vez de crear archivos
+                if (creationOptions.template == ProjectTemplate.GITHUB) {
+                    lastCreatedProjectTemplate = ProjectTemplate.GITHUB;
+                    return null;
+                }
+
                 if (nuevoProyecto.exists()) {
                     ButtonType overwrite = new ButtonType(msg(bundle, "dialog.project.new.action.overwrite", "Sobrescribir"), ButtonBar.ButtonData.YES);
                     ButtonType retry     = new ButtonType(msg(bundle, "dialog.project.new.action.retry", "Reintentar")  , ButtonBar.ButtonData.OK_DONE);
@@ -847,6 +859,8 @@ public class FXUtils {
         labels.put(ProjectTemplate.ASM, msg(bundle, "dialog.project.new.template.option.asm", "Ensamblador (z80 / Game Boy)"));
         labels.put(ProjectTemplate.MAKEFILE, msg(bundle, "dialog.project.new.template.option.makefile", "Makefile / Custom"));
 
+        labels.put(ProjectTemplate.GITHUB, msg(bundle, "dialog.project.new.template.option.github", "Desde repositorio GitHub..."));
+
         java.util.Map<ProjectTemplate, String> descriptions = new java.util.HashMap<>();
         descriptions.put(ProjectTemplate.EMPTY, msg(bundle, "dialog.project.new.template.description.empty", "Estructura minima en C con src/main.c sin dependencias."));
         descriptions.put(ProjectTemplate.SPECTRUM, msg(bundle, "dialog.project.new.template.description.spectrum", "Plantilla base para Spectrum con conio.h, pantalla limpia y espera de tecla."));
@@ -860,6 +874,8 @@ public class FXUtils {
         descriptions.put(ProjectTemplate.GENERIC, msg(bundle, "dialog.project.new.template.description.generic", "Plantilla generica en C para cualquier plataforma."));
         descriptions.put(ProjectTemplate.ASM, msg(bundle, "dialog.project.new.template.description.asm", "Plantilla de ensamblador z80 para Game Boy / ZX."));
         descriptions.put(ProjectTemplate.MAKEFILE, msg(bundle, "dialog.project.new.template.description.makefile", "Proyecto basado en Makefile con estructura base."));
+
+        descriptions.put(ProjectTemplate.GITHUB, msg(bundle, "dialog.project.new.template.description.github", "Importa un repositorio de ejemplo desde el catálogo de GitHub."));
 
         javafx.scene.control.Dialog<ProjectCreationOptions> dialog = new javafx.scene.control.Dialog<>();
         dialog.setTitle(msg(bundle, "dialog.project.new.template.title", "Plantilla del proyecto"));

@@ -575,6 +575,37 @@ public class GitHubRepoBrowserController {
 
     // === Cell implementations ===
 
+    /** Botón de estrella que funciona solo con token; sin token queda deshabilitado. */
+    private Button createStarButton(GitHubRepo repo) {
+        String token = resolveGitHubToken();
+        Button btn = new Button("⭐");
+        btn.setTooltip(new Tooltip(repo.fullName()));
+        if (token == null || token.isBlank()) {
+            btn.setDisable(true);
+            return btn;
+        }
+        GitHubApiService authApi = apiService.withToken(token);
+        btn.setOnAction(e -> {
+            boolean starred = btn.getText().equals("⭐");
+            Thread t = new Thread(() -> {
+                try {
+                    if (starred) {
+                        authApi.unstarRepo(repo.owner(), repo.name());
+                    } else {
+                        authApi.starRepo(repo.owner(), repo.name());
+                    }
+                    Platform.runLater(() -> btn.setText(starred ? "☆" : "⭐"));
+                } catch (Exception ex) {
+                    Platform.runLater(() -> lblStatus.setText(
+                        msg("tool.github.searchError", "Error: ") + ex.getMessage()));
+                }
+            });
+            t.setDaemon(true);
+            t.start();
+        });
+        return btn;
+    }
+
     private class RepoCell extends ListCell<GitHubRepo> {
         @Override
         protected void updateItem(GitHubRepo item, boolean empty) {
@@ -604,7 +635,7 @@ public class GitHubRepoBrowserController {
                 } catch (Exception ignored) { }
             });
 
-            HBox buttons = new HBox(6, btnOpen, btnClone);
+            HBox buttons = new HBox(6, btnOpen, btnClone, createStarButton(item));
             buttons.setAlignment(Pos.CENTER_RIGHT);
 
             VBox box = new VBox(2, lblName, lblDesc, lblMeta, buttons);
@@ -647,7 +678,7 @@ Button btnClone = new Button(msg("tool.github.clone", "Clonar"));
             Button btnReadme = new Button(msg("tool.github.loadReadme", "Ver README"));
             btnReadme.setOnAction(e -> loadReadme(item.repo()));
 
-            HBox buttons = new HBox(6, btnOpen, btnClone, btnReadme);
+            HBox buttons = new HBox(6, btnOpen, btnClone, btnReadme, createStarButton(item.repo()));
             buttons.setAlignment(Pos.CENTER_RIGHT);
 
             HBox topRow = new HBox(6, lblName, lblCategory);

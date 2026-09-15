@@ -93,6 +93,8 @@ public class ProjectExplorerController {
             private final MenuItem gitStashItem = new MenuItem("Stash");
             private final MenuItem gitStashPopItem = new MenuItem("Recuperar stash");
             private final MenuItem gitShareItem = new MenuItem("Publicar en GitHub...");
+            private final MenuItem gitReleaseItem = new MenuItem("Publicar release...");
+            private final MenuItem gitIssuesItem = new MenuItem("Issues...");
 
             {
                 cellMenu.getItems().addAll(newFileItem, newFolderItem, renameItem, deleteItem, openInSplitItem, runRomItem, openInExplorerItem);
@@ -101,7 +103,7 @@ public class ProjectExplorerController {
                     gitPanelItem, new SeparatorMenuItem(),
                     gitCommitItem, gitPullItem, gitPushItem, new SeparatorMenuItem(),
                     gitBranchItem, gitStashItem, gitStashPopItem, new SeparatorMenuItem(),
-                    gitShareItem);
+                    gitShareItem, gitReleaseItem, gitIssuesItem);
                 cellMenu.getItems().addAll(gitMenu);
 
                 gitPanelItem.setOnAction(e -> {
@@ -143,6 +145,14 @@ public class ProjectExplorerController {
 
                 gitShareItem.setOnAction(e -> {
                     if (mainController != null) mainController.shareToGithub();
+                });
+
+                gitReleaseItem.setOnAction(e -> {
+                    if (mainController != null) mainController.publishRelease();
+                });
+
+                gitIssuesItem.setOnAction(e -> {
+                    if (mainController != null) mainController.showIssues();
                 });
 
                 openInSplitItem.setOnAction(e -> {
