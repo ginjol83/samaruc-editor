@@ -196,6 +196,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private Label lblFooter;
     @FXML private Label lblCompileStatus;
     @FXML private Label lblGitBranch;
+    @FXML private Label lblOpStatus;
     @FXML private javafx.scene.control.ProgressIndicator progressCompile;
     @FXML private Menu menuArchivo;
     @FXML private Menu menuEdicion;
@@ -540,6 +541,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             gitPanelController.setBundle(bundle);
             gitPanelController.setOnDirtyPathsChanged(this::updateGitDirtyTabMarkers);
             gitPanelController.setOnStatusChanged(this::updateGitStatusLabel);
+            gitPanelController.setOperationListener(this::showOperationStatus);
             gitPanelController.setGithubTokenSupplier(
                 () -> configModel.getConfigProperty(GitHubAuthService.CONFIG_KEY, ""));
             gitPanelTab = gitPanelController.createTab();
@@ -2395,6 +2397,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 Platform.runLater(() -> {
                     String message = msg("git.release.success", "Release publicado: {0}")
                         .replace("{0}", created.htmlUrl());
+                    showOperationStatus(message);
                     Alert success = new Alert(Alert.AlertType.INFORMATION);
                     success.setTitle(msg("git.release.title", "Publicar Release"));
                     success.setHeaderText(null);
@@ -2595,6 +2598,26 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         lblGitBranch.setVisible(visible);
         lblGitBranch.setManaged(visible);
         lblGitBranch.setText(visible ? text : "");
+    }
+
+    /** Muestra un mensaje transitorio de avance (pull/push/commit/release) en la barra inferior. */
+    public void showOperationStatus(String text) {
+        if (lblOpStatus == null) return;
+        boolean visible = text != null && !text.isBlank();
+        lblOpStatus.setText(visible ? text : "");
+        lblOpStatus.setVisible(visible);
+        lblOpStatus.setManaged(visible);
+        if (visible) {
+            javafx.animation.Timeline timer = new javafx.animation.Timeline(
+                new javafx.animation.KeyFrame(javafx.util.Duration.seconds(6),
+                    e -> {
+                        lblOpStatus.setText("");
+                        lblOpStatus.setVisible(false);
+                        lblOpStatus.setManaged(false);
+                    }));
+            timer.setCycleCount(1);
+            timer.play();
+        }
     }
 
     @FXML

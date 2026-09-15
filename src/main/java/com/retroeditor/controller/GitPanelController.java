@@ -56,6 +56,7 @@ public class GitPanelController {
     private File projectDir;
     private Consumer<Set<String>> dirtyPathsListener;
     private Consumer<String> statusListener;
+    private Consumer<String> operationListener;
     private Supplier<String> githubTokenSupplier = () -> "";
 
     // UI
@@ -108,6 +109,11 @@ public class GitPanelController {
     /** Se notifica con un texto corto de estado (rama · cambios) para la barra de estado del editor. */
     public void setOnStatusChanged(Consumer<String> listener) {
         this.statusListener = listener;
+    }
+
+    /** Se notifica con un texto corto de avance (pull/push/commit/...) para la barra de estado del editor. */
+    public void setOperationListener(Consumer<String> listener) {
+        this.operationListener = listener;
     }
 
     /** Provee el token de GitHub (PAT) para autenticar pull/push por HTTPS. Nunca se persiste. */
@@ -383,6 +389,7 @@ public class GitPanelController {
                 gitService.init(projectDir.toPath());
                 Platform.runLater(() -> {
                     showFeedback(msg("git.panel.initialized", "Repositorio inicializado."));
+                    notifyOperation(msg("git.panel.initialized", "Repositorio inicializado."));
                     refreshAsync();
                 });
             } catch (GitOperationsException e) {
@@ -410,6 +417,7 @@ public class GitPanelController {
                 Platform.runLater(() -> {
                     txtCommit.clear();
                     showFeedback(msg("git.panel.committed", "Commit creado."));
+                    notifyOperation(msg("git.panel.committed", "Commit creado."));
                     refreshAsync();
                 });
             } catch (GitOperationsException e) {
@@ -430,7 +438,9 @@ public class GitPanelController {
             try {
                 gitService.pull(projectDir.toPath(), "origin", currentBranchName(), resolveCredentials());
                 Platform.runLater(() -> {
-                    showFeedback(msg("git.panel.pulled", "Cambios recibidos del remoto."));
+                    String done = msg("git.panel.pulled", "Cambios recibidos del remoto.");
+                    showFeedback(done);
+                    notifyOperation(done);
                     setBusy(false);
                     refreshAsync();
                 });
@@ -438,6 +448,7 @@ public class GitPanelController {
                 Platform.runLater(() -> {
                     setBusy(false);
                     renderError(e.getMessage());
+                    notifyOperation(msg("git.panel.pull", "Pull") + " · " + e.getMessage());
                 });
             }
         });
@@ -452,7 +463,9 @@ public class GitPanelController {
             try {
                 gitService.push(projectDir.toPath(), "origin", currentBranchName(), resolveCredentials());
                 Platform.runLater(() -> {
-                    showFeedback(msg("git.panel.pushed", "Cambios enviados al remoto."));
+                    String done = msg("git.panel.pushed", "Cambios enviados al remoto.");
+                    showFeedback(done);
+                    notifyOperation(done);
                     setBusy(false);
                     refreshAsync();
                 });
@@ -460,6 +473,7 @@ public class GitPanelController {
                 Platform.runLater(() -> {
                     setBusy(false);
                     renderError(e.getMessage());
+                    notifyOperation(msg("git.panel.push", "Push") + " · " + e.getMessage());
                 });
             }
         });
@@ -504,8 +518,10 @@ public class GitPanelController {
             try {
                 gitService.switchBranch(projectDir.toPath(), selected);
                 Platform.runLater(() -> {
-                    showFeedback(msg("git.panel.branch.switched", "Rama cambiada a {0}")
-                        .replace("{0}", selected));
+                    String done = msg("git.panel.branch.switched", "Rama cambiada a {0}")
+                        .replace("{0}", selected);
+                    showFeedback(done);
+                    notifyOperation(done);
                     refreshAsync();
                 });
             } catch (GitOperationsException e) {
@@ -533,8 +549,10 @@ public class GitPanelController {
                 try {
                     gitService.createBranch(projectDir.toPath(), name);
                     Platform.runLater(() -> {
-                        showFeedback(msg("git.panel.branch.created", "Rama creada y activada: {0}")
-                            .replace("{0}", name));
+                        String done = msg("git.panel.branch.created", "Rama creada y activada: {0}")
+                            .replace("{0}", name);
+                        showFeedback(done);
+                        notifyOperation(done);
                         refreshAsync();
                     });
                 } catch (GitOperationsException e) {
@@ -554,7 +572,9 @@ public class GitPanelController {
             try {
                 gitService.stash(projectDir.toPath());
                 Platform.runLater(() -> {
-                    showFeedback(msg("git.panel.stashed", "Cambios guardados en el stash."));
+                    String done = msg("git.panel.stashed", "Cambios guardados en el stash.");
+                    showFeedback(done);
+                    notifyOperation(done);
                     refreshAsync();
                 });
             } catch (GitOperationsException e) {
@@ -571,7 +591,9 @@ public class GitPanelController {
             try {
                 gitService.stashPop(projectDir.toPath());
                 Platform.runLater(() -> {
-                    showFeedback(msg("git.panel.stashPopped", "Cambios recuperados del stash."));
+                    String done = msg("git.panel.stashPopped", "Cambios recuperados del stash.");
+                    showFeedback(done);
+                    notifyOperation(done);
                     refreshAsync();
                 });
             } catch (GitOperationsException e) {
@@ -592,8 +614,10 @@ public class GitPanelController {
             try {
                 gitService.restoreFile(projectDir.toPath(), selected.path());
                 Platform.runLater(() -> {
-                    showFeedback(msg("git.panel.restored", "Cambios descartados de {0}.")
-                        .replace("{0}", selected.path()));
+                    String done = msg("git.panel.restored", "Cambios descartados de {0}.")
+                        .replace("{0}", selected.path());
+                    showFeedback(done);
+                    notifyOperation(done);
                     refreshAsync();
                 });
             } catch (GitOperationsException e) {
@@ -778,6 +802,12 @@ public class GitPanelController {
     private void notifyStatus(String text) {
         if (statusListener != null) {
             statusListener.accept(text);
+        }
+    }
+
+    private void notifyOperation(String text) {
+        if (operationListener != null) {
+            operationListener.accept(text);
         }
     }
 

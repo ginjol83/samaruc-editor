@@ -314,6 +314,10 @@
                                text=""
                                visible="false" managed="false"
                                styleClass="footer-label git-status-label" />
+                        <Label fx:id="lblOpStatus"
+                               text=""
+                               visible="false" managed="false"
+                               styleClass="footer-label git-status-label" />
                         <Region HBox.hgrow="ALWAYS" />
                         <Label fx:id="lblFooter"
                                text="Desarrollado por Andres Gimenez © 2025"
