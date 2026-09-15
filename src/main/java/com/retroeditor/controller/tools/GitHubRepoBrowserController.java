@@ -51,6 +51,8 @@ public class GitHubRepoBrowserController {
     private ComboBox<String> comboSort;
     private CheckBox chkTopic;
     private TextArea txtReadme;
+    private TextArea txtReadmeCatalog;
+    private TextArea txtReadmeMyRepos;
 
     private final ObservableList<GitHubRepo> searchResults = FXCollections.observableArrayList();
     private final ObservableList<CuratedRepo> curatedResults = FXCollections.observableArrayList();
@@ -267,8 +269,16 @@ public class GitHubRepoBrowserController {
         Button btnLoadCatalog = new Button(msg("tool.github.loadCatalog", "Cargar catálogo"));
         btnLoadCatalog.setOnAction(e -> loadCatalog());
 
-        panel.getChildren().addAll(filterRow, btnLoadCatalog, curatedList);
-        VBox.setVgrow(curatedList, Priority.ALWAYS);
+        txtReadmeCatalog = new TextArea();
+        txtReadmeCatalog.setEditable(false);
+        txtReadmeCatalog.setWrapText(true);
+        txtReadmeCatalog.setPrefWidth(320);
+
+        SplitPane split = new SplitPane(curatedList, txtReadmeCatalog);
+        split.setDividerPositions(0.62);
+
+        panel.getChildren().addAll(filterRow, btnLoadCatalog, split);
+        VBox.setVgrow(split, Priority.ALWAYS);
         return panel;
     }
 
@@ -302,6 +312,14 @@ public class GitHubRepoBrowserController {
         myReposList = new ListView<>(myRepos);
         myReposList.setCellFactory(list -> new MyRepoCell());
 
+        txtReadmeMyRepos = new TextArea();
+        txtReadmeMyRepos.setEditable(false);
+        txtReadmeMyRepos.setWrapText(true);
+        txtReadmeMyRepos.setPrefWidth(320);
+
+        SplitPane mySplit = new SplitPane(myReposList, txtReadmeMyRepos);
+        mySplit.setDividerPositions(0.62);
+
         Label lblClonedTitle = new Label(msg("tool.github.clone", "Clonados localmente"));
         lblClonedTitle.setStyle("-fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 4 0 0 0;");
 
@@ -312,8 +330,8 @@ public class GitHubRepoBrowserController {
         VBox clonedSection = new VBox(4, lblClonedTitle, clonedReposList);
         refreshClonedRepos();
 
-        panel.getChildren().addAll(btnRow, lblHint, myReposList, new Separator(), clonedSection);
-        VBox.setVgrow(myReposList, Priority.ALWAYS);
+        panel.getChildren().addAll(btnRow, lblHint, mySplit, new Separator(), clonedSection);
+        VBox.setVgrow(mySplit, Priority.ALWAYS);
         return panel;
     }
 
@@ -530,9 +548,9 @@ public class GitHubRepoBrowserController {
         } catch (Exception ignored) { }
     }
 
-    private void loadReadme(GitHubRepo repo) {
-        if (repo == null) return;
-        txtReadme.setText(msg("tool.github.readmePreview", "Vista previa del README") + "...");
+    private void loadReadme(GitHubRepo repo, TextArea target) {
+        if (repo == null || target == null) return;
+        target.setText(msg("tool.github.readmePreview", "Vista previa del README") + "...");
         String safeOwner = repo.owner().replaceAll("[^a-zA-Z0-9._-]", "");
         String safeName = repo.name().replaceAll("[^a-zA-Z0-9._-]", "");
         String safeBranch = repo.defaultBranch().replaceAll("[^a-zA-Z0-9._-]", "");
@@ -555,13 +573,13 @@ public class GitHubRepoBrowserController {
                     java.net.http.HttpResponse.BodyHandlers.ofString());
                 Platform.runLater(() -> {
                     if (resp.statusCode() == 200) {
-                        txtReadme.setText(resp.body());
+                        target.setText(resp.body());
                     } else {
-                        txtReadme.setText(msg("tool.github.readmeError", "Error cargando README: ") + resp.statusCode());
+                        target.setText(msg("tool.github.readmeError", "Error cargando README: ") + resp.statusCode());
                     }
                 });
             } catch (Exception ex) {
-                Platform.runLater(() -> txtReadme.setText(
+                Platform.runLater(() -> target.setText(
                     msg("tool.github.readmeError", "Error cargando README: ") + ex.getMessage()));
             }
         });
@@ -635,7 +653,10 @@ public class GitHubRepoBrowserController {
                 } catch (Exception ignored) { }
             });
 
-            HBox buttons = new HBox(6, btnOpen, btnClone, createStarButton(item));
+            Button btnReadme = new Button(msg("tool.github.loadReadme", "Ver README"));
+            btnReadme.setOnAction(e -> loadReadme(item, txtReadme));
+
+            HBox buttons = new HBox(6, btnOpen, btnClone, btnReadme, createStarButton(item));
             buttons.setAlignment(Pos.CENTER_RIGHT);
 
             VBox box = new VBox(2, lblName, lblDesc, lblMeta, buttons);
@@ -676,7 +697,7 @@ Button btnClone = new Button(msg("tool.github.clone", "Clonar"));
             });
 
             Button btnReadme = new Button(msg("tool.github.loadReadme", "Ver README"));
-            btnReadme.setOnAction(e -> loadReadme(item.repo()));
+            btnReadme.setOnAction(e -> loadReadme(item.repo(), txtReadmeCatalog));
 
             HBox buttons = new HBox(6, btnOpen, btnClone, btnReadme, createStarButton(item.repo()));
             buttons.setAlignment(Pos.CENTER_RIGHT);
@@ -750,7 +771,7 @@ Button btnClone = new Button(msg("tool.github.clone", "Clonar"));
             String lang = item.language() != null && !item.language().isEmpty() ? item.language() : "-";
             Label lblMeta = new Label(String.format("⭐ %d  |  %s", item.stars(), lang));
 
-            Button btnClone = new Button(msg("tool.github.clone", "Clonar"));
+Button btnClone = new Button(msg("tool.github.clone", "Clonar"));
             btnClone.setOnAction(e -> cloneRepo(item));
 
             Button btnOpen = new Button(msg("tool.github.openBrowser", "Abrir"));
@@ -760,7 +781,10 @@ Button btnClone = new Button(msg("tool.github.clone", "Clonar"));
                 } catch (Exception ignored) { }
             });
 
-            HBox buttons = new HBox(6, btnOpen, btnClone);
+            Button btnReadme = new Button(msg("tool.github.loadReadme", "Ver README"));
+            btnReadme.setOnAction(e -> loadReadme(item, txtReadmeMyRepos));
+
+            HBox buttons = new HBox(6, btnOpen, btnClone, btnReadme);
             buttons.setAlignment(Pos.CENTER_RIGHT);
 
             VBox box = new VBox(2, lblName, lblDesc, lblMeta, buttons);
