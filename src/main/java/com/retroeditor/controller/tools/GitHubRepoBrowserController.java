@@ -28,6 +28,7 @@ public class GitHubRepoBrowserController {
 
     private final GitHubApiService apiService = new GitHubApiService();
     private final GitHubCloneService cloneService = new GitHubCloneService();
+    private final GitHubSearchCache searchCache = new GitHubSearchCache();
     private final RepoCatalogService catalogService = new RepoCatalogService();
     private final com.retroeditor.service.git.GitService gitService = new com.retroeditor.service.git.GitService();
 
@@ -376,6 +377,10 @@ public class GitHubRepoBrowserController {
                 }
                 List<GitHubRepo> results = effectiveApi.searchRepos(fullQuery.toString(), 1, 30);
 
+                try {
+                    searchCache.put(fullQuery.toString(), results);
+                } catch (Exception ignored) { }
+
                 // Ordenar por cliente
                 String sortBy = comboSort != null ? comboSort.getValue() : null;
                 if (sortBy != null && sortBy.equals(msg("tool.github.sortUpdated", "por actualización"))) {
@@ -402,7 +407,19 @@ public class GitHubRepoBrowserController {
                 });
             } catch (Exception ex) {
                 Platform.runLater(() -> {
-                    lblStatus.setText(msg("tool.github.searchError", "Error: ") + ex.getMessage());
+                    // Sin conexión: caer a la caché offline de la misma búsqueda
+                    try {
+                        List<GitHubRepo> cached = searchCache.get(fullQuery.toString()).orElse(null);
+                        if (cached != null && !cached.isEmpty()) {
+                            searchResults.setAll(cached);
+                            lblStatus.setText(msg("tool.github.cacheHit",
+                                "Sin conexión: resultados de caché") + " (" + cached.size() + ")");
+                        } else {
+                            lblStatus.setText(msg("tool.github.searchError", "Error: ") + ex.getMessage());
+                        }
+                    } catch (Exception cacheEx) {
+                        lblStatus.setText(msg("tool.github.searchError", "Error: ") + ex.getMessage());
+                    }
                     showProgress(false);
                 });
             }
