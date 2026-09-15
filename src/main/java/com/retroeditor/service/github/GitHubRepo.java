@@ -34,6 +34,13 @@ public record GitHubRepo(
         return String.format("https://github.com/%s/archive/refs/heads/%s.zip", fullName, defaultBranch);
     }
 
+    /**
+     * Devuelve la URL HTTPS apta para {@code git clone} del repositorio.
+     */
+    public String getGitUrl() {
+        return "https://github.com/" + fullName + ".git";
+    }
+
     @Override
     public String toString() {
         return String.format("%s (⭐ %d)", fullName, stars);

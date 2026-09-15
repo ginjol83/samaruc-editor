@@ -6,18 +6,21 @@ import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.retroeditor.service.git.GitModels.GitCommitInfo;
 import com.retroeditor.service.git.GitModels.GitStatusEntry;
 import com.retroeditor.service.git.GitOperationsException;
 import com.retroeditor.service.git.GitService;
+import com.retroeditor.service.github.GitHubAuthService;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
@@ -26,6 +29,7 @@ import javafx.scene.control.Separator;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextInputDialog;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -34,8 +38,8 @@ import javafx.scene.layout.VBox;
 import org.kordamp.ikonli.javafx.FontIcon;
 
 /**
- * Panel acoplable de Git: muestra rama, cambios ({@code status}), permite commitear y
- * consulta el historial ({@code log}).
+ * Panel acoplable de Git: muestra rama y cambios ({@code status}), permite commitear,
+ * pull/push, gestionar ramas, stash y descartar cambios, y consulta el historial ({@code log}).
  *
  * <p>Las operaciones git se ejecutan en hilo de fondo y la UI se actualiza en el hilo
  * de JavaFX (nunca bloquear el Application Thread).</p>
@@ -49,6 +53,8 @@ public class GitPanelController {
     private ResourceBundle bundle;
     private File projectDir;
     private Consumer<Set<String>> dirtyPathsListener;
+    private Consumer<String> statusListener;
+    private Supplier<String> githubTokenSupplier = () -> "";
 
     // UI
     private Label lblBranch;
@@ -57,12 +63,20 @@ public class GitPanelController {
     private ProgressIndicator progress;
     private Button btnRefresh;
     private Button btnInit;
+    private Button btnPull;
+    private Button btnPush;
     private Button btnCommit;
+    private Button btnRestore;
+    private Button btnNewBranch;
+    private Button btnStash;
+    private Button btnStashPop;
     private TextField txtCommit;
+    private ComboBox<String> cmbBranch;
     private ListView<GitStatusEntry> changesList;
     private ListView<GitCommitInfo> historyList;
     private Label lblChanges;
     private Label lblHistory;
+    private boolean updatingBranches;
 
     public GitPanelController() {
         this(new GitService());
@@ -86,6 +100,16 @@ public class GitPanelController {
         this.dirtyPathsListener = listener;
     }
 
+    /** Se notifica con un texto corto de estado (rama · cambios) para la barra de estado del editor. */
+    public void setOnStatusChanged(Consumer<String> listener) {
+        this.statusListener = listener;
+    }
+
+    /** Provee el token de GitHub (PAT) para autenticar pull/push por HTTPS. Nunca se persiste. */
+    public void setGithubTokenSupplier(Supplier<String> supplier) {
+        this.githubTokenSupplier = supplier != null ? supplier : () -> "";
+    }
+
     /** Crea la pestaña acoplable para el {@code outputTabPane}. */
     public Tab createTab() {
         Tab tab = new Tab(msg("git.panel.title", "Git"), buildUi());
@@ -107,6 +131,14 @@ public class GitPanelController {
         btnRefresh.setGraphic(new FontIcon("fas-sync-alt"));
         btnRefresh.setOnAction(e -> refreshAsync());
 
+        btnPull = new Button(msg("git.panel.pull", "Pull"));
+        btnPull.setGraphic(new FontIcon("fas-arrow-down"));
+        btnPull.setOnAction(e -> pullFromRemote());
+
+        btnPush = new Button(msg("git.panel.push", "Push"));
+        btnPush.setGraphic(new FontIcon("fas-arrow-up"));
+        btnPush.setOnAction(e -> pushToRemote());
+
         btnInit = new Button(msg("git.panel.init", "Inicializar repositorio"));
         btnInit.setGraphic(new FontIcon("fas-plus-circle"));
         btnInit.setOnAction(e -> initRepository());
@@ -117,9 +149,33 @@ public class GitPanelController {
         progress.setVisible(false);
         progress.setManaged(false);
 
-        HBox header = new HBox(6, lblBranch, headerSpacer, progress, btnRefresh, btnInit);
+        HBox header = new HBox(6, lblBranch, headerSpacer, progress, btnRefresh, btnPull, btnPush, btnInit);
         header.setAlignment(Pos.CENTER_LEFT);
         root.setTop(header);
+
+        // Barra de ramas y stash
+        cmbBranch = new ComboBox<>();
+        cmbBranch.setPromptText(msg("git.panel.branch.prompt", "Rama..."));
+        cmbBranch.setPrefWidth(180);
+        cmbBranch.setOnAction(e -> onBranchSelected());
+
+        btnNewBranch = new Button(msg("git.panel.branch.new", "Nueva rama"));
+        btnNewBranch.setGraphic(new FontIcon("fas-code-branch"));
+        btnNewBranch.setOnAction(e -> createBranchDialog());
+
+        btnStash = new Button(msg("git.panel.stash", "Stash"));
+        btnStash.setGraphic(new FontIcon("fas-box"));
+        btnStash.setOnAction(e -> stashChanges());
+
+        btnStashPop = new Button(msg("git.panel.stash.pop", "Recuperar stash"));
+        btnStashPop.setGraphic(new FontIcon("fas-box-open"));
+        btnStashPop.setOnAction(e -> popStash());
+
+        HBox branchesBar = new HBox(6, cmbBranch, btnNewBranch, btnStash, btnStashPop);
+        branchesBar.setAlignment(Pos.CENTER_LEFT);
+
+        VBox top = new VBox(4, header, branchesBar);
+        root.setTop(top);
 
         // Centro: cambios + historial
         lblChanges = new Label(msg("git.panel.changes", "Cambios"));
@@ -146,11 +202,15 @@ public class GitPanelController {
         btnCommit.setOnAction(e -> commitChanges());
         btnCommit.disableProperty().bind(txtCommit.textProperty().isEmpty());
 
+        btnRestore = new Button(msg("git.panel.restore", "Descartar"));
+        btnRestore.setGraphic(new FontIcon("fas-undo"));
+        btnRestore.setOnAction(e -> restoreSelected());
+
         lblFeedback = new Label();
         lblFeedback.setWrapText(true);
         lblFeedback.getStyleClass().add("git-feedback");
 
-        VBox changesPane = new VBox(4, lblChanges, changesList, new HBox(4, txtCommit, btnCommit), lblFeedback);
+        VBox changesPane = new VBox(4, lblChanges, changesList, new HBox(4, txtCommit, btnCommit, btnRestore), lblFeedback);
         VBox.setVgrow(changesList, Priority.ALWAYS);
         lblChanges.setPadding(new Insets(2, 0, 0, 0));
 
@@ -168,7 +228,6 @@ public class GitPanelController {
                 }
             }
         });
-
         VBox historyPane = new VBox(4, lblHistory, historyList);
         VBox.setVgrow(historyList, Priority.ALWAYS);
 
@@ -190,8 +249,15 @@ public class GitPanelController {
     public void refreshLanguage() {
         btnRefresh.setText(msg("git.panel.refresh", "Actualizar"));
         btnInit.setText(msg("git.panel.init", "Inicializar repositorio"));
+        btnPull.setText(msg("git.panel.pull", "Pull"));
+        btnPush.setText(msg("git.panel.push", "Push"));
         btnCommit.setText(msg("git.panel.commit.button", "Commit"));
+        btnRestore.setText(msg("git.panel.restore", "Descartar"));
+        btnNewBranch.setText(msg("git.panel.branch.new", "Nueva rama"));
+        btnStash.setText(msg("git.panel.stash", "Stash"));
+        btnStashPop.setText(msg("git.panel.stash.pop", "Recuperar stash"));
         txtCommit.setPromptText(msg("git.panel.commit.placeholder", "Mensaje del commit"));
+        cmbBranch.setPromptText(msg("git.panel.branch.prompt", "Rama..."));
         lblChanges.setText(msg("git.panel.changes", "Cambios"));
         lblHistory.setText(msg("git.panel.history", "Historial"));
         refreshAsync();
@@ -200,6 +266,37 @@ public class GitPanelController {
     /** Pide un refresco del estado git. Seguro llamarlo desde el hilo de JavaFX. */
     public void requestRefresh() {
         refreshAsync();
+    }
+
+    /** Ejecuta un pull desde origin en segundo plano (invocable desde fuera del panel). */
+    public void pull() {
+        pullFromRemote();
+    }
+
+    /** Ejecuta un push a origin en segundo plano (invocable desde fuera del panel). */
+    public void push() {
+        pushToRemote();
+    }
+
+    /** Abre el diálogo de nueva rama (invocable desde fuera del panel). */
+    public void newBranch() {
+        createBranchDialog();
+    }
+
+    /** Guarda los cambios en el stash (invocable desde fuera del panel). */
+    public void stash() {
+        stashChanges();
+    }
+
+    /** Recupera los cambios del último stash (invocable desde fuera del panel). */
+    public void popStash() {
+        popStashInternal();
+    }
+
+    /** Commitea todos los cambios con el mensaje dado (invocable desde fuera del panel). */
+    public void commitWithMessage(String message) {
+        txtCommit.setText(message);
+        commitChanges();
     }
 
     private void refreshAsync() {
@@ -225,7 +322,9 @@ public class GitPanelController {
                 String branch = gitService.currentBranch(dir).current().orElse(null);
                 List<GitStatusEntry> changes = gitService.status(dir);
                 List<GitCommitInfo> commits = gitService.log(dir, MAX_LOG_ENTRIES);
-                Platform.runLater(() -> renderBranch(branch, changes, commits));
+                boolean hasRemote = gitService.hasRemote(dir, "origin");
+                List<String> branches = gitService.listBranches(dir);
+                Platform.runLater(() -> renderBranch(branch, changes, commits, hasRemote, branches));
             } catch (GitOperationsException e) {
                 Platform.runLater(() -> renderError(e.getMessage()));
             }
@@ -278,6 +377,200 @@ public class GitPanelController {
         });
     }
 
+    // === Pull / Push ===
+
+    private void pullFromRemote() {
+        if (projectDir == null) {
+            return;
+        }
+        setBusy(true);
+        CompletableFuture.runAsync(() -> {
+            try {
+                gitService.pull(projectDir.toPath(), "origin", currentBranchName(), resolveCredentials());
+                Platform.runLater(() -> {
+                    showFeedback(msg("git.panel.pulled", "Cambios recibidos del remoto."));
+                    setBusy(false);
+                    refreshAsync();
+                });
+            } catch (GitOperationsException e) {
+                Platform.runLater(() -> {
+                    setBusy(false);
+                    renderError(e.getMessage());
+                });
+            }
+        });
+    }
+
+    private void pushToRemote() {
+        if (projectDir == null) {
+            return;
+        }
+        setBusy(true);
+        CompletableFuture.runAsync(() -> {
+            try {
+                gitService.push(projectDir.toPath(), "origin", currentBranchName(), resolveCredentials());
+                Platform.runLater(() -> {
+                    showFeedback(msg("git.panel.pushed", "Cambios enviados al remoto."));
+                    setBusy(false);
+                    refreshAsync();
+                });
+            } catch (GitOperationsException e) {
+                Platform.runLater(() -> {
+                    setBusy(false);
+                    renderError(e.getMessage());
+                });
+            }
+        });
+    }
+
+    private String currentBranchName() {
+        if (projectDir == null) {
+            return "main";
+        }
+        try {
+            return gitService.currentBranch(projectDir.toPath()).current().orElse("main");
+        } catch (GitOperationsException e) {
+            return "main";
+        }
+    }
+
+    /** Resuelve las credenciales para operaciones HTTPS desde el proveedor de token y la variable de entorno. */
+    private GitService.GitCredentials resolveCredentials() {
+        String token = githubTokenSupplier != null ? githubTokenSupplier.get() : "";
+        if (token == null || token.isBlank()) {
+            token = System.getenv(GitHubAuthService.TOKEN_ENV);
+        }
+        if (token == null || token.isBlank()) {
+            return null;
+        }
+        return new GitService.GitCredentials(token);
+    }
+
+    // === Ramas ===
+
+    private void onBranchSelected() {
+        if (updatingBranches || projectDir == null) {
+            return;
+        }
+        String selected = cmbBranch.getSelectionModel().getSelectedItem();
+        String current = currentBranchName();
+        if (selected == null || selected.equals(current)) {
+            return;
+        }
+        btnNewBranch.setDisable(true);
+        CompletableFuture.runAsync(() -> {
+            try {
+                gitService.switchBranch(projectDir.toPath(), selected);
+                Platform.runLater(() -> {
+                    showFeedback(msg("git.panel.branch.switched", "Rama cambiada a {0}")
+                        .replace("{0}", selected));
+                    refreshAsync();
+                });
+            } catch (GitOperationsException e) {
+                Platform.runLater(() -> {
+                    btnNewBranch.setDisable(false);
+                    renderError(msg("git.panel.branch.failed", "No se pudo cambiar de rama") + ": " + e.getMessage());
+                    refreshAsync();
+                });
+            }
+        });
+    }
+
+    private void createBranchDialog() {
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle(msg("git.panel.branch.new", "Nueva rama"));
+        dialog.setHeaderText(null);
+        dialog.setContentText(msg("git.panel.branch.name", "Nombre de la nueva rama:"));
+        dialog.showAndWait().ifPresent(rawName -> {
+            String name = rawName == null ? "" : rawName.trim();
+            if (name.isBlank()) {
+                showFeedback(msg("git.panel.branch.empty", "Escribe un nombre para la rama."));
+                return;
+            }
+            CompletableFuture.runAsync(() -> {
+                try {
+                    gitService.createBranch(projectDir.toPath(), name);
+                    Platform.runLater(() -> {
+                        showFeedback(msg("git.panel.branch.created", "Rama creada y activada: {0}")
+                            .replace("{0}", name));
+                        refreshAsync();
+                    });
+                } catch (GitOperationsException e) {
+                    Platform.runLater(() -> renderError(e.getMessage()));
+                }
+            });
+        });
+    }
+
+    // === Stash ===
+
+    private void stashChanges() {
+        if (projectDir == null) {
+            return;
+        }
+        CompletableFuture.runAsync(() -> {
+            try {
+                gitService.stash(projectDir.toPath());
+                Platform.runLater(() -> {
+                    showFeedback(msg("git.panel.stashed", "Cambios guardados en el stash."));
+                    refreshAsync();
+                });
+            } catch (GitOperationsException e) {
+                Platform.runLater(() -> renderError(e.getMessage()));
+            }
+        });
+    }
+
+    private void popStashInternal() {
+        if (projectDir == null) {
+            return;
+        }
+        CompletableFuture.runAsync(() -> {
+            try {
+                gitService.stashPop(projectDir.toPath());
+                Platform.runLater(() -> {
+                    showFeedback(msg("git.panel.stashPopped", "Cambios recuperados del stash."));
+                    refreshAsync();
+                });
+            } catch (GitOperationsException e) {
+                Platform.runLater(() -> renderError(e.getMessage()));
+            }
+        });
+    }
+
+    // === Descartar cambios ===
+
+    private void restoreSelected() {
+        GitStatusEntry selected = changesList.getSelectionModel().getSelectedItem();
+        if (selected == null) {
+            showFeedback(msg("git.panel.restore.select", "Selecciona un archivo de la lista para descartar sus cambios."));
+            return;
+        }
+        CompletableFuture.runAsync(() -> {
+            try {
+                gitService.restoreFile(projectDir.toPath(), selected.path());
+                Platform.runLater(() -> {
+                    showFeedback(msg("git.panel.restored", "Cambios descartados de {0}.")
+                        .replace("{0}", selected.path()));
+                    refreshAsync();
+                });
+            } catch (GitOperationsException e) {
+                Platform.runLater(() -> renderError(e.getMessage()));
+            }
+        });
+    }
+
+    // === Render ===
+
+    private void setBusy(boolean busy) {
+        btnRefresh.setDisable(busy);
+        btnPull.setDisable(busy);
+        btnPush.setDisable(busy);
+        btnInit.setDisable(busy);
+        progress.setVisible(busy);
+        progress.setManaged(busy);
+    }
+
     private void renderNoProject() {
         if (btnRefresh == null) {
             return;
@@ -291,7 +584,25 @@ public class GitPanelController {
         lblStatus.setText(msg("git.panel.status.noProject", "Abre un proyecto para ver su estado git."));
         btnInit.setVisible(false);
         btnInit.setManaged(false);
+        btnPull.setVisible(false);
+        btnPull.setManaged(false);
+        btnPush.setVisible(false);
+        btnPush.setManaged(false);
+        cmbBranch.getItems().clear();
+        branchesBarVisible(false);
+        notifyStatus("");
         notifyDirty(Set.of());
+    }
+
+    private void branchesBarVisible(boolean visible) {
+        cmbBranch.setVisible(visible);
+        cmbBranch.setManaged(visible);
+        btnNewBranch.setVisible(visible);
+        btnNewBranch.setManaged(visible);
+        btnStash.setVisible(visible);
+        btnStash.setManaged(visible);
+        btnStashPop.setVisible(visible);
+        btnStashPop.setManaged(visible);
     }
 
     private void renderNoRepository() {
@@ -301,24 +612,49 @@ public class GitPanelController {
         btnInit.setVisible(true);
         btnInit.setManaged(true);
         btnInit.setDisable(false);
+        btnPull.setVisible(false);
+        btnPull.setManaged(false);
+        btnPush.setVisible(false);
+        btnPush.setManaged(false);
+        branchesBarVisible(false);
         lblBranch.setText("");
         changesList.getItems().clear();
         historyList.getItems().clear();
         lblStatus.setText(msg("git.panel.notRepo", "No es un repositorio git."));
+        notifyStatus("");
         notifyDirty(Set.of());
     }
 
-    private void renderBranch(String branch, List<GitStatusEntry> changes, List<GitCommitInfo> commits) {
+    private void renderBranch(String branch, List<GitStatusEntry> changes, List<GitCommitInfo> commits,
+                              boolean hasRemote, List<String> branches) {
         btnRefresh.setDisable(false);
         progress.setVisible(false);
         progress.setManaged(false);
         btnInit.setVisible(false);
         btnInit.setManaged(false);
+        btnPull.setVisible(true);
+        btnPull.setManaged(true);
+        btnPush.setVisible(true);
+        btnPush.setManaged(true);
+        btnPull.setDisable(!hasRemote);
+        btnPush.setDisable(!hasRemote);
+        btnNewBranch.setDisable(false);
+        btnStash.setDisable(false);
+        btnStashPop.setDisable(false);
+        branchesBarVisible(true);
 
         String branchLabel = branch != null
             ? msg("git.panel.status.branch", "Rama: ") + branch
             : msg("git.panel.status.noBranch", "(sin rama)");
         lblBranch.setText(branchLabel);
+
+        // Poblar el combo de ramas sin disparar el switching programático
+        updatingBranches = true;
+        cmbBranch.getItems().setAll(branches);
+        if (branch != null) {
+            cmbBranch.getSelectionModel().select(branch);
+        }
+        updatingBranches = false;
 
         changesList.getItems().setAll(changes);
         historyList.getItems().setAll(commits);
@@ -326,8 +662,14 @@ public class GitPanelController {
         String statusText = changes.isEmpty()
             ? msg("git.panel.status.clean", "Sin cambios por commitear")
             : msg("git.panel.status.changes", "{0} archivo(s) con cambios").replace("{0}", String.valueOf(changes.size()));
+        if (hasRemote) {
+            statusText = statusText + " · " + msg("git.panel.status.remote", "origin");
+        }
         lblStatus.setText(statusText);
 
+        this.notifyStatus(statusText.isEmpty()
+            ? branchLabel
+            : branchLabel + " · " + statusText);
         notifyDirty(changes.stream().map(GitStatusEntry::path).collect(Collectors.toSet()));
     }
 
@@ -336,6 +678,7 @@ public class GitPanelController {
         progress.setVisible(false);
         progress.setManaged(false);
         lblStatus.setText(msg("git.panel.error", "Error de git") + ": " + message);
+        notifyStatus("");
         notifyDirty(Set.of());
     }
 
@@ -346,6 +689,12 @@ public class GitPanelController {
     private void notifyDirty(Set<String> dirtyPaths) {
         if (dirtyPathsListener != null) {
             dirtyPathsListener.accept(dirtyPaths);
+        }
+    }
+
+    private void notifyStatus(String text) {
+        if (statusListener != null) {
+            statusListener.accept(text);
         }
     }
 

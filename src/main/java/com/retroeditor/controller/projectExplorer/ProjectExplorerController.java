@@ -13,7 +13,9 @@ import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeView;
@@ -81,8 +83,67 @@ public class ProjectExplorerController {
             private final MenuItem runRomItem = new MenuItem("Ejecutar ROM en emulador");
             private final MenuItem openInExplorerItem = new MenuItem("Abrir directorio en Windows");
 
+            // Submenú Git (visible solo sobre la raíz del proyecto)
+            private final Menu gitMenu = new Menu("Git");
+            private final MenuItem gitPanelItem = new MenuItem("Abrir panel Git");
+            private final MenuItem gitCommitItem = new MenuItem("Commit...");
+            private final MenuItem gitPullItem = new MenuItem("Pull");
+            private final MenuItem gitPushItem = new MenuItem("Push");
+            private final MenuItem gitBranchItem = new MenuItem("Nueva rama...");
+            private final MenuItem gitStashItem = new MenuItem("Stash");
+            private final MenuItem gitStashPopItem = new MenuItem("Recuperar stash");
+            private final MenuItem gitShareItem = new MenuItem("Publicar en GitHub...");
+
             {
                 cellMenu.getItems().addAll(newFileItem, newFolderItem, renameItem, deleteItem, openInSplitItem, runRomItem, openInExplorerItem);
+
+                gitMenu.getItems().addAll(
+                    gitPanelItem, new SeparatorMenuItem(),
+                    gitCommitItem, gitPullItem, gitPushItem, new SeparatorMenuItem(),
+                    gitBranchItem, gitStashItem, gitStashPopItem, new SeparatorMenuItem(),
+                    gitShareItem);
+                cellMenu.getItems().addAll(gitMenu);
+
+                gitPanelItem.setOnAction(e -> {
+                    if (mainController != null) mainController.openGitPanel();
+                });
+
+                gitCommitItem.setOnAction(e -> {
+                    if (mainController == null) return;
+                    TextInputDialog dialog = new TextInputDialog();
+                    dialog.setTitle("Commit");
+                    dialog.setHeaderText("Commit de todos los cambios del proyecto");
+                    dialog.setContentText("Mensaje del commit:");
+                    dialog.showAndWait().ifPresent(message -> {
+                        if (message != null && !message.trim().isEmpty()) {
+                            mainController.gitCommit(message.trim());
+                        }
+                    });
+                });
+
+                gitPullItem.setOnAction(e -> {
+                    if (mainController != null) mainController.gitPull();
+                });
+
+                gitPushItem.setOnAction(e -> {
+                    if (mainController != null) mainController.gitPush();
+                });
+
+                gitBranchItem.setOnAction(e -> {
+                    if (mainController != null) mainController.gitNewBranch();
+                });
+
+                gitStashItem.setOnAction(e -> {
+                    if (mainController != null) mainController.gitStash();
+                });
+
+                gitStashPopItem.setOnAction(e -> {
+                    if (mainController != null) mainController.gitStashPop();
+                });
+
+                gitShareItem.setOnAction(e -> {
+                    if (mainController != null) mainController.shareToGithub();
+                });
 
                 openInSplitItem.setOnAction(e -> {
                     FileTreeItem selected = (FileTreeItem) getTreeItem();
@@ -311,9 +372,13 @@ public class ProjectExplorerController {
                     boolean canDelete = file != null
                         && !(rootDirectory != null && file.getAbsolutePath().equals(rootDirectory.getAbsolutePath()));
                     boolean canRename = canDelete;
+                    boolean isRoot = rootDirectory != null
+                        && file != null
+                        && file.getAbsolutePath().equals(rootDirectory.getAbsolutePath());
                     runRomItem.setDisable(!canRunRom);
                     renameItem.setDisable(!canRename);
                     deleteItem.setDisable(!canDelete);
+                    gitMenu.setVisible(isRoot);
                     // Asignar el menú contextual a la celda para que la acción use el TreeItem de esta celda
                     setContextMenu(cellMenu);
                 }

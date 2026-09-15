@@ -10,6 +10,7 @@
 <?import javafx.scene.control.Tab?>
 <?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.TextField?>
+<?import javafx.scene.control.PasswordField?>
 <?import javafx.scene.control.CheckBox?>
 <?import javafx.scene.control.ProgressIndicator?>
 <?import javafx.scene.control.ScrollPane?>
@@ -267,6 +268,27 @@
                     </VBox>
                 </bottom>
             </BorderPane>
+            </AnchorPane>
+        </Tab>
+        <Tab fx:id="tabGitHub" text="GitHub">
+            <AnchorPane>
+                <ScrollPane fitToWidth="true" fitToHeight="false" prefHeight="340" hbarPolicy="NEVER" vbarPolicy="ALWAYS"
+                    AnchorPane.topAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.bottomAnchor="0.0">
+                    <content>
+                    <VBox spacing="12" alignment="TOP_LEFT" style="-fx-padding: 14 0 0 0;">
+                        <Label fx:id="lblGithubToken" text="Token de GitHub (PAT):" />
+                        <PasswordField fx:id="txtGithubToken" prefWidth="420" promptText="ghp_... / github_pat_..." />
+                        <Label fx:id="lblGithubTokenWarning" wrapText="true" text="El token se guarda en el fichero de configuración local con el que Samaruc ya persiste sus ajustes. Solo se envía a api.github.com; nunca se incluye en URLs remotas de git." />
+                        <HBox spacing="8" alignment="CENTER_LEFT">
+                            <Button fx:id="btnVerifyGithub" text="Verificar" onAction="#onVerifyGithub" />
+                            <Button fx:id="btnSaveGithub" text="Guardar" onAction="#onSaveGithub" prefWidth="140" />
+                            <Button fx:id="btnClearGithubToken" text="Borrar token" onAction="#onClearGithubToken" />
+                        </HBox>
+                        <Label fx:id="lblGithubStatus" wrapText="true" />
+                        <ProgressIndicator fx:id="progressGithubVerify" prefWidth="18" prefHeight="18" visible="false" managed="false" />
+                    </VBox>
+                    </content>
+                </ScrollPane>
             </AnchorPane>
         </Tab>
         <Tab fx:id="tabPlugins" text="Plugins">

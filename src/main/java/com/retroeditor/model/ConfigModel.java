@@ -285,6 +285,17 @@ public class ConfigModel {
         }
     }
 
+    /**
+     * Elimina una propiedad de configuración libre ({@code configProps}).
+     * Las propiedades tipadas con {@code setter} propio no se afectan.
+     * @param key Clave de la propiedad a eliminar
+     */
+    public void removeConfigProperty(String key) {
+        if (key != null) {
+            configProps.remove(key);
+        }
+    }
+
     public void applyProperties(Properties props) {
         Properties source = props != null ? props : new Properties();
         configProps.clear();

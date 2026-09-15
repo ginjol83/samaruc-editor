@@ -26,14 +26,28 @@ public class GitHubApiService {
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
+    private final String token;
 
     public GitHubApiService() {
-        this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(), new ObjectMapper());
+        this(null);
     }
 
-    GitHubApiService(HttpClient httpClient, ObjectMapper objectMapper) {
+    public GitHubApiService(String token) {
+        this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build(), new ObjectMapper(), token);
+    }
+
+    GitHubApiService(HttpClient httpClient, ObjectMapper objectMapper, String token) {
         this.httpClient = httpClient;
         this.objectMapper = objectMapper;
+        this.token = token;
+    }
+
+    /**
+     * Devuelve una copia de este servicio autenticada con el token indicado.
+     * Se usa para elevar el rate limit (60/h sin token, 5000/h con token).
+     */
+    public GitHubApiService withToken(String token) {
+        return new GitHubApiService(httpClient, objectMapper, token);
     }
 
     /**
@@ -51,16 +65,19 @@ public class GitHubApiService {
         String url = String.format("%s/search/repositories?q=%s&sort=stars&order=desc&page=%d&per_page=%d",
             API_BASE, encodeQuery(query), page, perPage);
 
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
             .timeout(Duration.ofSeconds(15))
             .header("Accept", "application/vnd.github+json")
-            .header("User-Agent", "Samaruc-Editor")
-            .GET()
-            .build();
+            .header("User-Agent", "Samaruc-Editor");
+        if (token != null) {
+            builder.header("Authorization", "token " + token);
+        }
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = httpClient.send(builder.GET().build(), HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() == 403) {
-            throw new RateLimitException("Límite de peticiones GitHub alcanzado (60/h sin autenticación)");
+            throw new RateLimitException(token == null
+                ? "Límite de peticiones GitHub alcanzado (60/h sin autenticación)"
+                : "Límite de peticiones GitHub alcanzado");
         }
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw new IOException("GitHub API status: " + response.statusCode());
@@ -75,20 +92,50 @@ public class GitHubApiService {
     public GitHubRepo getRepository(String owner, String repo) throws IOException, InterruptedException {
         String url = String.format("%s/repos/%s/%s", API_BASE, owner, repo);
 
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-            .timeout(Duration.ofSeconds(15))
-            .header("Accept", "application/vnd.github+json")
-            .header("User-Agent", "Samaruc-Editor")
-            .GET()
-            .build();
-
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = httpClient.send(newRequestBuilder(url).GET().build(), HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw new IOException("GitHub API status: " + response.statusCode());
         }
 
         JsonNode node = objectMapper.readTree(response.body());
         return parseRepoNode(node);
+    }
+
+    /**
+     * Lista los repositorios del usuario autenticado, ordenados por actualización.
+     * Requiere un servicio creado con token.
+     */
+    public List<GitHubRepo> getUserRepos(int page, int perPage) throws IOException, InterruptedException {
+        if (token == null) {
+            throw new IOException("Token de GitHub no configurado");
+        }
+        perPage = Math.max(1, Math.min(perPage, MAX_PER_PAGE));
+        String url = String.format("%s/user/repos?sort=updated&page=%d&per_page=%d", API_BASE, page, perPage);
+
+        HttpResponse<String> response = httpClient.send(newRequestBuilder(url).GET().build(), HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new IOException("GitHub API status: " + response.statusCode());
+        }
+
+        List<GitHubRepo> repos = new ArrayList<>();
+        JsonNode array = objectMapper.readTree(response.body());
+        if (array.isArray()) {
+            for (JsonNode node : array) {
+                repos.add(parseRepoNode(node));
+            }
+        }
+        return repos;
+    }
+
+    private HttpRequest.Builder newRequestBuilder(String url) {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
+            .timeout(Duration.ofSeconds(15))
+            .header("Accept", "application/vnd.github+json")
+            .header("User-Agent", "Samaruc-Editor");
+        if (token != null) {
+            builder.header("Authorization", "token " + token);
+        }
+        return builder;
     }
 
     /**

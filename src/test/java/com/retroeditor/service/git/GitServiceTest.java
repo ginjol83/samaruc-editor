@@ -139,6 +139,10 @@ class GitServiceTest {
         assertTrue(Files.isDirectory(bare));
         String fileUrl = bare.toUri().toString();
 
+        // En entornos git con montaje msys no estándar (sin /c), las URLs file:// de Windows
+        // no se resuelven; se omite el test remoto en ese caso.
+        assumeTrue(isFileUrlSupported(fileUrl), "git no soporta URLs file:// en este entorno, se omite el test remoto");
+
         // remote add (+ idempotencia con set-url)
         assertFalse(service.hasRemote(work, "origin"));
         service.addRemote(work, "origin", fileUrl);
@@ -174,6 +178,15 @@ class GitServiceTest {
         assertTrue(Files.readString(cloned.resolve("a.txt")).contains("hola de vuelta"));
     }
 
+    /** Comprueba que git puede leer un remoto local {@code file://} (algunos entornos msys no soportan estos URL). */
+    private boolean isFileUrlSupported(String url) {
+        try {
+            return new GitCli().execute(tempDir, "ls-remote", url).isSuccess();
+        } catch (GitOperationsException e) {
+            return false;
+        }
+    }
+
     @Test
     void cloneThrowsWhenTargetExists() throws Exception {
         assumeTrue(GitService.isGitAvailable(), "git no está instalado en este equipo, se omite el test");
@@ -186,5 +199,119 @@ class GitServiceTest {
             () -> service.clone(tempDir, "file:///inexistente", "ocupado", null)
         );
         assertTrue(ex.getMessage().contains("ya existe"));
+    }
+
+    @Test
+    void createAndSwitchBranchRoundTrip() throws Exception {
+        assumeTrue(GitService.isGitAvailable(), "git no está instalado en este equipo, se omite el test");
+
+        Path dir = tempDir.resolve("proyecto");
+        Files.createDirectory(dir);
+        service.init(dir);
+        GitCli cli = new GitCli();
+        cli.execute(dir, "config", "user.email", "test@samaruc.local");
+        cli.execute(dir, "config", "user.name", "Samaruc Test");
+
+        Files.write(dir.resolve("a.txt"), "hola\n".getBytes());
+        service.addAll(dir);
+        service.commit(dir, "primer");
+
+        String initial = service.currentBranch(dir).current().orElse("master");
+
+        service.createBranch(dir, "feature");
+        assertEquals("feature", service.currentBranch(dir).current().orElse(""));
+
+        List<String> branches = service.listBranches(dir);
+        assertTrue(branches.contains("feature"));
+        assertTrue(branches.contains(initial));
+
+        Files.write(dir.resolve("f.c"), "int f = 0;\n".getBytes());
+        service.addAll(dir);
+        service.commit(dir, "commit en feature");
+
+        service.switchBranch(dir, initial);
+        assertEquals(initial, service.currentBranch(dir).current().orElse(""));
+
+        service.switchBranch(dir, "feature");
+        assertEquals("feature", service.currentBranch(dir).current().orElse(""));
+    }
+
+    @Test
+    void createBranchRejectsBlankName() throws Exception {
+        assumeTrue(GitService.isGitAvailable(), "git no está instalado en este equipo, se omite el test");
+
+        Path dir = tempDir.resolve("proyecto");
+        Files.createDirectory(dir);
+        service.init(dir);
+
+        GitOperationsException ex = org.junit.jupiter.api.Assertions.assertThrows(
+            GitOperationsException.class,
+            () -> service.createBranch(dir, "   ")
+        );
+        assertTrue(ex.getMessage().contains("vac\u00edo"));
+    }
+
+    @Test
+    void stashAndPopRoundTrip() throws Exception {
+        assumeTrue(GitService.isGitAvailable(), "git no está instalado en este equipo, se omite el test");
+
+        Path dir = tempDir.resolve("proyecto");
+        Files.createDirectory(dir);
+        service.init(dir);
+        GitCli cli = new GitCli();
+        cli.execute(dir, "config", "user.email", "test@samaruc.local");
+        cli.execute(dir, "config", "user.name", "Samaruc Test");
+
+        Files.write(dir.resolve("src.c"), "v1\n".getBytes());
+        service.addAll(dir);
+        service.commit(dir, "primer");
+
+        Files.write(dir.resolve("src.c"), "v2\n".getBytes());
+        assertFalse(service.status(dir).isEmpty());
+
+        service.stash(dir);
+        assertTrue(service.status(dir).isEmpty());
+        assertEquals("v1\n", Files.readString(dir.resolve("src.c")));
+
+        service.stashPop(dir);
+        assertEquals("v2\n", Files.readString(dir.resolve("src.c")));
+    }
+
+    @Test
+    void restoreFileDiscardsWorkingTreeChanges() throws Exception {
+        assumeTrue(GitService.isGitAvailable(), "git no está instalado en este equipo, se omite el test");
+
+        Path dir = tempDir.resolve("proyecto");
+        Files.createDirectory(dir);
+        service.init(dir);
+        GitCli cli = new GitCli();
+        cli.execute(dir, "config", "user.email", "test@samaruc.local");
+        cli.execute(dir, "config", "user.name", "Samaruc Test");
+
+        Files.write(dir.resolve("src.c"), "v1\n".getBytes());
+        service.addAll(dir);
+        service.commit(dir, "primer");
+
+        Files.write(dir.resolve("src.c"), "v2\n".getBytes());
+        assertEquals(1, service.status(dir).size());
+
+        service.restoreFile(dir, "src.c");
+        assertTrue(service.status(dir).isEmpty());
+        assertEquals("v1\n", Files.readString(dir.resolve("src.c")));
+    }
+
+    @Test
+    void restoreFileRejectsBlankPath() throws Exception {
+        assumeTrue(GitService.isGitAvailable(), "git no está instalado en este equipo, se omite el test");
+
+        Path dir = tempDir.resolve("proyecto");
+        Files.createDirectory(dir);
+        service.init(dir);
+
+        GitOperationsException ex = org.junit.jupiter.api.Assertions.assertThrows(
+            GitOperationsException.class,
+            () -> service.restoreFile(dir, "  ")
+        );
+        assertTrue(ex.getMessage().contains("vac\u00eda"));
     }
 }

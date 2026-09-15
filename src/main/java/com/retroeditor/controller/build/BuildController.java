@@ -9,6 +9,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1592,6 +1593,39 @@ public class BuildController {
         }
 
         return new File(new File(System.getProperty("user.dir")), "out");
+    }
+
+    /**
+     * Devuelve los artefactos compilados (ROMs/ejecutables) encontrados en la
+     * carpeta out/ del proyecto, ordenados por fecha de modificación (más reciente
+     * primero). Se usa para publicar releases en GitHub.
+     */
+    public List<File> resolveBuildArtifacts(File projectRootDir) {
+        File outputDir = resolveOutputDirectory(null, projectRootDir);
+        if (outputDir == null || !outputDir.isDirectory()) {
+            return List.of();
+        }
+
+        List<File> artifacts = new ArrayList<>();
+        for (File file : outputDir.listFiles()) {
+            if (file.isFile()) {
+                String name = file.getName().toLowerCase();
+                int dot = name.lastIndexOf('.');
+                if (dot >= 0) {
+                    String ext = name.substring(dot + 1);
+                    if (GAMEBOY_ROM_EXTENSIONS.contains(ext)
+                        || SPECTRUM_ROM_EXTENSIONS.contains(ext)
+                        || CPC_ROM_EXTENSIONS.contains(ext)
+                        || ATARI_ROM_EXTENSIONS.contains(ext)
+                        || "rom".equals(ext)) {
+                        artifacts.add(file);
+                    }
+                }
+            }
+        }
+
+        artifacts.sort(Comparator.comparingLong(File::lastModified).reversed());
+        return artifacts;
     }
 
     private boolean isSuccessfulCompilationLine(String line) {

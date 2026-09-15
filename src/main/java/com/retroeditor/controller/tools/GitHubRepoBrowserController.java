@@ -29,11 +29,13 @@ public class GitHubRepoBrowserController {
     private final GitHubApiService apiService = new GitHubApiService();
     private final GitHubCloneService cloneService = new GitHubCloneService();
     private final RepoCatalogService catalogService = new RepoCatalogService();
+    private final com.retroeditor.service.git.GitService gitService = new com.retroeditor.service.git.GitService();
 
     private Node rootNode;
     private ResourceBundle bundle;
     private Consumer<File> onCloned;
     private Runnable closeHandler;
+    private java.util.function.Supplier<String> tokenStore;
 
     // UI refs
     private ProgressIndicator progressIndicator;
@@ -41,13 +43,19 @@ public class GitHubRepoBrowserController {
     private ListView<GitHubRepo> searchResultsList;
     private ListView<CuratedRepo> curatedList;
     private ListView<Path> clonedReposList;
+    private ListView<GitHubRepo> myReposList;
     private TextField txtSearch;
     private TextField txtUrl;
     private ComboBox<String> comboCategory;
+    private ComboBox<String> comboLanguage;
+    private ComboBox<String> comboSort;
+    private CheckBox chkTopic;
+    private TextArea txtReadme;
 
     private final ObservableList<GitHubRepo> searchResults = FXCollections.observableArrayList();
     private final ObservableList<CuratedRepo> curatedResults = FXCollections.observableArrayList();
     private final ObservableList<Path> clonedRepos = FXCollections.observableArrayList();
+    private final ObservableList<GitHubRepo> myRepos = FXCollections.observableArrayList();
 
     private static final Pattern GITHUB_URL_PATTERN = Pattern.compile(
         "https?://(?:www\\.)?github\\.com/([\\w.-]+)/([\\w.-]+)(?:/.*)?");
@@ -63,6 +71,41 @@ public class GitHubRepoBrowserController {
      */
     public void setOnCloseRequest(Runnable onClose) {
         this.closeHandler = onClose;
+    }
+
+    /**
+     * Proporciona el token de GitHub guardado en Ajustes (para clonar repos privados
+     * o usar la API con más cuota). Puede ser null si no hay token.
+     */
+    public void setTokenStore(java.util.function.Supplier<String> tokenStore) {
+        this.tokenStore = tokenStore;
+    }
+
+    /** Clona con git real si está disponible; si falla, cae a descarga ZIP. */
+    private Path clonePreferred(GitHubRepo repo, Path baseDir) throws Exception {
+        if (com.retroeditor.service.git.GitService.isGitAvailable()) {
+            try {
+                String token = resolveGitHubToken();
+                com.retroeditor.service.git.GitService.GitCredentials creds =
+                    new com.retroeditor.service.git.GitService.GitCredentials(token);
+                return gitService.clone(baseDir, repo.getGitUrl(), repo.name(), creds);
+            } catch (Exception gitEx) {
+                Platform.runLater(() -> lblStatus.setText(
+                    msg("tool.github.gitCloneFallback", "git no disponible, descargando ZIP...") + " " + gitEx.getMessage()));
+            }
+        }
+        return cloneService.cloneRepo(repo, baseDir, null);
+    }
+
+    private String resolveGitHubToken() {
+        try {
+            com.retroeditor.service.github.GitHubAuthService auth = new com.retroeditor.service.github.GitHubAuthService(
+                () -> tokenStore != null ? tokenStore.get() : null);
+            var resolved = auth.resolveToken();
+            return resolved.isPresent() ? resolved.token() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private void requestClose() {
@@ -142,7 +185,7 @@ public class GitHubRepoBrowserController {
     }
 
     private VBox createSearchTab() {
-        VBox panel = new VBox(6);
+        VBox searchContent = new VBox(6);
 
         txtSearch = new TextField();
         txtSearch.setPromptText(msg("tool.github.searchPrompt", "Ej: gameboy gbdk platformer..."));
@@ -151,6 +194,32 @@ public class GitHubRepoBrowserController {
         Button btnSearch = new Button(msg("tool.github.searchBtn", "Buscar"));
         btnSearch.setOnAction(e -> doSearch());
 
+        comboLanguage = new ComboBox<>();
+        comboLanguage.getItems().addAll(
+            msg("tool.github.allCategories", "Todas"),
+            "C",
+            "Assembly",
+            "Python",
+            "Rust"
+        );
+        comboLanguage.setValue(msg("tool.github.allCategories", "Todas"));
+        comboLanguage.setPrefWidth(100);
+
+        comboSort = new ComboBox<>();
+        comboSort.getItems().addAll(
+            msg("tool.github.sortStars", "por estrellas"),
+            msg("tool.github.sortUpdated", "por actualización"),
+            msg("tool.github.sortName", "por nombre")
+        );
+        comboSort.setValue(msg("tool.github.sortStars", "por estrellas"));
+        comboSort.setPrefWidth(140);
+
+        chkTopic = new CheckBox(msg("tool.github.filterTopic", "Topic: gbdev"));
+        chkTopic.setSelected(false);
+
+        HBox filterRow = new HBox(6, comboLanguage, comboSort, chkTopic);
+        filterRow.setAlignment(Pos.CENTER_LEFT);
+
         HBox searchRow = new HBox(8, txtSearch, btnSearch);
         searchRow.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(txtSearch, Priority.ALWAYS);
@@ -158,8 +227,19 @@ public class GitHubRepoBrowserController {
         searchResultsList = new ListView<>(searchResults);
         searchResultsList.setCellFactory(list -> new RepoCell());
 
-        panel.getChildren().addAll(searchRow, searchResultsList);
+        searchContent.getChildren().addAll(searchRow, filterRow, searchResultsList);
         VBox.setVgrow(searchResultsList, Priority.ALWAYS);
+
+        txtReadme = new TextArea();
+        txtReadme.setEditable(false);
+        txtReadme.setWrapText(true);
+        txtReadme.setPrefWidth(300);
+
+        SplitPane split = new SplitPane(searchContent, txtReadme);
+        split.setDividerPositions(0.65);
+
+        VBox panel = new VBox(split);
+        VBox.setVgrow(split, Priority.ALWAYS);
         return panel;
     }
 
@@ -195,22 +275,45 @@ public class GitHubRepoBrowserController {
     private VBox createMyReposTab() {
         VBox panel = new VBox(6);
 
-        clonedReposList = new ListView<>(clonedRepos);
-        clonedReposList.setCellFactory(list -> new ClonedRepoCell());
+        Button btnLoadMy = new Button(msg("tool.github.loadMyRepos", "Cargar mis repos"));
+        btnLoadMy.setOnAction(e -> loadMyRepos());
+
+        Label lblHint = new Label();
+        lblHint.setWrapText(true);
+        lblHint.setStyle("-fx-text-fill: gray;");
 
         Button btnRefresh = new Button(msg("tool.github.refresh", "Actualizar"));
-        btnRefresh.setOnAction(e -> refreshClonedRepos());
+        btnRefresh.setOnAction(e -> {
+            refreshClonedRepos();
+            loadMyRepos();
+        });
 
         Button btnOpenDir = new Button(msg("tool.github.openDir", "Abrir carpeta"));
         btnOpenDir.setOnAction(e -> openClonedDir());
 
-        HBox btnRow = new HBox(8, btnRefresh, btnOpenDir);
+        HBox btnRow = new HBox(8, btnLoadMy, btnRefresh, btnOpenDir);
         btnRow.setAlignment(Pos.CENTER_LEFT);
 
-        panel.getChildren().addAll(btnRow, clonedReposList);
-        VBox.setVgrow(clonedReposList, Priority.ALWAYS);
+        String token = resolveGitHubToken();
+        if (token == null || token.isBlank()) {
+            lblHint.setText(msg("tool.github.authRequired", "Inicia sesión en GitHub (Ajustes > GitHub) para ver tus repositorios."));
+        }
 
+        myReposList = new ListView<>(myRepos);
+        myReposList.setCellFactory(list -> new MyRepoCell());
+
+        Label lblClonedTitle = new Label(msg("tool.github.clone", "Clonados localmente"));
+        lblClonedTitle.setStyle("-fx-font-weight: bold; -fx-font-size: 12px; -fx-padding: 4 0 0 0;");
+
+        clonedReposList = new ListView<>(clonedRepos);
+        clonedReposList.setCellFactory(list -> new ClonedRepoCell());
+        clonedReposList.setPrefHeight(120);
+
+        VBox clonedSection = new VBox(4, lblClonedTitle, clonedReposList);
         refreshClonedRepos();
+
+        panel.getChildren().addAll(btnRow, lblHint, myReposList, new Separator(), clonedSection);
+        VBox.setVgrow(myReposList, Priority.ALWAYS);
         return panel;
     }
 
@@ -233,12 +336,41 @@ public class GitHubRepoBrowserController {
         String query = txtSearch.getText();
         if (query == null || query.isBlank()) return;
 
+        // Construir query con filtros
+        StringBuilder fullQuery = new StringBuilder(query);
+        if (chkTopic != null && chkTopic.isSelected()) {
+            fullQuery.append(" topic:gbdev");
+        }
+        String langFilter = comboLanguage != null ? comboLanguage.getValue() : null;
+        if (langFilter != null && !langFilter.equals(msg("tool.github.allCategories", "Todas"))) {
+            fullQuery.append(" language:").append(langFilter.toLowerCase());
+        }
+
         showProgress(true);
         lblStatus.setText(msg("tool.github.searching", "Buscando..."));
 
         Thread t = new Thread(() -> {
             try {
-                List<GitHubRepo> results = apiService.searchRepos(query, 1, 20);
+                GitHubApiService effectiveApi = apiService;
+                String token = resolveGitHubToken();
+                if (token != null && !token.isBlank()) {
+                    effectiveApi = apiService.withToken(token);
+                }
+                List<GitHubRepo> results = effectiveApi.searchRepos(fullQuery.toString(), 1, 30);
+
+                // Ordenar por cliente
+                String sortBy = comboSort != null ? comboSort.getValue() : null;
+                if (sortBy != null && sortBy.equals(msg("tool.github.sortUpdated", "por actualización"))) {
+                    results.sort((a, b) -> {
+                        if (a.updatedAt() == null && b.updatedAt() == null) return 0;
+                        if (a.updatedAt() == null) return 1;
+                        if (b.updatedAt() == null) return -1;
+                        return b.updatedAt().compareTo(a.updatedAt());
+                    });
+                } else if (sortBy != null && sortBy.equals(msg("tool.github.sortName", "por nombre"))) {
+                    results.sort((a, b) -> a.name().compareToIgnoreCase(b.name()));
+                }
+
                 Platform.runLater(() -> {
                     searchResults.clear();
                     searchResults.addAll(results);
@@ -297,7 +429,7 @@ public class GitHubRepoBrowserController {
 
         Thread t = new Thread(() -> {
             try {
-                Path result = cloneService.cloneRepo(repo, baseDir, null);
+                Path result = clonePreferred(repo, baseDir);
                 Platform.runLater(() -> {
                     lblStatus.setText(msg("tool.github.cloned", "Repositorio clonado: ") + repo.name());
                     showProgress(false);
@@ -335,7 +467,7 @@ public class GitHubRepoBrowserController {
             try {
                 GitHubRepo repo = apiService.getRepository(owner, repoName);
                 Path baseDir = cloneService.getCloneBaseDirectory();
-                Path result = cloneService.cloneRepo(repo, baseDir, null);
+                Path result = clonePreferred(repo, baseDir);
                 Platform.runLater(() -> {
                     lblStatus.setText(msg("tool.github.cloned", "Repositorio clonado: ") + repo.name());
                     showProgress(false);
@@ -358,6 +490,37 @@ public class GitHubRepoBrowserController {
         clonedRepos.addAll(cloneService.listClonedRepos());
     }
 
+    private void loadMyRepos() {
+        String token = resolveGitHubToken();
+        if (token == null || token.isBlank()) {
+            lblStatus.setText(msg("tool.github.authRequired", "Inicia sesión en GitHub (Ajustes > GitHub) para ver tus repositorios."));
+            return;
+        }
+
+        showProgress(true);
+        lblStatus.setText(msg("tool.github.loadingMyRepos", "Cargando repositorios..."));
+
+        Thread t = new Thread(() -> {
+            try {
+                GitHubApiService authService = apiService.withToken(token);
+                List<GitHubRepo> repos = authService.getUserRepos(1, 50);
+                Platform.runLater(() -> {
+                    myRepos.clear();
+                    myRepos.addAll(repos);
+                    lblStatus.setText(String.format(msg("tool.github.found", "%d resultados"), repos.size()));
+                    showProgress(false);
+                });
+            } catch (Exception ex) {
+                Platform.runLater(() -> {
+                    lblStatus.setText(msg("tool.github.searchError", "Error: ") + ex.getMessage());
+                    showProgress(false);
+                });
+            }
+        });
+        t.setDaemon(true);
+        t.start();
+    }
+
     private void openClonedDir() {
         try {
             Path baseDir = cloneService.getCloneBaseDirectory();
@@ -365,6 +528,45 @@ public class GitHubRepoBrowserController {
                 java.awt.Desktop.getDesktop().open(baseDir.toFile());
             }
         } catch (Exception ignored) { }
+    }
+
+    private void loadReadme(GitHubRepo repo) {
+        if (repo == null) return;
+        txtReadme.setText(msg("tool.github.readmePreview", "Vista previa del README") + "...");
+        String safeOwner = repo.owner().replaceAll("[^a-zA-Z0-9._-]", "");
+        String safeName = repo.name().replaceAll("[^a-zA-Z0-9._-]", "");
+        String safeBranch = repo.defaultBranch().replaceAll("[^a-zA-Z0-9._-]", "");
+        String readmeUrl = String.format("https://raw.githubusercontent.com/%s/%s/%s/README.md",
+            safeOwner, safeName, safeBranch);
+
+        Thread t = new Thread(() -> {
+            try {
+                java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                    .connectTimeout(java.time.Duration.ofSeconds(10))
+                    .followRedirects(java.net.http.HttpClient.Redirect.NORMAL)
+                    .build();
+                java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder(
+                    java.net.URI.create(readmeUrl))
+                    .timeout(java.time.Duration.ofSeconds(10))
+                    .header("User-Agent", "Samaruc-Editor")
+                    .GET()
+                    .build();
+                java.net.http.HttpResponse<String> resp = client.send(req,
+                    java.net.http.HttpResponse.BodyHandlers.ofString());
+                Platform.runLater(() -> {
+                    if (resp.statusCode() == 200) {
+                        txtReadme.setText(resp.body());
+                    } else {
+                        txtReadme.setText(msg("tool.github.readmeError", "Error cargando README: ") + resp.statusCode());
+                    }
+                });
+            } catch (Exception ex) {
+                Platform.runLater(() -> txtReadme.setText(
+                    msg("tool.github.readmeError", "Error cargando README: ") + ex.getMessage()));
+            }
+        });
+        t.setDaemon(true);
+        t.start();
     }
 
     private void showProgress(boolean show) {
@@ -432,7 +634,7 @@ public class GitHubRepoBrowserController {
             Label lblCategory = new Label("[" + item.category() + "]");
             lblCategory.setStyle("-fx-text-fill: #2196F3;");
 
-            Button btnClone = new Button(msg("tool.github.clone", "Clonar"));
+Button btnClone = new Button(msg("tool.github.clone", "Clonar"));
             btnClone.setOnAction(e -> cloneRepo(item.repo()));
 
             Button btnOpen = new Button(msg("tool.github.openBrowser", "Abrir"));
@@ -442,7 +644,10 @@ public class GitHubRepoBrowserController {
                 } catch (Exception ignored) { }
             });
 
-            HBox buttons = new HBox(6, btnOpen, btnClone);
+            Button btnReadme = new Button(msg("tool.github.loadReadme", "Ver README"));
+            btnReadme.setOnAction(e -> loadReadme(item.repo()));
+
+            HBox buttons = new HBox(6, btnOpen, btnClone, btnReadme);
             buttons.setAlignment(Pos.CENTER_RIGHT);
 
             HBox topRow = new HBox(6, lblName, lblCategory);
@@ -488,6 +693,46 @@ public class GitHubRepoBrowserController {
             buttons.setAlignment(Pos.CENTER_RIGHT);
 
             VBox box = new VBox(2, lblName, lblPath, buttons);
+            box.setPadding(new Insets(4));
+            setGraphic(box);
+        }
+    }
+
+    // === Helpers ===
+
+    private class MyRepoCell extends ListCell<GitHubRepo> {
+        @Override
+        protected void updateItem(GitHubRepo item, boolean empty) {
+            super.updateItem(item, empty);
+            if (empty || item == null) {
+                setGraphic(null);
+                return;
+            }
+
+            Label lblName = new Label(item.fullName());
+            lblName.setStyle("-fx-font-weight: bold; -fx-font-size: 13px;");
+
+            Label lblDesc = new Label(item.description());
+            lblDesc.setWrapText(true);
+            lblDesc.setStyle("-fx-text-fill: gray;");
+
+            String lang = item.language() != null && !item.language().isEmpty() ? item.language() : "-";
+            Label lblMeta = new Label(String.format("⭐ %d  |  %s", item.stars(), lang));
+
+            Button btnClone = new Button(msg("tool.github.clone", "Clonar"));
+            btnClone.setOnAction(e -> cloneRepo(item));
+
+            Button btnOpen = new Button(msg("tool.github.openBrowser", "Abrir"));
+            btnOpen.setOnAction(e -> {
+                try {
+                    java.awt.Desktop.getDesktop().browse(java.net.URI.create(item.url()));
+                } catch (Exception ignored) { }
+            });
+
+            HBox buttons = new HBox(6, btnOpen, btnClone);
+            buttons.setAlignment(Pos.CENTER_RIGHT);
+
+            VBox box = new VBox(2, lblName, lblDesc, lblMeta, buttons);
             box.setPadding(new Insets(4));
             setGraphic(box);
         }

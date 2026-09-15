@@ -195,6 +195,51 @@ public class GitService {
         requireSuccess(cli.execute(dir, "config", "user.email", email), "git config user.email");
     }
 
+    // === Operaciones de ramas, stash y descarte (Fase 2) ===
+
+    /** Lista de ramas locales ({@code git branch --format=%(refname:short)}). */
+    public List<String> listBranches(Path dir) throws GitOperationsException {
+        GitCli.GitResult result = cli.execute(dir, "branch", "--format=%(refname:short)");
+        requireSuccess(result, "git branch");
+        return result.output();
+    }
+
+    /** Crea una rama nueva a partir de la actual y cambia a ella ({@code git checkout -b}). */
+    public void createBranch(Path dir, String name) throws GitOperationsException {
+        if (name == null || name.isBlank()) {
+            throw new GitOperationsException("El nombre de la rama no puede estar vacío");
+        }
+        GitCli.GitResult result = cli.execute(dir, "checkout", "-b", name.trim());
+        requireSuccess(result, "git checkout -b " + name.trim());
+    }
+
+    /** Cambia a la rama indicada ({@code git checkout <name>}). */
+    public void switchBranch(Path dir, String name) throws GitOperationsException {
+        GitCli.GitResult result = cli.execute(dir, "checkout", name);
+        requireSuccess(result, "git checkout " + name);
+    }
+
+    /** Guarda los cambios sin commitear en el stash ({@code git stash}). */
+    public void stash(Path dir) throws GitOperationsException {
+        GitCli.GitResult result = cli.execute(dir, "stash");
+        requireSuccess(result, "git stash");
+    }
+
+    /** Restaura los cambios del último stash ({@code git stash pop}). */
+    public void stashPop(Path dir) throws GitOperationsException {
+        GitCli.GitResult result = cli.execute(dir, "stash", "pop");
+        requireSuccess(result, "git stash pop");
+    }
+
+    /** Descarta los cambios locales de un archivo ({@code git restore -- <path>}). */
+    public void restoreFile(Path dir, String path) throws GitOperationsException {
+        if (path == null || path.isBlank()) {
+            throw new GitOperationsException("La ruta del archivo no puede estar vacía");
+        }
+        GitCli.GitResult result = cli.execute(dir, "restore", "--", path.trim());
+        requireSuccess(result, "git restore " + path.trim());
+    }
+
     private List<String> remoteAuthPrefix(GitCredentials credentials) {
         List<String> args = new ArrayList<>();
         if (credentials != null && credentials.hasToken()) {

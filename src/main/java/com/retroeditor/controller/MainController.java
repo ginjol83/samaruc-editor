@@ -19,6 +19,7 @@ import java.io.InputStream;
 import java.io.IOException;
 import java.io.File;
 import java.text.MessageFormat;
+import java.util.concurrent.CompletableFuture;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -70,6 +71,10 @@ import com.retroeditor.model.EditorTheme;
 import com.retroeditor.model.ConfigModel;
 import com.retroeditor.model.EditorModel;
 
+import com.retroeditor.service.git.GitService;
+import com.retroeditor.service.github.GitHubAuthService;
+import com.retroeditor.service.github.GitHubShareService;
+
 import com.retroeditor.util.CompilationDiagnosticsUiHelper;
 import com.retroeditor.util.FXUtils;
 import com.retroeditor.util.AppInfo;
@@ -84,6 +89,12 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.scene.Parent;
 import javafx.scene.Node;
+
+import javafx.geometry.Insets;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.Separator;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.VBox;
 
 import javafx.scene.control.Tab;
 import javafx.scene.control.Menu;
@@ -145,6 +156,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private final TranslatorTabManager            translatorTabManager            = new TranslatorTabManager();
     private final GitHubRepoBrowserController     gitHubRepoBrowserController     = new GitHubRepoBrowserController();
     private final GitPanelController              gitPanelController              = new GitPanelController();
+    private final GitHubShareService              gitHubShareService              = new GitHubShareService();
     private final TerminalController      terminalController      = new TerminalController();
     private final BuildController         buildController         = new BuildController();
     private final HelpController          helpController          = new HelpController();
@@ -175,6 +187,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private MenuBar menuBar;
     @FXML private Label lblFooter;
     @FXML private Label lblCompileStatus;
+    @FXML private Label lblGitBranch;
     @FXML private javafx.scene.control.ProgressIndicator progressCompile;
     @FXML private Menu menuArchivo;
     @FXML private Menu menuEdicion;
@@ -212,6 +225,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private MenuItem menuItemRomTextTranslator;
     @FXML private MenuItem menuItemGitHubRepos;
     @FXML private MenuItem menuItemGitPanel;
+    @FXML private MenuItem menuItemShareToGithub;
     @FXML private MenuItem menuItemPngToZx;
     @FXML private MenuItem menuItemGoToLine;
     @FXML private MenuItem menuItemFind;
@@ -515,6 +529,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (outputTabPane != null) {
             gitPanelController.setBundle(bundle);
             gitPanelController.setOnDirtyPathsChanged(this::updateGitDirtyTabMarkers);
+            gitPanelController.setOnStatusChanged(this::updateGitStatusLabel);
+            gitPanelController.setGithubTokenSupplier(
+                () -> configModel.getConfigProperty(GitHubAuthService.CONFIG_KEY, ""));
             gitPanelTab = gitPanelController.createTab();
             outputTabPane.getTabs().add(gitPanelTab);
         }
@@ -2062,6 +2079,8 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 Platform.runLater(() -> setProyectoActual(clonedDir));
             }
         };
+        gitHubRepoBrowserController.setTokenStore(
+            () -> configModel.getConfigProperty(GitHubAuthService.CONFIG_KEY, ""));
         Node node = gitHubRepoBrowserController.createNode(currentProjectDir, bundle, onCloned);
         Tab toolTab = fxUtils.addToolTab(title, node, tabPane);
         gitHubRepoBrowserController.setOnCloseRequest(() -> tabPane.getTabs().remove(toolTab));
@@ -2069,6 +2088,11 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     @FXML
     private void onOpenGitPanel(ActionEvent event) {
+        openGitPanel();
+    }
+
+    /** Abre o selecciona la pestaña del panel Git y fuerza un refresco. Invocable desde el explorador. */
+    public void openGitPanel() {
         if (outputTabPane != null && gitPanelTab != null) {
             if (!outputTabPane.getTabs().contains(gitPanelTab)) {
                 outputTabPane.getTabs().add(gitPanelTab);
@@ -2076,6 +2100,163 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             outputTabPane.getSelectionModel().select(gitPanelTab);
         }
         gitPanelController.requestRefresh();
+    }
+
+    /** Despliega en el panel Git un commit (añade todo y commitea con el mensaje dado). */
+    public void gitCommit(String message) {
+        gitPanelController.setProject(currentProjectDir);
+        gitPanelController.commitWithMessage(message);
+    }
+
+    /** Ejecuta un pull desde origin en el proyecto abierto. */
+    public void gitPull() {
+        openGitPanel();
+        gitPanelController.pull();
+    }
+
+    /** Ejecuta un push a origin en el proyecto abierto. */
+    public void gitPush() {
+        openGitPanel();
+        gitPanelController.push();
+    }
+
+    /** Abre el diálogo de nueva rama para el proyecto abierto. */
+    public void gitNewBranch() {
+        openGitPanel();
+        gitPanelController.newBranch();
+    }
+
+    /** Guarda los cambios del proyecto abierto en el stash. */
+    public void gitStash() {
+        openGitPanel();
+        gitPanelController.stash();
+    }
+
+    /** Recupera los cambios del último stash del proyecto abierto. */
+    public void gitStashPop() {
+        openGitPanel();
+        gitPanelController.popStash();
+    }
+
+    /** Abre el diálogo de publicación en GitHub (invocable desde el explorador de proyectos). */
+    public void shareToGithub() {
+        onShareToGithub(null);
+    }
+
+    /**
+     * Publica el proyecto actual en GitHub (Share to GitHub): crea el repositorio,
+     * hace el commit inicial y sube el contenido con push.
+     */
+    @FXML
+    private void onShareToGithub(ActionEvent event) {
+        if (currentProjectDir == null || !currentProjectDir.isDirectory()) {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle(msg("git.share.title", "Publicar en GitHub"));
+            alert.setHeaderText(null);
+            alert.setContentText(msg("git.share.noProject", "No hay proyecto abierto."));
+            alert.showAndWait();
+            return;
+        }
+
+        GitHubShareService.GitHubShareParams params = showShareToGithubDialog();
+        if (params == null) {
+            return;
+        }
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                GitHubAuthService auth = new GitHubAuthService(
+                    () -> configModel.getConfigProperty(GitHubAuthService.CONFIG_KEY, ""));
+                GitHubAuthService.ResolvedToken resolved = auth.resolveToken();
+                if (!resolved.isPresent()) {
+                    throw new IOException(msg("git.share.noToken",
+                        "No hay token de GitHub configurado. Configuralo en Configuracion > GitHub."));
+                }
+                GitService.GitCredentials creds = new GitService.GitCredentials(resolved.token());
+                GitHubShareService.ShareResult result = gitHubShareService.shareProject(
+                    currentProjectDir.toPath(), params, resolved.token(), creds);
+
+                Platform.runLater(() -> {
+                    String message = msg("git.share.success", "Proyecto publicado: {0}")
+                        .replace("{0}", result.htmlUrl());
+                    Alert success = new Alert(Alert.AlertType.INFORMATION);
+                    success.setTitle(msg("git.share.title", "Publicar en GitHub"));
+                    success.setHeaderText(null);
+                    success.setContentText(message);
+                    success.showAndWait();
+                    openInSystemBrowser(result.htmlUrl());
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    Alert error = new Alert(Alert.AlertType.ERROR);
+                    error.setTitle(msg("git.share.title", "Publicar en GitHub"));
+                    error.setHeaderText(null);
+                    error.setContentText(e.getMessage());
+                    error.showAndWait();
+                });
+            }
+        });
+    }
+
+    /** Diálogo con los datos del repositorio a crear. Devuelve {@code null} si se cancela. */
+    private GitHubShareService.GitHubShareParams showShareToGithubDialog() {
+        Dialog<GitHubShareService.GitHubShareParams> dialog = new Dialog<>();
+        dialog.setTitle(msg("git.share.title", "Publicar en GitHub"));
+        dialog.setHeaderText(msg("git.share.header",
+            "Crea un repositorio en tu cuenta de GitHub y publica el proyecto actual."));
+
+        ButtonType publishType = new ButtonType(msg("git.share.button", "Publicar"), ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(publishType, ButtonType.CANCEL);
+
+        String defaultName = currentProjectDir != null ? currentProjectDir.getName() : "my-project";
+        TextField txtRepoName = new TextField(defaultName);
+        txtRepoName.setPromptText("my-project");
+        TextField txtDescription = new TextField();
+        txtDescription.setPromptText(msg("git.share.description.label", "Descripcion (opcional):"));
+        CheckBox chkPrivate = new CheckBox(msg("git.share.private", "Repositorio privado"));
+        TextField txtCommitMessage = new TextField("Initial commit from Samaruc Editor");
+        TextField txtUserName = new TextField();
+        txtUserName.setPromptText(msg("git.share.userName.placeholder", "Nombre de usuario git"));
+        TextField txtUserEmail = new TextField();
+        txtUserEmail.setPromptText(msg("git.share.userEmail.placeholder", "Email de usuario git"));
+
+        VBox vbox = new VBox(8,
+            new Label(msg("git.share.repoName.label", "Nombre del repositorio:")),
+            txtRepoName,
+            new Label(msg("git.share.description.label", "Descripcion (opcional):")),
+            txtDescription,
+            chkPrivate,
+            new Label(msg("git.share.commitMessage.label", "Mensaje del commit inicial:")),
+            txtCommitMessage,
+            new Separator(),
+            new Label(msg("git.share.gitIdentity.label", "Identidad git (opcional):")),
+            txtUserName,
+            txtUserEmail
+        );
+        vbox.setPadding(new Insets(12));
+        dialog.getDialogPane().setContent(vbox);
+
+        var okButton = dialog.getDialogPane().lookupButton(publishType);
+        txtRepoName.textProperty().addListener((obs, oldVal, newVal) ->
+            okButton.setDisable(newVal == null || newVal.isBlank()));
+        if (txtRepoName.getText() == null || txtRepoName.getText().isBlank()) {
+            okButton.setDisable(true);
+        }
+
+        dialog.setResultConverter(buttonType -> {
+            if (buttonType == publishType) {
+                return new GitHubShareService.GitHubShareParams(
+                    txtRepoName.getText().trim(),
+                    txtDescription.getText().trim(),
+                    chkPrivate.isSelected(),
+                    txtCommitMessage.getText().trim(),
+                    txtUserName.getText().trim(),
+                    txtUserEmail.getText().trim());
+            }
+            return null;
+        });
+
+        return dialog.showAndWait().orElse(null);
     }
 
     /**
@@ -2120,6 +2301,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         } else if (marker != null) {
             tab.setGraphic(null);
         }
+    }
+
+    /** Actualiza el indicador de estado git en la barra inferior. */
+    private void updateGitStatusLabel(String text) {
+        if (lblGitBranch == null) return;
+        boolean visible = text != null && !text.isBlank();
+        lblGitBranch.setVisible(visible);
+        lblGitBranch.setManaged(visible);
+        lblGitBranch.setText(visible ? text : "");
     }
 
     @FXML
@@ -2282,6 +2472,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemRomTextTranslator != null) menuItemRomTextTranslator.setText(bundle.getString("menu.tools.romTextTranslator"));
         if (menuItemGitHubRepos != null) menuItemGitHubRepos.setText(bundle.getString("menu.tools.githubRepos"));
         if (menuItemGitPanel    != null) menuItemGitPanel.setText(bundle.getString("menu.git.panel"));
+        if (menuItemShareToGithub != null) menuItemShareToGithub.setText(bundle.getString("menu.git.share"));
         if (btnGit              != null) btnGit.setTooltip(new Tooltip(msg("tooltip.git.openPanel", "Abrir panel Git")));
         if (menuItemGoToLine    != null) menuItemGoToLine.setText(bundle.getString("menu.goto.line"));
         if (menuItemFind        != null) menuItemFind.setText(bundle.getString("menu.find.file"));

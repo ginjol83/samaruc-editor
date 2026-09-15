@@ -10,6 +10,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.ResourceBundle;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import com.retroeditor.model.ConfigModel;
@@ -31,6 +32,8 @@ import com.retroeditor.service.ThemeCssGenerator;
 import com.retroeditor.service.ThemeService;
 import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.service.WorkspaceService;
+import com.retroeditor.service.github.GitHubApiService;
+import com.retroeditor.service.github.GitHubAuthService;
 import com.retroeditor.service.syntax.SyntaxHighlighter;
 
 import javafx.application.Platform;
@@ -46,6 +49,7 @@ import javafx.scene.control.ColorPicker;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
+import javafx.scene.control.PasswordField;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Spinner;
 import javafx.scene.control.SpinnerValueFactory;
@@ -149,6 +153,15 @@ public class ConfigController {
     @FXML private Tab              tabCompilerZ88dkCpc;
     @FXML private Tab              tabCompilerMakefile;
     @FXML private Tab              tabPlugins;
+    @FXML private Tab              tabGitHub;
+    @FXML private PasswordField    txtGithubToken;
+    @FXML private Label            lblGithubToken;
+    @FXML private Label            lblGithubTokenWarning;
+    @FXML private Label            lblGithubStatus;
+    @FXML private ProgressIndicator progressGithubVerify;
+    @FXML private Button           btnVerifyGithub;
+    @FXML private Button           btnSaveGithub;
+    @FXML private Button           btnClearGithubToken;
     @FXML private Label            lblError;
     @FXML private Label            lblIdioma;
     @FXML private Label            lblEditorAppearance;
@@ -453,6 +466,8 @@ public class ConfigController {
             txtMarketplaceUrl.setText(configModel.getConfigProperty("marketplace_catalog_url", PluginMarketplaceService.DEFAULT_MARKETPLACE_URL));
         }
 
+        loadGithubFromConfig();
+
         if (btnGuardarWorkspace != null) {
             boolean hasActiveProject = (projectRoot != null && projectRoot.isDirectory());
             btnGuardarWorkspace.setVisible(hasActiveProject);
@@ -516,6 +531,8 @@ public class ConfigController {
         if (txtMarketplaceUrl != null) {
             txtMarketplaceUrl.setText(configModel.getConfigProperty("marketplace_catalog_url", PluginMarketplaceService.DEFAULT_MARKETPLACE_URL));
         }
+
+        loadGithubFromConfig();
 
         // Si no existe, crear carpeta de plugins
         try { pluginApplicationService.ensurePluginsDir(pluginsDir); } catch (Exception ignored) {}
@@ -2082,6 +2099,114 @@ public class ConfigController {
     }
 
     /**
+     * Cargar los campos de la sección GitHub desde la configuración.
+     */
+    private void loadGithubFromConfig() {
+        if (txtGithubToken != null) {
+            txtGithubToken.setText(configModel.getConfigProperty(GitHubAuthService.CONFIG_KEY, ""));
+        }
+        if (lblGithubStatus != null) {
+            lblGithubStatus.setText("");
+        }
+    }
+
+    /**
+     * Guardar el token de GitHub en la configuración ({@code github.token}).
+     */
+    @FXML
+    public void onSaveGithub(ActionEvent event) {
+        if (txtGithubToken == null) return;
+        String token = txtGithubToken.getText() == null ? "" : txtGithubToken.getText().trim();
+        if (token.isBlank()) {
+            showError(tr("config.github.token.empty", "Introduce un token o usa 'Borrar token'."));
+            return;
+        }
+        configModel.setConfigProperty(GitHubAuthService.CONFIG_KEY, token);
+        persistConfig();
+        showError("");
+        if (lblGithubStatus != null) {
+            lblGithubStatus.setText(tr("config.github.saved", "Token guardado."));
+        }
+    }
+
+    /**
+     * Borrar el token de GitHub de la configuración.
+     */
+    @FXML
+    public void onClearGithubToken(ActionEvent event) {
+        configModel.removeConfigProperty(GitHubAuthService.CONFIG_KEY);
+        persistConfig();
+        if (txtGithubToken != null) {
+            txtGithubToken.clear();
+        }
+        if (lblGithubStatus != null) {
+            lblGithubStatus.setText(tr("config.github.cleared", "Token eliminado."));
+        }
+        if (lblError != null) {
+            lblError.setText("");
+        }
+    }
+
+    /**
+     * Verificar la autenticación de GitHub (cascada gh → env → Ajustes) contra
+     * {@code GET /user}. La operación de red se ejecuta en hilo de fondo.
+     */
+    @FXML
+    public void onVerifyGithub(ActionEvent event) {
+        if (btnVerifyGithub == null || lblGithubStatus == null) return;
+
+        String typed = txtGithubToken != null ? txtGithubToken.getText() : null;
+        if (typed != null && !typed.isBlank()) {
+            configModel.setConfigProperty(GitHubAuthService.CONFIG_KEY, typed.trim());
+            persistConfig();
+        }
+
+        btnVerifyGithub.setDisable(true);
+        progressGithubVerify.setVisible(true);
+        progressGithubVerify.setManaged(true);
+        lblGithubStatus.setText(tr("config.github.verifying", "Comprobando autenticación con GitHub..."));
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                GitHubAuthService auth = new GitHubAuthService(
+                    () -> configModel.getConfigProperty(GitHubAuthService.CONFIG_KEY, ""));
+                GitHubAuthService.ResolvedToken resolved = auth.resolveToken();
+                if (!resolved.isPresent()) {
+                    Platform.runLater(() -> renderGithubStatus(
+                        tr("config.github.status.noToken", "No hay token configurado (gh, SAMARUC_GITHUB_TOKEN o Ajustes).")));
+                    return;
+                }
+                GitHubAuthService.AuthResult result = auth.validate(resolved.token());
+                String sourceLabel = switch (resolved.source()) {
+                    case GitHubAuthService.SOURCE_GH -> tr("config.github.status.source.gh", "GitHub CLI (gh)");
+                    case GitHubAuthService.SOURCE_ENV -> tr("config.github.status.source.env", "variable de entorno SAMARUC_GITHUB_TOKEN");
+                    default -> tr("config.github.status.source.settings", "Ajustes");
+                };
+                String scopes = result.scopes().isEmpty() ? "-" : String.join(", ", result.scopes());
+                String text = tr("config.github.status.ok", "Conectado como {0} (via {1}). Scopes: {2}")
+                    .replace("{0}", result.login() != null ? result.login() : "?")
+                    .replace("{1}", sourceLabel)
+                    .replace("{2}", scopes);
+                Platform.runLater(() -> renderGithubStatus(text));
+            } catch (GitHubApiService.RateLimitException e) {
+                Platform.runLater(() -> renderGithubStatus(e.getMessage()));
+            } catch (Exception e) {
+                Platform.runLater(() -> renderGithubStatus(
+                    tr("config.github.status.error", "Error de autenticación") + ": " + e.getMessage()));
+            }
+        });
+    }
+
+    private void renderGithubStatus(String text) {
+        if (btnVerifyGithub != null) btnVerifyGithub.setDisable(false);
+        if (progressGithubVerify != null) {
+            progressGithubVerify.setVisible(false);
+            progressGithubVerify.setManaged(false);
+        }
+        lblGithubStatus.setText(text);
+    }
+
+    /**
      * Refrescar textos de la aplicación según el idioma seleccionado.
      * @param tabIdioma
      * @param tabCompilador
@@ -2126,6 +2251,12 @@ public class ConfigController {
         if (tabCompilerZ88dkCpc  != null) tabCompilerZ88dkCpc  .setText(bundle.getString("label.compiler.z88dkCpcTab"));
         if (tabCompilerMakefile  != null) tabCompilerMakefile  .setText(bundle.getString("label.compiler.make.tab"));
         if (tabPlugins           != null) tabPlugins           .setText(bundle.getString("config.plugins.tab"));
+        if (tabGitHub != null) tabGitHub.setText(bundle.containsKey("config.github.tab") ? bundle.getString("config.github.tab") : "GitHub");
+        if (lblGithubToken != null) lblGithubToken.setText(bundle.containsKey("config.github.token.label") ? bundle.getString("config.github.token.label") : "Token de GitHub (PAT):");
+        if (lblGithubTokenWarning != null) lblGithubTokenWarning.setText(bundle.containsKey("config.github.token.warning") ? bundle.getString("config.github.token.warning") : "El token se guarda en el fichero de configuración local de Samaruc. Solo se envía a api.github.com; nunca se incluye en URLs remotas de git.");
+        if (btnVerifyGithub != null) btnVerifyGithub.setText(bundle.containsKey("config.github.verify") ? bundle.getString("config.github.verify") : "Verificar");
+        if (btnSaveGithub != null) btnSaveGithub.setText(bundle.containsKey("config.github.save") ? bundle.getString("config.github.save") : "Guardar");
+        if (btnClearGithubToken != null) btnClearGithubToken.setText(bundle.containsKey("config.github.clear") ? bundle.getString("config.github.clear") : "Borrar token");
         if (lblPluginsInstalled  != null) lblPluginsInstalled  .setText(bundle.getString("config.plugins.installed"));
         if (lblCompilador        != null) lblCompilador        .setText(bundle.getString("label.compiler"));
         if (lblGbdkBundled       != null) lblGbdkBundled       .setText(bundle.getString("label.compiler.gbdk.bundled"));
