@@ -150,6 +150,38 @@ public class GitHubCloneService {
     }
 
     /**
+     * Convierte un repo clonado por ZIP en un repositorio git real, de forma no destructiva.
+     * Si git no está disponible o el directorio ya es un repo git, no hace nada.
+     * Devuelve {@code false} si no se pudo convertir (por ejemplo, sin git instalado).
+     */
+    public boolean convertToGit(Path repoDir, String remoteUrl,
+                                com.retroeditor.service.git.GitService git) {
+        if (repoDir == null || !Files.isDirectory(repoDir)) return false;
+        if (!com.retroeditor.service.git.GitService.isGitAvailable()) return false;
+
+        try {
+            Path dotGit = repoDir.resolve(".git");
+            if (Files.exists(dotGit)) return true; // ya es un repo git (clon real)
+
+            git.init(repoDir);
+            if (remoteUrl != null && !remoteUrl.isBlank()) {
+                git.addRemote(repoDir, "origin", remoteUrl);
+            }
+
+            // Un commit inicial solo si hay identidad configurada (evita inventar usuarios).
+            if (git.userEmail(repoDir).isPresent() && git.userName(repoDir).isPresent()) {
+                if (!git.status(repoDir).isEmpty()) {
+                    git.addAll(repoDir);
+                    git.commit(repoDir, "Importado desde GitHub (Samaruc)");
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
      * Devuelve el directorio base para repos clonados.
      */
     public Path getCloneBaseDirectory() {

@@ -448,6 +448,7 @@ public class GitHubRepoBrowserController {
         Thread t = new Thread(() -> {
             try {
                 Path result = clonePreferred(repo, baseDir);
+                cloneService.convertToGit(result, repo.getGitUrl(), gitService);
                 Platform.runLater(() -> {
                     lblStatus.setText(msg("tool.github.cloned", "Repositorio clonado: ") + repo.name());
                     showProgress(false);

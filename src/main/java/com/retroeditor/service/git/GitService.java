@@ -253,6 +253,12 @@ public class GitService {
         return result.isSuccess() ? result.output().stream().findFirst() : Optional.empty();
     }
 
+    /** Nombre de usuario configurado (local o global), o {@code Optional.empty()} si no lo hay. */
+    public Optional<String> userName(Path dir) throws GitOperationsException {
+        GitCli.GitResult result = cli.execute(dir, "config", "user.name");
+        return result.isSuccess() ? result.output().stream().findFirst() : Optional.empty();
+    }
+
     /** Configura la identidad del usuario a nivel local (repo). */
     public void setLocalUser(Path dir, String name, String email) throws GitOperationsException {
         requireSuccess(cli.execute(dir, "config", "user.name", name), "git config user.name");
