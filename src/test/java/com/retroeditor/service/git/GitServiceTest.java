@@ -13,7 +13,9 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import com.retroeditor.service.git.GitModels.DiffLineType;
 import com.retroeditor.service.git.GitModels.GitCommitInfo;
+import com.retroeditor.service.git.GitModels.GitDiffLine;
 import com.retroeditor.service.git.GitModels.GitStatusEntry;
 
 class GitServiceTest {
@@ -43,6 +45,58 @@ class GitServiceTest {
         assertEquals("M ", entries.get(2).shortStatus());
         assertEquals("modificado.c", entries.get(1).path());
         assertEquals("viejo.c -> nuevo.c", entries.get(5).path());
+    }
+
+    @Test
+    void parseDiffClassifiesHeaderHunkContextAddAndRemove() {
+        List<GitDiffLine> parsed = GitService.parseDiff(List.of(
+            "diff --git a/src.c b/src.c",
+            "index 1234567..89abcde 100644",
+            "--- a/src.c",
+            "+++ b/src.c",
+            "@@ -1,2 +1,3 @@",
+            " int main() {",
+            "-\treturn 0;",
+            "+\treturn 1;",
+            " }"
+        ));
+
+        assertEquals(DiffLineType.HEADER, parsed.get(0).type());
+        assertEquals(DiffLineType.HEADER, parsed.get(1).type());
+        assertEquals("+++ b/src.c", parsed.get(3).text());
+        assertEquals(DiffLineType.HUNK, parsed.get(4).type());
+        assertEquals(DiffLineType.CONTEXT, parsed.get(5).type());
+        assertEquals(DiffLineType.REMOVE, parsed.get(6).type());
+        assertTrue(parsed.get(6).text().startsWith("-"));
+        assertEquals(DiffLineType.ADD, parsed.get(7).type());
+        assertTrue(parsed.get(7).text().startsWith("+"));
+        assertEquals(DiffLineType.CONTEXT, parsed.get(8).type());
+    }
+
+    @Test
+    void diffAfterModificationReportsAddAndRemove() throws Exception {
+        assumeTrue(GitService.isGitAvailable(), "git no está instalado en este equipo, se omite el test");
+
+        Path dir = tempDir.resolve("proyecto");
+        Files.createDirectory(dir);
+        service.init(dir);
+        GitCli cli = new GitCli();
+        cli.execute(dir, "config", "user.email", "test@samaruc.local");
+        cli.execute(dir, "config", "user.name", "Samaruc Test");
+
+        Files.write(dir.resolve("src.c"), "int main(void) {\n    return 0;\n}\n".getBytes());
+        service.addAll(dir);
+        service.commit(dir, "Primer commit");
+
+        Files.write(dir.resolve("src.c"), "int main(void) {\n    int x = 1;\n    return x;\n}\n".getBytes());
+
+        List<GitDiffLine> unstaged = service.diff(dir, "src.c", false);
+        assertEquals(0, service.diff(dir, "src.c", true).size(), "el diff staged debe estar vacío");
+
+        boolean hasAdd = unstaged.stream().anyMatch(l -> l.type() == DiffLineType.ADD);
+        boolean hasRemove = unstaged.stream().anyMatch(l -> l.type() == DiffLineType.REMOVE);
+        boolean hasHunk = unstaged.stream().anyMatch(l -> l.type() == DiffLineType.HUNK);
+        assertTrue(hasAdd && hasRemove && hasHunk, "el diff debe contener añadidos, eliminados y un hunk");
     }
 
     @Test

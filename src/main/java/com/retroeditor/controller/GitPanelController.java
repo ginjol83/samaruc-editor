@@ -10,6 +10,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.retroeditor.service.git.GitModels.GitCommitInfo;
+import com.retroeditor.service.git.GitModels.GitDiffLine;
 import com.retroeditor.service.git.GitModels.GitStatusEntry;
 import com.retroeditor.service.git.GitOperationsException;
 import com.retroeditor.service.git.GitService;
@@ -17,6 +18,7 @@ import com.retroeditor.service.github.GitHubAuthService;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
+import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
@@ -74,8 +76,11 @@ public class GitPanelController {
     private ComboBox<String> cmbBranch;
     private ListView<GitStatusEntry> changesList;
     private ListView<GitCommitInfo> historyList;
+    private ListView<GitDiffLine> diffList;
     private Label lblChanges;
     private Label lblHistory;
+    private Label lblDiff;
+    private Label lblDiffHint;
     private boolean updatingBranches;
 
     public GitPanelController() {
@@ -192,6 +197,8 @@ public class GitPanelController {
                 }
             }
         });
+        changesList.getSelectionModel().selectedItemProperty()
+            .addListener((obs, oldEntry, newEntry) -> showDiffFor(newEntry));
 
         txtCommit = new TextField();
         txtCommit.setPromptText(msg("git.panel.commit.placeholder", "Mensaje del commit"));
@@ -234,7 +241,41 @@ public class GitPanelController {
         SplitPane split = new SplitPane(changesPane, historyPane);
         split.setDividerPositions(0.62);
         split.setPadding(new Insets(4, 0, 0, 0));
-        root.setCenter(split);
+
+        // Panel inferior: diff inline del archivo seleccionado en "Cambios"
+        lblDiff = new Label(msg("git.panel.diff", "Diff"));
+        lblDiff.setStyle("-fx-font-weight: bold;");
+
+        lblDiffHint = new Label(msg("git.panel.diff.select", "Selecciona un archivo para ver su diff."));
+        lblDiffHint.setStyle("-fx-text-fill: gray; -fx-font-size: 11px;");
+
+        diffList = new ListView<>();
+        diffList.setCellFactory(list -> new ListCell<>() {
+            @Override
+            protected void updateItem(GitDiffLine line, boolean empty) {
+                super.updateItem(line, empty);
+                if (empty || line == null) {
+                    setText(null);
+                    return;
+                }
+                setText(line.text());
+                switch (line.type()) {
+                    case ADD -> setStyle("-fx-text-fill: #2e7d32;");
+                    case REMOVE -> setStyle("-fx-text-fill: #c62828;");
+                    case HUNK -> setStyle("-fx-text-fill: #1565c0; -fx-font-weight: bold;");
+                    case HEADER -> setStyle("-fx-text-fill: gray;");
+                    default -> setStyle("");
+                }
+            }
+        });
+
+        VBox diffPane = new VBox(4, lblDiff, lblDiffHint, diffList);
+        VBox.setVgrow(diffList, Priority.ALWAYS);
+
+        SplitPane mainSplit = new SplitPane(split, diffPane);
+        mainSplit.setOrientation(Orientation.VERTICAL);
+        mainSplit.setDividerPositions(0.62);
+        root.setCenter(mainSplit);
 
         // Pie: estado
         lblStatus = new Label();
@@ -260,6 +301,7 @@ public class GitPanelController {
         cmbBranch.setPromptText(msg("git.panel.branch.prompt", "Rama..."));
         lblChanges.setText(msg("git.panel.changes", "Cambios"));
         lblHistory.setText(msg("git.panel.history", "Historial"));
+        lblDiff.setText(msg("git.panel.diff", "Diff"));
         refreshAsync();
     }
 
@@ -560,6 +602,43 @@ public class GitPanelController {
         });
     }
 
+    // === Diff inline ===
+
+    private void showDiffFor(GitStatusEntry entry) {
+        diffList.getItems().clear();
+        if (projectDir == null || entry == null) {
+            lblDiffHint.setText(msg("git.panel.diff.select", "Selecciona un archivo para ver su diff."));
+            return;
+        }
+        if (entry.isUntracked()) {
+            lblDiffHint.setText(msg("git.panel.diff.untracked",
+                "Archivo sin seguimiento (untracked): no muestra diff hasta añadirlo."));
+            return;
+        }
+        lblDiffHint.setText(msg("git.panel.diff.loading", "Cargando diff..."));
+        final java.nio.file.Path dir = projectDir.toPath();
+        CompletableFuture.runAsync(() -> {
+            try {
+                List<GitDiffLine> lines = new java.util.ArrayList<>();
+                if (entry.hasStagedChange()) {
+                    lines.addAll(gitService.diff(dir, entry.path(), true));
+                }
+                if (entry.hasUnstagedChange()) {
+                    lines.addAll(gitService.diff(dir, entry.path(), false));
+                }
+                Platform.runLater(() -> {
+                    diffList.getItems().setAll(lines);
+                    lblDiffHint.setText(lines.isEmpty()
+                        ? msg("git.panel.diff.empty", "Sin diferencias que mostrar.")
+                        : msg("git.panel.diff.file", "Diff de {0}").replace("{0}", entry.path()));
+                });
+            } catch (GitOperationsException e) {
+                Platform.runLater(() -> lblDiffHint.setText(
+                    msg("git.panel.diff.error", "Error cargando el diff") + ": " + e.getMessage()));
+            }
+        });
+    }
+
     // === Render ===
 
     private void setBusy(boolean busy) {
@@ -589,6 +668,8 @@ public class GitPanelController {
         btnPush.setVisible(false);
         btnPush.setManaged(false);
         cmbBranch.getItems().clear();
+        diffList.getItems().clear();
+        lblDiffHint.setText(msg("git.panel.diff.select", "Selecciona un archivo para ver su diff."));
         branchesBarVisible(false);
         notifyStatus("");
         notifyDirty(Set.of());
@@ -620,6 +701,8 @@ public class GitPanelController {
         lblBranch.setText("");
         changesList.getItems().clear();
         historyList.getItems().clear();
+        diffList.getItems().clear();
+        lblDiffHint.setText(msg("git.panel.diff.select", "Selecciona un archivo para ver su diff."));
         lblStatus.setText(msg("git.panel.notRepo", "No es un repositorio git."));
         notifyStatus("");
         notifyDirty(Set.of());

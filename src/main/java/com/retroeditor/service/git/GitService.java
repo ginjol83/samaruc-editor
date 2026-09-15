@@ -1,7 +1,9 @@
 package com.retroeditor.service.git;
 
+import static com.retroeditor.service.git.GitModels.DiffLineType;
 import static com.retroeditor.service.git.GitModels.GitBranchInfo;
 import static com.retroeditor.service.git.GitModels.GitCommitInfo;
+import static com.retroeditor.service.git.GitModels.GitDiffLine;
 import static com.retroeditor.service.git.GitModels.GitStatusEntry;
 
 import java.nio.file.Files;
@@ -105,6 +107,68 @@ public class GitService {
         GitCli.GitResult result = cli.execute(dir, args.toArray(new String[0]));
         requireSuccess(result, "git diff --stat");
         return result.output();
+    }
+
+    /**
+     * Diff de un archivo del workspace ({@code git diff [--cached] -- <path>}).
+     * Los archivos sin seguimiento (untracked) no tienen diff en git.
+     */
+    public List<GitDiffLine> diff(Path dir, String path, boolean staged) throws GitOperationsException {
+        if (path == null || path.isBlank()) {
+            throw new GitOperationsException("La ruta del archivo no puede estar vacía");
+        }
+        List<String> args = new ArrayList<>();
+        args.add("diff");
+        args.add("--color=never");
+        if (staged) {
+            args.add("--cached");
+        }
+        args.add("--");
+        args.add(path.trim());
+        GitCli.GitResult result = cli.execute(dir, args.toArray(new String[0]));
+        requireSuccess(result, "git diff");
+        return parseDiff(result.output());
+    }
+
+    /** Clasifica la salida de {@code git diff} en cabeceras, hunks, líneas añadidas/eliminadas y contexto. */
+    static List<GitDiffLine> parseDiff(List<String> lines) {
+        List<GitDiffLine> parsed = new ArrayList<>();
+        for (String line : lines) {
+            if (line == null) {
+                continue;
+            }
+            if (isHeaderLine(line)) {
+                parsed.add(GitDiffLine.header(line));
+            } else if (startsWith(line, "@@")) {
+                parsed.add(GitDiffLine.hunk(line));
+            } else if (startsWith(line, "+")) {
+                parsed.add(GitDiffLine.add(line));
+            } else if (startsWith(line, "-")) {
+                parsed.add(GitDiffLine.remove(line));
+            } else {
+                parsed.add(GitDiffLine.context(line));
+            }
+        }
+        return parsed;
+    }
+
+    private static boolean isHeaderLine(String line) {
+        return startsWith(line, "diff --git ")
+            || startsWith(line, "index ")
+            || startsWith(line, "--- ")
+            || startsWith(line, "+++ ")
+            || startsWith(line, "new file mode ")
+            || startsWith(line, "deleted file mode ")
+            || startsWith(line, "old mode ")
+            || startsWith(line, "new mode ")
+            || startsWith(line, "similarity index ")
+            || startsWith(line, "rename from ")
+            || startsWith(line, "rename to ")
+            || startsWith(line, "\\ No newline");
+    }
+
+    private static boolean startsWith(String line, String prefix) {
+        return line.length() >= prefix.length() && line.startsWith(prefix);
     }
 
     // === Operaciones remotas (Fase 2: push/pull/clone con credencial efímera) ===
