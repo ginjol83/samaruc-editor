@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.1 - 2026-09-17
+
+### Añadido
+- **Z88DK integrado con Samaruc**: distribución de Z88DK (~308 MB) incluida en `libs/z88dk` que permite compilar proyectos de ZX Spectrum y Amstrad CPC sin toolchain externa. Si se configura una ruta externa (`spectrum_bin`/`cpc_bin`) tiene prioridad; si el campo queda vacío se usa la copia integrada.
+
+### Mejorado
+- **Ruta de Z88DK opcional** en la configuración: vacía = usar la copia integrada en `libs/z88dk/bin`.
+- **`-clib` de CPC**: el valor `new` se reconduce a `default` (el target `+cpc` de Z88DK no define la clib `new`).
+
+
 ## 1.3.0 - 2026-08-24
 
 ### Añadido
