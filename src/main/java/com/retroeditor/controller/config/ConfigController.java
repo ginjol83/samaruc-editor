@@ -59,6 +59,7 @@ import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.TitledPane;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
@@ -173,6 +174,8 @@ public class ConfigController {
     @FXML private Label            lblReadmeLanguage;
     @FXML private Label            lblCompilador;
     @FXML private Label            lblGbdkBundled;
+    @FXML private Label            lblZ88dkSpectrumBundled;
+    @FXML private Label            lblZ88dkCpcBundled;
     @FXML private Label            lblGbdkOpts;
     @FXML private Label            lblGbdkOptLevel;
     @FXML private Label            lblZ88dkSpectrumBin;
@@ -255,6 +258,7 @@ public class ConfigController {
 
     private Runnable onCloseCallback;
     private Runnable onLanguageChanged;
+    private Runnable onAppearanceApplied;
     private boolean syncingCompilerUi = false;
     private final Map<String, String> terminalShellCodeByLabel = new HashMap<>();
 
@@ -262,6 +266,7 @@ public class ConfigController {
     private EditorTheme editingTheme;
     private boolean syncingThemeUi = false;
     private final Map<String, ColorPicker> themeColorPickers = new HashMap<>();
+    private final Map<String, TextField> themeColorFields = new HashMap<>();
     private final List<CodeArea> previewAreas = new ArrayList<>();
     private final SyntaxHighlighter previewHighlighter = new SyntaxHighlighter();
 
@@ -491,6 +496,15 @@ public class ConfigController {
      * @param callback
      */
     public void setOnLanguageChanged(Runnable callback) { this.onLanguageChanged = callback; }
+
+    /**
+     * Configura el callback que re-aplica el tema y la apariencia en el
+     * editor principal tras guardar la pestaña Apariencia. Se invoca siempre,
+     * incluso cuando el id de tema/apariencia no cambia y por tanto los
+     * listeners de propiedad no se disparan.
+     * @param callback
+     */
+    public void setOnAppearanceApplied(Runnable callback) { this.onAppearanceApplied = callback; }
 
     /**
      * Configura el callback que se ejecuta al cerrar la ventana de configuración.
@@ -1264,8 +1278,8 @@ public class ConfigController {
 
         if (COMPILER_Z88DK.equals(selectedCompiler)) {
             String requiredPath = Z88DK_PROFILE_CPC.equals(z88dkProfile) ? cpcPath : spectrumPath;
-            if (requiredPath.isEmpty() || !(new File(requiredPath).exists())) {
-                showError("Debe especificar una ruta valida para el bin de Z88DK del perfil activo.");
+            if (!requiredPath.isEmpty() && !(new File(requiredPath).exists())) {
+                showError("Debe especificar una ruta valida para el bin de Z88DK del perfil activo, o dejarla vacia para usar la copia integrada en libs/z88dk.");
                 return;
             }
         }
@@ -1777,7 +1791,7 @@ public class ConfigController {
 
         if (comboZ88dkCpcClib != null) {
             comboZ88dkCpcClib.getItems().setAll(ConfigModel.getSupportedZ88dkClibOptions());
-            String selected = configModel.getConfigProperty("z88dk_cpc_clib_option", ConfigModel.Z88DK_CLIB_NEW);
+            String selected = configModel.getConfigProperty("z88dk_cpc_clib_option", ConfigModel.Z88DK_CLIB_DEFAULT);
             comboZ88dkCpcClib.getSelectionModel().select(selected);
         }
 
@@ -1939,7 +1953,7 @@ public class ConfigController {
 
         String spectrumClibOption = comboZ88dkSpectrumClib != null ? comboZ88dkSpectrumClib.getValue() : ConfigModel.Z88DK_CLIB_NEW;
         String spectrumUseCrtOrg = chkZ88dkSpectrumCrtOrgCode != null ? Boolean.toString(chkZ88dkSpectrumCrtOrgCode.isSelected()) : "true";
-        String cpcClibOption = comboZ88dkCpcClib != null ? comboZ88dkCpcClib.getValue() : ConfigModel.Z88DK_CLIB_NEW;
+        String cpcClibOption = comboZ88dkCpcClib != null ? comboZ88dkCpcClib.getValue() : ConfigModel.Z88DK_CLIB_DEFAULT;
         String cpcUseCrtOrg = chkZ88dkCpcCrtOrgCode != null ? Boolean.toString(chkZ88dkCpcCrtOrgCode.isSelected()) : "false";
 
         configModel.setConfigProperty("z88dk_clib_option", spectrumClibOption != null ? spectrumClibOption : ConfigModel.Z88DK_CLIB_NEW);
@@ -1950,7 +1964,7 @@ public class ConfigController {
         configModel.setConfigProperty("z88dk_includes", txtZ88dkSpectrumIncludes != null ? txtZ88dkSpectrumIncludes.getText().trim() : "");
         configModel.setConfigProperty("z88dk_extra_args", txtZ88dkSpectrumExtraArgs != null ? txtZ88dkSpectrumExtraArgs.getText().trim() : "");
 
-        configModel.setConfigProperty("z88dk_cpc_clib_option", cpcClibOption != null ? cpcClibOption : ConfigModel.Z88DK_CLIB_NEW);
+        configModel.setConfigProperty("z88dk_cpc_clib_option", cpcClibOption != null ? cpcClibOption : ConfigModel.Z88DK_CLIB_DEFAULT);
         configModel.setConfigProperty("z88dk_cpc_use_pragma_crt_org_code_32768", cpcUseCrtOrg);
         configModel.setConfigProperty("z88dk_cpc_target", txtZ88dkCpcTarget != null ? txtZ88dkCpcTarget.getText().trim() : "+cpc");
         configModel.setConfigProperty("z88dk_cpc_create_app", chkZ88dkCpcCreateApp != null ? Boolean.toString(chkZ88dkCpcCreateApp.isSelected()) : "true");
@@ -2095,6 +2109,9 @@ public class ConfigController {
         }
         persistConfig();
         applyApplicationAppearanceToCurrentScene(appearance);
+        if (onAppearanceApplied != null) {
+            onAppearanceApplied.run();
+        }
         showError("");
     }
 
@@ -2260,6 +2277,8 @@ public class ConfigController {
         if (lblPluginsInstalled  != null) lblPluginsInstalled  .setText(bundle.getString("config.plugins.installed"));
         if (lblCompilador        != null) lblCompilador        .setText(bundle.getString("label.compiler"));
         if (lblGbdkBundled       != null) lblGbdkBundled       .setText(bundle.getString("label.compiler.gbdk.bundled"));
+        if (lblZ88dkSpectrumBundled != null) lblZ88dkSpectrumBundled.setText(bundle.getString("label.compiler.z88dk.bundled"));
+        if (lblZ88dkCpcBundled != null) lblZ88dkCpcBundled.setText(bundle.getString("label.compiler.z88dk.bundled"));
         if (lblGbdkOpts          != null) lblGbdkOpts          .setText(bundle.getString("label.compiler.gbdk.opts"));
         if (lblGbdkOptLevel      != null) lblGbdkOptLevel      .setText(bundle.getString("label.compiler.gbdk.opt.level"));
         if (lblGbdkDefines       != null) lblGbdkDefines       .setText(bundle.getString("label.compiler.gbdk.defines"));
@@ -2508,15 +2527,47 @@ public class ConfigController {
                 String labelText = tr(token.labelKey(), token.colorKey());
                 Label label = new Label(labelText);
                 ColorPicker picker = new ColorPicker();
-                picker.setPrefWidth(150);
+                picker.setPrefWidth(90);
                 picker.setOnAction(e -> {
                     if (syncingThemeUi || editingTheme == null) return;
-                    editingTheme.setColor(token.colorKey(), colorToString(picker.getValue()));
+                    String formatted = colorToString(picker.getValue());
+                    editingTheme.setColor(token.colorKey(), formatted);
+                    TextField field = themeColorFields.get(token.colorKey());
+                    if (field != null) {
+                        field.setText(formatted);
+                    }
                     refreshThemePreviews();
                 });
+                TextField hexField = new TextField();
+                hexField.setPrefWidth(100);
+                hexField.setPromptText("#RRGGBB");
+                java.util.function.Consumer<String> commitHex = text -> {
+                    if (syncingThemeUi || editingTheme == null) return;
+                    Color color = parseColor(text);
+                    if (color == null) {
+                        // Entrada invalida: restaurar el ultimo color valido
+                        String current = editingTheme.getColor(token.colorKey());
+                        hexField.setText(current != null && !current.isBlank() ? current : "");
+                        return;
+                    }
+                    String formatted = colorToString(color);
+                    editingTheme.setColor(token.colorKey(), formatted);
+                    picker.setValue(color);
+                    hexField.setText(formatted);
+                    refreshThemePreviews();
+                };
+                hexField.setOnAction(e -> commitHex.accept(hexField.getText()));
+                hexField.focusedProperty().addListener((obs, wasFocused, focused) -> {
+                    if (!focused) {
+                        commitHex.accept(hexField.getText());
+                    }
+                });
                 themeColorPickers.put(token.colorKey(), picker);
+                themeColorFields.put(token.colorKey(), hexField);
+                HBox pickerRow = new HBox(6, picker, hexField);
+                pickerRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
                 grid.add(label, 0, row);
-                grid.add(picker, 1, row);
+                grid.add(pickerRow, 1, row);
                 row++;
             }
             TitledPane pane = new TitledPane(title, grid);
@@ -2673,6 +2724,10 @@ public class ConfigController {
                 if (color != null) {
                     entry.getValue().setValue(color);
                 }
+                TextField field = themeColorFields.get(entry.getKey());
+                if (field != null) {
+                    field.setText(color != null ? colorToString(color) : (raw != null ? raw : ""));
+                }
             }
             setThemeEditEnabled(!theme.isBuiltIn());
         } finally {
@@ -2692,6 +2747,9 @@ public class ConfigController {
         }
         for (ColorPicker picker : themeColorPickers.values()) {
             picker.setDisable(!enabled);
+        }
+        for (TextField field : themeColorFields.values()) {
+            field.setDisable(!enabled);
         }
     }
 

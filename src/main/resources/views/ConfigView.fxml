@@ -126,6 +126,7 @@
                         <ScrollPane fitToWidth="true" fitToHeight="false" prefHeight="340" hbarPolicy="NEVER" vbarPolicy="ALWAYS">
                         <content>
                         <VBox spacing="12" alignment="CENTER_LEFT" style="-fx-padding: 8 0 0 0;">
+                            <Label fx:id="lblZ88dkSpectrumBundled" wrapText="true" text="Z88DK se incluye con Samaruc (libs/z88dk/bin)" />
                             <Label fx:id="lblZ88dkSpectrumBin" text="RUTA DE BIN DE Z88DK (SPECTRUM):" />
                             <HBox spacing="6" alignment="CENTER_LEFT">
                                 <TextField fx:id="txtSpectrumBin" prefWidth="220" promptText="/ruta/a/Z88DK/bin" />
@@ -156,6 +157,7 @@
                         <ScrollPane fitToWidth="true" fitToHeight="false" prefHeight="340" hbarPolicy="NEVER" vbarPolicy="ALWAYS">
                         <content>
                         <VBox spacing="12" alignment="CENTER_LEFT" style="-fx-padding: 8 0 0 0;">
+                            <Label fx:id="lblZ88dkCpcBundled" wrapText="true" text="Z88DK se incluye con Samaruc (libs/z88dk/bin)" />
                             <Label fx:id="lblZ88dkCpcBin" text="RUTA DE BIN DE Z88DK (CPC):" />
                             <HBox spacing="6" alignment="CENTER_LEFT">
                                 <TextField fx:id="txtCpcBin" prefWidth="220" promptText="/ruta/a/Z88DK/bin" />

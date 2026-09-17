@@ -162,7 +162,7 @@ public class BuildController {
         if (isSpectrumCompiler(selectedCompiler)) {
             String z88dkProfile = normalizeZ88dkProfile(configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM));
             boolean cpcProfile = Z88DK_PROFILE_CPC.equalsIgnoreCase(z88dkProfile);
-            String z88dkBin = resolveZ88dkBinForProfile(configModel, selectedCompiler);
+            String z88dkBin = resolveEffectiveZ88dkBin(configModel, selectedCompiler);
 
             if (z88dkBin == null || z88dkBin.isBlank()) {
                 Alert alert = new Alert(AlertType.ERROR);
@@ -170,8 +170,8 @@ public class BuildController {
                 alert.setTitle      ("Error de compilación");
                 alert.setHeaderText (cpcProfile ? "No se ha configurado la ruta de Z88DK para CPC" : "No se ha configurado la ruta de Z88DK");
                 alert.setContentText(cpcProfile
-                    ? "Por favor, configura la ruta del bin de Z88DK para CPC en las opciones de configuracion."
-                    : "Por favor, configura la ruta del bin de Z88DK en las opciones de configuracion.");
+                    ? "No se ha configurado la ruta del bin de Z88DK para CPC y no se encuentra la copia integrada en libs/z88dk."
+                    : "No se ha configurado la ruta del bin de Z88DK y no se encuentra la copia integrada en libs/z88dk.");
                 alert.showAndWait   ();
 
                 terminalController.appendConsoleOutput(
@@ -187,8 +187,11 @@ public class BuildController {
             String compiler = resolveCompilerExecutable(z88dkBin, "zcc");
             String clibOption = configModel.getConfigProperty(
                 cpcProfile ? "z88dk_cpc_clib_option" : "z88dk_clib_option",
-                ConfigModel.Z88DK_CLIB_NEW
+                cpcProfile ? ConfigModel.Z88DK_CLIB_DEFAULT : ConfigModel.Z88DK_CLIB_NEW
             );
+            if (cpcProfile && (clibOption == null || ConfigModel.Z88DK_CLIB_NEW.equalsIgnoreCase(clibOption.trim()))) {
+                clibOption = ConfigModel.Z88DK_CLIB_DEFAULT;
+            }
             boolean useCrtOrgCode = Boolean.parseBoolean(configModel.getConfigProperty(
                 cpcProfile ? "z88dk_cpc_use_pragma_crt_org_code_32768" : "z88dk_use_pragma_crt_org_code_32768",
                 cpcProfile ? "false" : "true"
@@ -507,7 +510,7 @@ public class BuildController {
         pb.redirectErrorStream(true);
 
         if (isSpectrumCompiler(selectedCompiler)) {
-            prependToPath(pb.environment(), resolveZ88dkBinForProfile(configModel, selectedCompiler));
+            prependToPath(pb.environment(), resolveEffectiveZ88dkBin(configModel, selectedCompiler));
         }
 
         if (isGccCompiler(selectedCompiler)) {
@@ -520,7 +523,7 @@ public class BuildController {
             if (gbdkBinDir != null) {
                 prependToPath(pb.environment(), gbdkBinDir.getAbsolutePath());
             }
-            prependToPath(pb.environment(), resolveZ88dkBinForProfile(configModel, selectedCompiler));
+            prependToPath(pb.environment(), resolveEffectiveZ88dkBin(configModel, selectedCompiler));
         }
 
         if (extraEnvironment != null && !extraEnvironment.isEmpty()) {
@@ -770,7 +773,7 @@ public class BuildController {
         Map<String, String> extraEnvironment = new HashMap<>();
         extraEnvironment.put("OUT_DIR", outputDir.getAbsolutePath());
 
-        String configuredSpectrumBin = resolveZ88dkBinForProfile(configModel, selectedCompiler);
+        String configuredSpectrumBin = resolveEffectiveZ88dkBin(configModel, selectedCompiler);
         File zccCfgDir = resolveZ88dkConfigDir(configuredSpectrumBin);
         if (zccCfgDir != null) {
             extraEnvironment.put("ZCCCFG", zccCfgDir.getAbsolutePath());
@@ -1221,6 +1224,42 @@ public class BuildController {
         String lccName = isWindows() ? "lcc.exe" : "lcc";
         File lcc = new File(binDir, lccName);
         return lcc.isFile() ? binDir : null;
+    }
+
+    private File resolveBundledZ88dkBin() {
+        File binDir = new File(System.getProperty("user.dir"), "libs/z88dk/bin");
+        if (!binDir.isDirectory()) return null;
+        String zccName = isWindows() ? "zcc.exe" : "zcc";
+        return new File(binDir, zccName).isFile() ? binDir : null;
+    }
+
+    private boolean hasZccExecutable(String binDir) {
+        String clean = normalizeConfiguredPath(binDir);
+        if (clean.isBlank()) return false;
+
+        File base = new File(clean);
+        File[] candidates = {
+            new File(base, "zcc.exe"),
+            new File(base, "zcc"),
+            new File(base, "bin" + File.separator + "zcc.exe"),
+            new File(base, "bin" + File.separator + "zcc")
+        };
+
+        for (File candidate : candidates) {
+            if (candidate.isFile()) return true;
+        }
+
+        return false;
+    }
+
+    private String resolveEffectiveZ88dkBin(ConfigModel configModel, String selectedCompiler) {
+        String configured = resolveZ88dkBinForProfile(configModel, selectedCompiler);
+        if (hasZccExecutable(configured)) return normalizeConfiguredPath(configured);
+
+        File bundled = resolveBundledZ88dkBin();
+        if (bundled != null) return bundled.getAbsolutePath();
+
+        return normalizeConfiguredPath(configured);
     }
 
     private File resolveSpectrumArtifact(File sourceFile, File projectRootDir) {

@@ -585,10 +585,11 @@ mvn javafx:run</code></pre>
 
 <h3>Subpestaña <code>Z88DK - Spectrum</code></h3>
 <p>Esta subpestaña está pensada para proyectos de <strong>ZX Spectrum</strong> compilados con <code>z88dk</code>.</p>
+<p><strong>Z88DK se distribuye integrado con Samaruc</strong> en la carpeta <code>libs/z88dk</code>. Si dejas vacío el campo de ruta, Samaruc localiza automáticamente <code>libs/z88dk/bin</code> junto a la aplicación y compila directamente con <code>zcc</code>. Dispones de un campo de ruta por si prefieres usar una instalación externa de Z88DK: mientras la ruta indicada sea válida, tendrá prioridad sobre la copia integrada.</p>
 
 <h4>Ruta de binarios</h4>
 <p>La parte superior de esta subpestaña está definida por un campo de ruta, botón <code>...</code> y botón <strong>Guardar Z88DK</strong>.</p>
-<p>Si el perfil activo es <code>z88dk</code> para Spectrum, Samaruc exige que la ruta <code>bin</code> exista. Si no existe, el guardado global fallará.</p>
+<p>El campo de ruta es ahora opcional. Si lo dejas vacío, Samaruc usa la distribución de Z88DK integrada (<code>libs/z88dk/bin</code>). Si indicas una ruta, debe existir y apuntar a la carpeta <code>bin</code> (o a la raíz) de un Z88DK instalado; de lo contrario, el guardado global fallará.</p>
 
 <h4>Selector <code>-clib</code></h4>
 <p>La opción <strong><code>-clib</code></strong> permite elegir la variante de biblioteca o runtime que se pasará a <code>z88dk</code>. Las opciones soportadas por la configuración actual son:</p>
@@ -639,6 +640,7 @@ mvn javafx:run</code></pre>
   <li><code>clang_ix</code></li>
   <li><code>clang_iy</code></li>
 </ul>
+<p>El target <code>+cpc</code> de Z88DK no define la clib <code>new</code>. Samaruc reconduce automáticamente ese valor a <code>default</code> al compilar para CPC (el valor por defecto de este perfil parte como <code>default</code>).</p>
 
 <h4>Casillas <code>CRT_ORG_CODE=32768</code> y <code>-create-app</code></h4>
 <p>En CPC estas opciones también están disponibles. En <code>CRT_ORG_CODE=32768</code> su valor por defecto no coincide con Spectrum: en CPC parte desactivada.</p>
