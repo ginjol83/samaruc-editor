@@ -176,6 +176,44 @@
     -fx-text-fill: #e6eef8;
     -fx-font-size: 12px;
 }
+.external-change-warning {
+    -fx-text-fill: #fbbf24;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-underline: true;
+}
+
+.footer-cursor {
+    -fx-text-fill: #8fa3bd;
+    -fx-padding: 0 8 0 0;
+}
+
+/* Breadcrumbs del editor */
+.breadcrumb-bar {
+    -fx-padding: 2 8 2 8;
+    -fx-spacing: 2;
+    -fx-alignment: center-left;
+    -fx-background-color: #0f1721;
+    -fx-border-color: #1f2937;
+    -fx-border-width: 0 0 1 0;
+}
+.breadcrumb-file {
+    -fx-text-fill: #5a9cf8;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+    -fx-padding: 1 2 1 2;
+    -fx-cursor: hand;
+}
+.breadcrumb-item {
+    -fx-text-fill: #c8d3e0;
+    -fx-font-size: 12px;
+    -fx-padding: 1 2 1 2;
+    -fx-cursor: hand;
+}
+.breadcrumb-sep {
+    -fx-text-fill: #5b6b7f;
+    -fx-font-size: 12px;
+}
 
 .compile-status-label {
     -fx-padding: 3 10 3 10;

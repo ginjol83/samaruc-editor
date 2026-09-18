@@ -15,6 +15,7 @@ import com.retroeditor.service.gameboy.GameBoySoundCodeGenerator;
 import com.retroeditor.service.gameboy.ModVgmImportService;
 
 import javafx.animation.AnimationTimer;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -24,6 +25,7 @@ import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
+import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
@@ -63,6 +65,10 @@ public class GameBoyAudioEditorController {
     }
 
     private static final String[] CHANNELS = {"Square 1", "Square 2", "Wave Channel", "Noise Channel"};
+
+    private static final double TRACKER_LABEL_WIDTH = 90.0;
+    private static final double TRACKER_BASE_SCALE = (680.0 - TRACKER_LABEL_WIDTH) / 4000.0;
+    private static final double MIN_TRACKER_DURATION_MS = 4000.0;
 
     private Node rootNode;
     private AnimationTimer playheadTimer;
@@ -210,8 +216,15 @@ public class GameBoyAudioEditorController {
         ListView<GameBoyAudioPlayer.NoteStep> listViewNotes = new ListView<>(melodyNotesList);
         listViewNotes.setPrefHeight(130);
 
-        Canvas trackerCanvas = new Canvas(680, 180);
+        Canvas trackerCanvas = new Canvas();
+        trackerCanvas.setHeight(200);
         GraphicsContext gc = trackerCanvas.getGraphicsContext2D();
+        ScrollPane trackerScroll = new ScrollPane(trackerCanvas);
+        trackerScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        trackerScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        trackerScroll.setFitToWidth(false);
+        trackerScroll.setPannable(false);
+        trackerScroll.setPadding(new Insets(0));
 
         class NoteBlock {
             final GameBoyAudioPlayer.NoteStep step;
@@ -222,13 +235,15 @@ public class GameBoyAudioEditorController {
             }
         }
         final List<NoteBlock> renderedBlocks = new java.util.ArrayList<>();
-        double maxDuration = 4000;
+        final double[] maxDuration = {MIN_TRACKER_DURATION_MS};
+        final double[] trackPxPerMs = {TRACKER_BASE_SCALE};
 
         Runnable drawTrackerGrid = () -> {
             renderedBlocks.clear();
             double w = trackerCanvas.getWidth();
             double h = trackerCanvas.getHeight();
             double trackH = h / CHANNELS.length;
+            double pxPerMs = trackPxPerMs[0];
 
             gc.setFill(Color.web("#0f1721"));
             gc.fillRect(0, 0, w, h);
@@ -244,7 +259,17 @@ public class GameBoyAudioEditorController {
                 gc.fillText(CHANNELS[t], 8, y + 20);
             }
 
-            double pxPerMs = (w - 90) / maxDuration;
+            gc.setStroke(Color.web("#1e293b"));
+            gc.setLineWidth(1);
+            for (double ms = 0; ms <= maxDuration[0]; ms += 500) {
+                double gx = TRACKER_LABEL_WIDTH + ms * pxPerMs;
+                gc.strokeLine(gx, 0, gx, h);
+                if (ms > 0 && ms % 1000 == 0) {
+                    gc.setFill(Color.web("#64748b"));
+                    gc.fillText((int) ms / 1000 + "s", gx + 3, 8);
+                    gc.setStroke(Color.web("#1e293b"));
+                }
+            }
 
             for (int idx = 0; idx < melodyNotesList.size(); idx++) {
                 GameBoyAudioPlayer.NoteStep step = melodyNotesList.get(idx);
@@ -257,7 +282,7 @@ public class GameBoyAudioEditorController {
                     }
                 }
 
-                double x = 90.0 + (step.getStartTimeMs() * pxPerMs);
+                double x = TRACKER_LABEL_WIDTH + (step.getStartTimeMs() * pxPerMs);
                 double y = trackIdx * trackH + 6;
                 double noteW = Math.max(24, step.getDurationMs() * pxPerMs);
                 double noteH = trackH - 12;
@@ -284,6 +309,22 @@ public class GameBoyAudioEditorController {
                 gc.fillText(step.getNoteName(), x + 4, y + 16);
             }
         };
+
+        Runnable updateTrackerSize = () -> {
+            double contentEnd = MIN_TRACKER_DURATION_MS;
+            for (GameBoyAudioPlayer.NoteStep step : melodyNotesList) {
+                contentEnd = Math.max(contentEnd, step.getStartTimeMs() + step.getDurationMs());
+            }
+            maxDuration[0] = contentEnd;
+            double viewportW = trackerScroll.getViewportBounds().getWidth();
+            double span = (viewportW > TRACKER_LABEL_WIDTH + 20 ? viewportW : 680) - TRACKER_LABEL_WIDTH;
+            trackPxPerMs[0] = Math.max(TRACKER_BASE_SCALE, span / contentEnd);
+            double minCanvasW = TRACKER_LABEL_WIDTH + contentEnd * TRACKER_BASE_SCALE;
+            trackerCanvas.setWidth(Math.max(span + TRACKER_LABEL_WIDTH, minCanvasW));
+            drawTrackerGrid.run();
+        };
+
+        melodyNotesList.addListener((javafx.collections.ListChangeListener.Change<? extends GameBoyAudioPlayer.NoteStep> c) -> updateTrackerSize.run());
 
         final boolean[] isResizing = {false};
         final boolean[] isDragging = {false};
@@ -326,10 +367,10 @@ public class GameBoyAudioEditorController {
         trackerCanvas.setOnMouseDragged(e -> {
             if (activeNoteIdx[0] < 0) return;
             GameBoyAudioPlayer.NoteStep current = melodyNotesList.get(activeNoteIdx[0]);
-            double pxPerMs = (trackerCanvas.getWidth() - 90) / maxDuration;
+            double pxPerMs = trackPxPerMs[0];
 
             if (isResizing[0]) {
-                int newDur = (int) Math.max(50, (e.getX() - (90.0 + current.getStartTimeMs() * pxPerMs)) / pxPerMs);
+                int newDur = (int) Math.max(50, (e.getX() - (TRACKER_LABEL_WIDTH + current.getStartTimeMs() * pxPerMs)) / pxPerMs);
                 newDur = ((newDur + 25) / 50) * 50;
                 if (newDur >= 50 && newDur <= 2000) {
                     melodyNotesList.set(activeNoteIdx[0], new GameBoyAudioPlayer.NoteStep(current.getChannel(), current.getNoteName(), current.getFrequency(), newDur, current.getStartTimeMs(), current.getVolume(), current.getDutyCycle()));
@@ -341,7 +382,7 @@ public class GameBoyAudioEditorController {
                 if (targetTrack >= 0 && targetTrack < CHANNELS.length) {
                     String newChannel = CHANNELS[targetTrack];
                     double newX = e.getX() - dragOffsetX[0];
-                    int newStartMs = (int) Math.max(0, (newX - 90.0) / pxPerMs);
+                    int newStartMs = (int) Math.max(0, (newX - TRACKER_LABEL_WIDTH) / pxPerMs);
                     newStartMs = ((newStartMs + 25) / 50) * 50;
 
                     melodyNotesList.set(activeNoteIdx[0], new GameBoyAudioPlayer.NoteStep(newChannel, current.getNoteName(), current.getFrequency(), current.getDurationMs(), newStartMs, current.getVolume(), current.getDutyCycle()));
@@ -358,8 +399,7 @@ public class GameBoyAudioEditorController {
                 if (!isPlaying[0]) return;
                 long elapsedNs = now - startTime[0];
                 double elapsedMs = elapsedNs / 1_000_000.0;
-                double w = trackerCanvas.getWidth();
-                double x = 90.0 + (elapsedMs / maxDuration) * (w - 90.0);
+                double x = TRACKER_LABEL_WIDTH + elapsedMs * trackPxPerMs[0];
 
                 drawTrackerGrid.run();
 
@@ -367,7 +407,7 @@ public class GameBoyAudioEditorController {
                 gc.setLineWidth(2);
                 gc.strokeLine(x, 0, x, trackerCanvas.getHeight());
 
-                if (elapsedMs >= maxDuration) {
+                if (elapsedMs >= maxDuration[0]) {
                     isPlaying[0] = false;
                     stop();
                     drawTrackerGrid.run();
@@ -400,13 +440,23 @@ public class GameBoyAudioEditorController {
 
             melodyNotesList.add(new GameBoyAudioPlayer.NoteStep(ch, noteName, freq, dur, defaultStart, vol, duty));
             drawTrackerGrid.run();
+            Platform.runLater(() -> trackerScroll.setHvalue(trackerScroll.getHmax()));
         });
 
-        btnRemoveNote.setOnAction(e -> {
+        Runnable removeSelectedNote = () -> {
             int idx = listViewNotes.getSelectionModel().getSelectedIndex();
             if (idx >= 0) {
                 melodyNotesList.remove(idx);
                 drawTrackerGrid.run();
+            }
+        };
+
+        btnRemoveNote.setOnAction(e -> removeSelectedNote.run());
+
+        listViewNotes.setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.DELETE || e.getCode() == KeyCode.BACK_SPACE) {
+                removeSelectedNote.run();
+                e.consume();
             }
         });
 
@@ -501,14 +551,15 @@ public class GameBoyAudioEditorController {
             new HBox(10, new Label("Duración(ms):"), spinMelodyDuration, new Label("Volumen:"), spinMelodyVol, new Label("Duty:"), comboMelodyDuty, btnAddNote),
             new HBox(10, btnRemoveNote, btnImportTracker, btnMoveUp, btnMoveDown, btnClearMelody),
             listViewNotes,
-            trackerCanvas,
+            trackerScroll,
             new HBox(10, new Label("Símbolo C:"), txtMelodySymbol, chkMelodyConst),
             new HBox(10, btnPlayMelody, btnCopyMelody, btnExportMelody)
         );
         formMelody.setPadding(new Insets(12));
+        formMelody.widthProperty().addListener((obs, oldV, newV) -> updateTrackerSize.run());
         tabMelody.setContent(new VBox(10, formMelody, outputAreaMelody));
         updateMelodyCode.run();
-        drawTrackerGrid.run();
+        updateTrackerSize.run();
 
         tabPane.getTabs().addAll(tabSfx, tabMelody);
 

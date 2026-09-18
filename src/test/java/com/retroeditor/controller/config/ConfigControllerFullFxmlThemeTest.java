@@ -5,6 +5,7 @@ import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import com.retroeditor.model.ConfigModel;
 import com.retroeditor.model.EditorTheme;
 import com.retroeditor.service.ConfigRepository;
 import com.retroeditor.service.JsonThemeRepository;
@@ -28,6 +30,7 @@ import javafx.scene.control.DialogPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextField;
+import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.stage.Window;
 
@@ -149,6 +152,166 @@ class ConfigControllerFullFxmlThemeTest {
         });
         waitForFxThreadSettle();
         assertTrue(platformErrors.isEmpty(), "no exceptions on FX thread, got: " + platformErrors);
+    }
+
+    @Test
+    void savingEditedActiveCustomThemeReappliesWithoutRestart() throws Exception {
+        List<String> localErrors = new ArrayList<>();
+        Platform.runLater(() -> {
+            try {
+                File tmp = Files.createTempFile("retroeditor-themes-save", ".json").toFile();
+                ThemeService themeService = new ThemeService(new JsonThemeRepository(), tmp);
+                ConfigModel model = new ConfigModel();
+
+                FXMLLoader loader = new FXMLLoader(getClass().getResource("/views/ConfigView.fxml"));
+                loader.setControllerFactory(clazz -> {
+                    try {
+                        ConfigController controller = (ConfigController) clazz.getDeclaredConstructor().newInstance();
+                        setField(controller, "configRepository", new ConfigRepository() {
+                            @Override
+                            public Properties load(File configFile) {
+                                return new Properties();
+                            }
+
+                            @Override
+                            public void save(File configFile, Properties properties) {
+                            }
+                        });
+                        return controller;
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+                loader.load();
+                ConfigController controller = loader.getController();
+                controller.setConfigModel(model);
+                controller.setThemeService(themeService);
+
+                int[] applyCount = {0};
+                controller.setOnAppearanceApplied(() -> applyCount[0]++);
+
+                controller.reloadFromModel();
+                assertTrue(applyCount[0] == 0, "no reapply callback before saving");
+
+                // Crear un tema personalizado y simular que YA es el activo
+                // (editor_theme apunta a su id) antes de guardar.
+                EditorTheme created = controller.duplicateCurrentTheme("Mi Modo Guardado");
+                String createdId = created.getId();
+                model.setEditorTheme(createdId);
+
+                // Editar un color del tema activo (escenario del bug original).
+                EditorTheme editing = (EditorTheme) readField(controller, "editingTheme");
+                editing.setColor(EditorTheme.KEY_EDITOR_BACKGROUND, "#123456");
+
+                Button save = (Button) readField(controller, "btnGuardarAppearance");
+                assertTrue(save != null, "save appearance button must exist");
+                save.fire();
+
+                assertTrue(applyCount[0] == 1,
+                    "reapply callback must run even when editor_theme id does not change, got " + applyCount[0]);
+                assertTrue(createdId.equals(model.getEditorTheme()),
+                    "editor_theme must keep pointing at the edited custom theme");
+                EditorTheme persisted = themeService.getTheme(createdId);
+                assertTrue(persisted != null, "custom theme must be persisted");
+                assertTrue("#123456".equals(persisted.getColor(EditorTheme.KEY_EDITOR_BACKGROUND)),
+                    "persisted theme must contain the edited color, got "
+                        + persisted.getColor(EditorTheme.KEY_EDITOR_BACKGROUND));
+            } catch (Throwable t) {
+                localErrors.add(t + " -> " + t.getCause());
+                t.printStackTrace();
+            }
+        });
+        waitForFxThreadSettle();
+        assertTrue(localErrors.isEmpty(), "no exceptions on FX thread, got: " + localErrors);
+    }
+
+    @Test
+    void hexColorFieldAppliesTypedValue() throws Exception {
+        List<String> localErrors = new ArrayList<>();
+        Platform.runLater(() -> {
+            try {
+                File tmp = Files.createTempFile("retroeditor-themes-hex", ".json").toFile();
+                ThemeService themeService = new ThemeService(new JsonThemeRepository(), tmp);
+                ConfigModel model = new ConfigModel();
+
+                FXMLLoader loader = new FXMLLoader(getClass().getResource("/views/ConfigView.fxml"));
+                loader.setControllerFactory(clazz -> {
+                    try {
+                        ConfigController controller = (ConfigController) clazz.getDeclaredConstructor().newInstance();
+                        setField(controller, "configRepository", new ConfigRepository() {
+                            @Override
+                            public Properties load(File configFile) {
+                                return new Properties();
+                            }
+
+                            @Override
+                            public void save(File configFile, Properties properties) {
+                            }
+                        });
+                        return controller;
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+                loader.load();
+                ConfigController controller = loader.getController();
+                controller.setConfigModel(model);
+                controller.setThemeService(themeService);
+                controller.reloadFromModel();
+
+                EditorTheme created = controller.duplicateCurrentTheme("Hex Mi Modo");
+                String createdId = created.getId();
+
+                @SuppressWarnings("unchecked")
+                Map<String, TextField> fields =
+                    (Map<String, TextField>) readField(controller, "themeColorFields");
+                @SuppressWarnings("unchecked")
+                Map<String, javafx.scene.control.ColorPicker> pickers =
+                    (Map<String, javafx.scene.control.ColorPicker>) readField(controller, "themeColorPickers");
+
+                TextField bgField = fields.get(EditorTheme.KEY_EDITOR_BACKGROUND);
+                assertTrue(bgField != null, "hex field for editor_background must exist");
+                bgField.setText("#191A1C");
+                bgField.fireEvent(new javafx.event.ActionEvent());
+
+                EditorTheme editing = (EditorTheme) readField(controller, "editingTheme");
+                String stored = editing.getColor(EditorTheme.KEY_EDITOR_BACKGROUND);
+                assertTrue("#191a1c".equals(stored), "typed hex must be stored in the theme, got " + stored);
+                Color pickerColor = pickers.get(EditorTheme.KEY_EDITOR_BACKGROUND).getValue();
+                assertTrue(pickerColor != null && "#191a1c".equals(colorToStringPublic(pickerColor)),
+                    "picker must reflect the typed color");
+
+                int[] applyCount = {0};
+                controller.setOnAppearanceApplied(() -> applyCount[0]++);
+                Button saveButton = (Button) readField(controller, "btnGuardarAppearance");
+                assertTrue(saveButton != null, "save button must exist");
+                saveButton.fire();
+                assertTrue(applyCount[0] == 1, "reapply callback must run after saving the hex color");
+
+                EditorTheme persisted = themeService.getTheme(createdId);
+                assertTrue(persisted != null && "#191a1c".equals(persisted.getColor(EditorTheme.KEY_EDITOR_BACKGROUND)),
+                    "typed hex must be persisted for the custom theme");
+            } catch (Throwable t) {
+                localErrors.add(t + " -> " + t.getCause());
+                t.printStackTrace();
+            }
+        });
+        waitForFxThreadSettle();
+        assertTrue(localErrors.isEmpty(), "no exceptions on FX thread, got: " + localErrors);
+    }
+
+    private static String colorToStringPublic(javafx.scene.paint.Color color) {
+        if (color.getOpacity() >= 0.999) {
+            return String.format("#%02x%02x%02x",
+                Math.round(color.getRed() * 255),
+                Math.round(color.getGreen() * 255),
+                Math.round(color.getBlue() * 255));
+        }
+        return String.format("rgba(%d, %d, %d, %s)",
+            Math.round(color.getRed() * 255),
+            Math.round(color.getGreen() * 255),
+            Math.round(color.getBlue() * 255),
+            String.format(java.util.Locale.ROOT, "%.2f", color.getOpacity()));
     }
 
     private static Tab findTab(TabPane pane, String text) {

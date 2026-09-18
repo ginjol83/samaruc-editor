@@ -318,7 +318,15 @@
                                text=""
                                visible="false" managed="false"
                                styleClass="footer-label git-status-label" />
+                        <Label fx:id="lblExternalChange"
+                               text=""
+                               visible="false" managed="false"
+                               styleClass="footer-label external-change-warning"
+                               onMouseClicked="#onExternalChangeBannerClicked" />
                         <Region HBox.hgrow="ALWAYS" />
+                        <Label fx:id="lblCursorPos"
+                               text=""
+                               styleClass="footer-label footer-cursor" />
                         <Label fx:id="lblFooter"
                                text="Desarrollado por Andres Gimenez © 2025"
                                styleClass="footer-label" />

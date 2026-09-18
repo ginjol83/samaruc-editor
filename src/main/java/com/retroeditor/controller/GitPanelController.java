@@ -121,7 +121,7 @@ public class GitPanelController {
         this.githubTokenSupplier = supplier != null ? supplier : () -> "";
     }
 
-    /** Crea la pestaña acoplable para el {@code outputTabPane}. */
+    /** Crea la pestaña del panel Git (el {@code MainController} la añade al editor principal). */
     public Tab createTab() {
         Tab tab = new Tab(msg("git.panel.title", "Git"), buildUi());
         tab.setClosable(false);

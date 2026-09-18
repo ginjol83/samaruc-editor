@@ -353,6 +353,8 @@ public class ConfigModel {
         cc65Defines            .set(source.getProperty("cc65_defines", ""));
         cc65Includes           .set(source.getProperty("cc65_includes", ""));
         cc65ExtraArgs          .set(source.getProperty("cc65_extra_args", ""));
+        enableLogs             .set(Boolean.parseBoolean(source.getProperty("enable_logs", "false")));
+        showHomeOnStartup      .set(Boolean.parseBoolean(source.getProperty("show_home_on_startup", "true")));
         terminalShell          .set(normalizeTerminalShell(source.getProperty("terminal_shell", TERMINAL_SHELL_AUTO)));
     }
 

@@ -47,6 +47,8 @@ import com.retroeditor.controller.help.HelpController;
 import com.retroeditor.controller.search.FileOpenPort;
 
 import com.retroeditor.service.CompilationDiagnosticParserService;
+import com.retroeditor.service.ExternalFileChangeMonitor;
+import com.retroeditor.service.ExternalFileChangeService;
 import com.retroeditor.service.ProjectPlatformDetectionService;
 import com.retroeditor.service.PropertiesConfigRepository;
 import com.retroeditor.service.syntax.SyntaxHighlighter;
@@ -192,11 +194,17 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private SearchController searchController;
     private boolean isRefreshingLanguage = false;
 
+    private ExternalFileChangeMonitor externalFileChangeMonitor;
+    private javafx.animation.Timeline externalFileWatcherTimer;
+    private File pendingExternalChangeFile;
+
     @FXML private MenuBar menuBar;
     @FXML private Label lblFooter;
     @FXML private Label lblCompileStatus;
+    @FXML private Label lblCursorPos;
     @FXML private Label lblGitBranch;
     @FXML private Label lblOpStatus;
+    @FXML private Label lblExternalChange;
     @FXML private javafx.scene.control.ProgressIndicator progressCompile;
     @FXML private Menu menuArchivo;
     @FXML private Menu menuEdicion;
@@ -450,6 +458,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 if (structureViewController != null) {
                     structureViewController.setActiveCodeArea(fxUtils.getCurrentCodeArea(tabPane));
                 }
+                fxUtils.updateCursorStatus(tabPane);
             });
 
             // Listener para cuando se cierran pestañas
@@ -485,17 +494,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             e.printStackTrace();
         }
 
-        // Restaurar estado de la última sesión
-        Platform.runLater(() -> {
-            restoreSessionState();
-            
-            // Si después de restaurar la sesión NO hay pestañas abiertas
-            // y la opción de mostrar Home está activada, la abrimos.
-            // Si está desactivada, el editor empezará vacío.
-            if (tabPane.getTabs().isEmpty() && configModel.isShowHomeOnStartup()) {
-                onNewTab(null); // Esto abre la Home Tab por defecto si no hay archivos
-            }
-        });
+        // Restaurar el último proyecto/archivos al arrancar (la Home se abre
+        // solo si no hay nada que restaurar y la preferencia está activada).
+        Platform.runLater(this::restoreSessionState);
 
     // Deferir la inicialización del SearchController y el registro de atajos hasta que la Scene esté lista
     Platform.runLater(() -> {
@@ -536,17 +537,13 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             }
         }
 
-        // Panel Git acoplable en el área de salida
-        if (outputTabPane != null) {
-            gitPanelController.setBundle(bundle);
-            gitPanelController.setOnDirtyPathsChanged(this::updateGitDirtyTabMarkers);
-            gitPanelController.setOnStatusChanged(this::updateGitStatusLabel);
-            gitPanelController.setOperationListener(this::showOperationStatus);
-            gitPanelController.setGithubTokenSupplier(
-                () -> configModel.getConfigProperty(GitHubAuthService.CONFIG_KEY, ""));
-            gitPanelTab = gitPanelController.createTab();
-            outputTabPane.getTabs().add(gitPanelTab);
-        }
+        // Panel Git: se abre bajo demanda como pestaña del editor principal
+        gitPanelController.setBundle(bundle);
+        gitPanelController.setOnDirtyPathsChanged(this::updateGitDirtyTabMarkers);
+        gitPanelController.setOnStatusChanged(this::updateGitStatusLabel);
+        gitPanelController.setOperationListener(this::showOperationStatus);
+        gitPanelController.setGithubTokenSupplier(
+            () -> configModel.getConfigProperty(GitHubAuthService.CONFIG_KEY, ""));
 
         if (lblCompileStatus != null) {
             lblCompileStatus.setOnMouseClicked(event -> onCompileStatusLabelClicked());
@@ -703,21 +700,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (lblFooter != null) {
             lblFooter.setText("Desarrollado por Andres Gimenez © 2025 - v" + AppInfo.getVersion());
         }
+        if (lblCursorPos != null) {
+            fxUtils.setCursorStatusLabel(lblCursorPos);
+        }
 
         updateOutputTabsI18n();
         applyDiagnosticLegendI18n();
 
         applyMenuAccelerators();
         applyShortcutTooltips();
-
-        // Instead of opening a new.c by default, show a homepage (local HTML) in the first tab
-        try {
-            Tab homeTab = fxUtils.addHomeTabContent(buildHomeHtml(), tabPane, getHomeTabTitle(), HOME_TAB_ID);
-            hookHomeExternalLinks(homeTab);
-        } catch (Throwable ignored) {
-            // fallback to previous behavior
-            fxUtils.addNewTab(null, "", tabFileMap, syntaxHighlighter, tabPane, newFileCounter);
-        }
 
         // Attach stylesheet to the Scene according to the configured appearance
         Platform.runLater(() -> {
@@ -727,7 +718,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 }
             } catch (Exception ignored) {}
         });
-        Platform.runLater(this::restoreLastSessionState);
         Platform.runLater(() -> applyEditorThemeToOpenTabs());
 
         if (menuItemCompilar != null) {
@@ -740,6 +730,8 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             menuItemEjecutar.disableProperty().bind(buildController.compilationRunningProperty());
         }
         updateCompileStatusUI();
+
+        startExternalFileWatcher();
     }
 
     @FXML
@@ -832,12 +824,134 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (searchController != null) searchController.showFindInProjectDialog();
     }
 
+    /**
+     * Decisión de sincronización antes de compilar/ejecutar.
+     */
+    private enum BuildSync { PROCEED_UNCHANGED, PROCEED_SYNCED, ABORT }
+
+    /**
+     * Acción elegida por el usuario ante un cambio externo detectado.
+     */
+    private enum ExternalChangeAction { RELOAD, OVERWRITE, DISK_ONLY, CANCEL }
+
+    /**
+     * Muestra el diálogo de confirmación ante un cambio externo en disco.
+     *
+     * @param fileName nombre del archivo afectado
+     * @param forSave {@code true} si el diálogo se muestra antes de guardar
+     *     (única opción «conservar» = sobrescribir); {@code false} si se muestra
+     *     antes de compilar/ejecutar (añade la opción «usar la versión de disco»)
+     * @return la acción elegida, o {@link Optional#empty()} si se cerró el diálogo
+     */
+    private Optional<ExternalChangeAction> askExternalChangeAction(String fileName, boolean forSave) {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        Stage owner = getStage();
+        if (owner != null) alert.initOwner(owner);
+        alert.setTitle(msg("external.change.title", "El archivo ha cambiado en disco"));
+        alert.setHeaderText(msg("external.change.header", "Cambio externo detectado"));
+        alert.setContentText(msgFmt(
+            "external.change.content",
+            "El archivo ''{0}'' fue modificado fuera del editor (p. ej. por opencode).\n¿Cómo quieres continuar?",
+            fileName
+        ));
+
+        ButtonType reload = new ButtonType(msg("external.change.reload", "Recargar desde disco"), ButtonBar.ButtonData.OK_DONE);
+        ButtonType overwrite = new ButtonType(msg("external.change.keep", "Conservar mi versión del editor"), ButtonBar.ButtonData.OTHER);
+        ButtonType diskOnly = forSave ? null
+            : new ButtonType(msg("external.change.diskOnly", "No tocar: usar la versión de disco"), ButtonBar.ButtonData.OTHER);
+        ButtonType cancel = new ButtonType(msg("dialog.template.cancel", "Cancelar"), ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        if (forSave) {
+            alert.getButtonTypes().setAll(reload, overwrite, cancel);
+        } else {
+            alert.getButtonTypes().setAll(reload, overwrite, diskOnly, cancel);
+        }
+
+        return alert.showAndWait().map(button -> {
+            if (button == reload) return ExternalChangeAction.RELOAD;
+            if (button == overwrite) return ExternalChangeAction.OVERWRITE;
+            if (diskOnly != null && button == diskOnly) return ExternalChangeAction.DISK_ONLY;
+            return ExternalChangeAction.CANCEL;
+        });
+    }
+
+    /**
+     * Recarga una pestaña desde disco y actualiza la huella registrada.
+     *
+     * @return {@code true} si la recarga tuvo éxito
+     */
+    private boolean reloadTabFromDisk(Tab tab, File file, CodeArea codeArea) {
+        try {
+            editorModel.openFile(file);
+        } catch (IOException ex) {
+            terminalController.appendConsoleOutput("No se pudo recargar el archivo desde disco: " + ex.getMessage(), consoleOutputArea);
+            return false;
+        }
+        String fresh = editorModel.getFileContent(file);
+        String reloaded = fresh != null ? fresh : "";
+        codeArea.replaceText(reloaded);
+        fxUtils.markTabSaved(tab, fxUtils.getDefaultFileName(tab), reloaded);
+        terminalController.appendConsoleOutput("Archivo recargado desde disco: " + file.getName(), consoleOutputArea);
+        return true;
+    }
+
+    /**
+     * Detecta cambios externos en el archivo de la pestaña activa antes de
+     * compilar o ejecutar. Si el archivo en disco se modificó fuera del editor
+     * (p. ej. por opencode), pregunta al usuario cómo continuar.
+     *
+     * @return {@link BuildSync#PROCEED_UNCHANGED} si no hay conflicto y el flujo
+     *     normal (guardar + compilar) puede continuar; {@link BuildSync#PROCEED_SYNCED}
+     *     si el conflicto ya se resolvió (recargado, sobrescrito o «usar disco»)
+     *     y debe omitirse el guardado automático; {@link BuildSync#ABORT} para
+     *     cancelar la operación.
+     */
+    private BuildSync ensureFileSyncedBeforeBuild() {
+        Tab tab = fxUtils.getSelectedTab(tabPane);
+        if (tab == null) return BuildSync.PROCEED_UNCHANGED;
+        File file = tabFileMap.get(tab);
+        if (file == null) return BuildSync.PROCEED_UNCHANGED;
+        CodeArea codeArea = fxUtils.getCodeArea(tab);
+        if (codeArea == null) return BuildSync.PROCEED_UNCHANGED;
+
+        String registered = fxUtils.getDiskFingerprint(tab);
+        if (registered == null) return BuildSync.PROCEED_UNCHANGED;
+        if (!ExternalFileChangeService.hasExternalChange(file, registered)) {
+            return BuildSync.PROCEED_UNCHANGED;
+        }
+
+        Optional<ExternalChangeAction> decision = askExternalChangeAction(file.getName(), false);
+        if (decision.isEmpty()) return BuildSync.ABORT;
+
+        return switch (decision.get()) {
+            case RELOAD -> reloadTabFromDisk(tab, file, codeArea) ? BuildSync.PROCEED_SYNCED : BuildSync.ABORT;
+            case OVERWRITE -> {
+                boolean saved = fileOptionsController.onSaveFile(null, tabPane, tabFileMap, editorModel);
+                if (!saved) {
+                    terminalController.appendConsoleOutput("No se pudo guardar la versión del editor sobre el disco.", consoleOutputArea);
+                    yield BuildSync.ABORT;
+                }
+                terminalController.appendConsoleOutput("Versión del editor guardada sobre el disco: " + file.getName(), consoleOutputArea);
+                yield BuildSync.PROCEED_SYNCED;
+            }
+            case DISK_ONLY -> {
+                terminalController.appendConsoleOutput("Se compilará la versión del disco (el editor no se modifica): " + file.getName(), consoleOutputArea);
+                yield BuildSync.PROCEED_SYNCED;
+            }
+            case CANCEL -> BuildSync.ABORT;
+        };
+    }
+
     @FXML
     private void onCompilar(ActionEvent event) {
-        boolean saved = fileOptionsController.onSaveFile(event, tabPane, tabFileMap, editorModel);
-        if (!saved) {
-            terminalController.appendConsoleOutput("No se puede compilar: el archivo no está guardado.", consoleOutputArea);
-            return;
+        BuildSync sync = ensureFileSyncedBeforeBuild();
+        if (sync == BuildSync.ABORT) return;
+        if (sync == BuildSync.PROCEED_UNCHANGED) {
+            boolean saved = fileOptionsController.onSaveFile(event, tabPane, tabFileMap, editorModel);
+            if (!saved) {
+                terminalController.appendConsoleOutput("No se puede compilar: el archivo no está guardado.", consoleOutputArea);
+                return;
+            }
         }
         lastCompilationHasErrors = false;
         lastCompilationHasWarnings = false;
@@ -861,6 +975,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     @FXML
     private void onEjecutar(ActionEvent event) {
+        BuildSync sync = ensureFileSyncedBeforeBuild();
+        if (sync == BuildSync.ABORT) return;
+        if (sync == BuildSync.PROCEED_UNCHANGED) {
+            boolean saved = fileOptionsController.onSaveFile(event, tabPane, tabFileMap, editorModel);
+            if (!saved) {
+                terminalController.appendConsoleOutput("No se puede compilar: el archivo no está guardado.", consoleOutputArea);
+                return;
+            }
+        }
         buildController.onEjecutar(
             event,
             consoleOutputArea,
@@ -1359,57 +1482,13 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         tab.setText((dirty ? "*" : "") + newFileName);
     }
 
-    private void restoreLastSessionState() {
-        File sessionProject = resolveStoredSessionProject();
-        if (sessionProject != null) {
-            setProyectoActual(sessionProject);
-        }
-
-        List<File> filesToRestore = loadSessionOpenFiles();
-        if (filesToRestore.isEmpty()) {
-            return;
-        }
-
-        closeHomeTabIfPresent();
-
-        for (File file : filesToRestore) {
-            if (file == null || !file.isFile()) continue;
-            if (currentProjectDir == null) {
-                File parent = file.getParentFile();
-                if (parent != null && parent.isDirectory()) {
-                    setProyectoActual(parent);
-                }
-            }
-            try {
-                openFileInEditorTab(file, false);
-            } catch (IOException ex) {
-                ex.printStackTrace();
-            }
-        }
-
-        String activeFilePath = configModel.getConfigProperty(LAST_SESSION_ACTIVE_FILE_PROPERTY, "");
-        if (activeFilePath == null || activeFilePath.isBlank()) return;
-
-        File activeFile = new File(activeFilePath).getAbsoluteFile();
-        for (Map.Entry<Tab, File> entry : tabFileMap.entrySet()) {
-            if (sameFile(entry.getValue(), activeFile)) {
-                tabPane.getSelectionModel().select(entry.getKey());
-                break;
-            }
-        }
-    }
-
-    private void closeHomeTabIfPresent() {
+    private void openHomeTab() {
         if (tabPane == null) return;
-        Tab homeTab = null;
-        for (Tab tab : tabPane.getTabs()) {
-            if (HOME_TAB_ID.equals(tab.getId())) {
-                homeTab = tab;
-                break;
-            }
-        }
-        if (homeTab != null) {
-            tabPane.getTabs().remove(homeTab);
+        try {
+            Tab homeTab = fxUtils.addHomeTabContent(buildHomeHtml(), tabPane, getHomeTabTitle(), HOME_TAB_ID);
+            hookHomeExternalLinks(homeTab);
+        } catch (Throwable ignored) {
+            fxUtils.addNewTab(null, "", tabFileMap, syntaxHighlighter, tabPane, newFileCounter);
         }
     }
 
@@ -1438,34 +1517,34 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     private void restoreSessionState() {
+        // Leer el estado persistido ANTES de tocar el proyecto o las pestañas:
+        // setProyectoActual()/abrir ficheros llaman a persistSessionState(), que
+        // de lo contrario sobrescribiría estos valores y rompería la restauración.
+        File sessionProject = resolveStoredSessionProject();
+        List<File> filesToRestore = loadSessionOpenFiles();
+        String activeFilePath = configModel.getConfigProperty(LAST_SESSION_ACTIVE_FILE_PROPERTY, "");
+
         try {
-            // 1. Restaurar proyecto
-            String lastProject = configModel.getConfigProperty(LAST_SESSION_PROJECT_PROPERTY, "");
-            if (lastProject != null && !lastProject.isBlank()) {
-                File projectDir = new File(lastProject);
-                if (projectDir.exists() && projectDir.isDirectory()) {
-                    setProyectoActual(projectDir);
-                    maybeApplyDetectedProfileForOpenedProject(projectDir);
-                }
+            if (sessionProject != null) {
+                setProyectoActual(sessionProject);
+                maybeApplyDetectedProfileForOpenedProject(sessionProject);
             }
 
-            // 2. Restaurar archivos abiertos
-            String openFilesRaw = configModel.getConfigProperty(LAST_SESSION_OPEN_FILES_PROPERTY, "");
-            if (openFilesRaw != null && !openFilesRaw.isBlank()) {
-                List<File> filesToOpen = loadRecentEntries(LAST_SESSION_OPEN_FILES_PROPERTY, false);
-                for (File file : filesToOpen) {
-                    if (file.exists() && file.isFile()) {
-                        try {
-                            openFileInEditorTab(file, false);
-                        } catch (IOException ex) {
-                            ex.printStackTrace();
-                        }
+            for (File file : filesToRestore) {
+                if (file == null || !file.isFile()) continue;
+                if (currentProjectDir == null) {
+                    File parent = file.getParentFile();
+                    if (parent != null && parent.isDirectory()) {
+                        setProyectoActual(parent);
                     }
                 }
+                try {
+                    openFileInEditorTab(file, false);
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
             }
 
-            // 3. Restaurar archivo activo
-            String activeFilePath = configModel.getConfigProperty(LAST_SESSION_ACTIVE_FILE_PROPERTY, "");
             if (activeFilePath != null && !activeFilePath.isBlank()) {
                 File activeFile = new File(activeFilePath).getAbsoluteFile();
                 for (Map.Entry<Tab, File> entry : tabFileMap.entrySet()) {
@@ -1478,6 +1557,14 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         } catch (Exception ex) {
             ex.printStackTrace();
         }
+
+        // La pantalla de inicio solo se abre si no se ha restaurado ni proyecto
+        // ni archivos y la preferencia del usuario está activada.
+        boolean restoredSomething = sessionProject != null || !filesToRestore.isEmpty();
+        if (tabPane.getTabs().isEmpty() && !restoredSomething && configModel.isShowHomeOnStartup()) {
+            openHomeTab();
+        }
+        persistSessionState();
     }
 
     private void persistSessionState() {
@@ -1624,6 +1711,13 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                     applyBundleToUI();
                 });
             },
+            () -> {
+                String activeId = themeService.resolveActiveThemeId(configModel);
+                applyEditorThemeToOpenTabs(activeId);
+                if (tabPane != null && tabPane.getScene() != null) {
+                    applyApplicationAppearance(tabPane.getScene(), themeToShellAppearance(activeId));
+                }
+            },
             UserActionMonitor::configDialogOpened,
             UserActionMonitor::configDialogClosed,
             e -> {
@@ -1746,6 +1840,13 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     public void shutdown() {
         persistSessionState();
         try {
+            if (externalFileWatcherTimer != null) {
+                externalFileWatcherTimer.stop();
+                externalFileWatcherTimer = null;
+            }
+        } catch (Exception ignored) {
+        }
+        try {
             buildController.stopActiveCompilation();
         } catch (Exception ignored) {
         }
@@ -1833,10 +1934,39 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             }
             return;
         }
+        if (!resolveExternalChangeBeforeSave(selectedTab)) {
+            return;
+        }
         boolean saved = fileOptionsController.onSaveFile(event, tabPane, tabFileMap, editorModel);
         if (saved && projectExplorerController != null) {
             projectExplorerController.refreshTree();
         }
+    }
+
+    /**
+     * Antes de guardar, si el archivo se modificó fuera del editor, pregunta al
+     * usuario si quiere recargar desde disco o sobrescribir con su versión.
+     *
+     * @return {@code true} para continuar con el guardado, {@code false} para cancelarlo
+     */
+    private boolean resolveExternalChangeBeforeSave(Tab tab) {
+        if (tab == null) return true;
+        File file = tabFileMap.get(tab);
+        CodeArea codeArea = fxUtils.getCodeArea(tab);
+        String registered = fxUtils.getDiskFingerprint(tab);
+        if (file == null || codeArea == null || registered == null) return true;
+        if (!ExternalFileChangeService.hasExternalChange(file, registered)) return true;
+
+        Optional<ExternalChangeAction> decision = askExternalChangeAction(file.getName(), true);
+        if (decision.isEmpty()) return false;
+        switch (decision.get()) {
+            case RELOAD -> {
+                if (!reloadTabFromDisk(tab, file, codeArea)) return false;
+            }
+            case OVERWRITE -> { /* se procede: el guardado sobrescribirá el disco */ }
+            default -> { return false; }
+        }
+        return true;
     }
 
     @FXML
@@ -2107,14 +2237,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         openGitPanel();
     }
 
-    /** Abre o selecciona la pestaña del panel Git y fuerza un refresco. Invocable desde el explorador. */
+    /** Abre o selecciona la pestaña del panel Git en el editor principal y fuerza un refresco. Invocable desde el explorador. */
     public void openGitPanel() {
-        if (outputTabPane != null && gitPanelTab != null) {
-            if (!outputTabPane.getTabs().contains(gitPanelTab)) {
-                outputTabPane.getTabs().add(gitPanelTab);
-            }
-            outputTabPane.getSelectionModel().select(gitPanelTab);
+        if (tabPane == null) return;
+        if (gitPanelTab == null || !tabPane.getTabs().contains(gitPanelTab)) {
+            gitPanelTab = gitPanelController.createTab();
+            gitPanelTab.setClosable(true);
+            tabPane.getTabs().add(gitPanelTab);
         }
+        tabPane.getSelectionModel().select(gitPanelTab);
         gitPanelController.requestRefresh();
     }
 
@@ -2617,6 +2748,86 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                     }));
             timer.setCycleCount(1);
             timer.play();
+        }
+    }
+
+    /** Arranca el watcher en vivo de cambios externos en los archivos abiertos. */
+    private void startExternalFileWatcher() {
+        if (tabPane == null || externalFileChangeMonitor != null) return;
+        externalFileChangeMonitor = new ExternalFileChangeMonitor();
+        externalFileWatcherTimer = new javafx.animation.Timeline(
+            new javafx.animation.KeyFrame(javafx.util.Duration.seconds(1), e -> pollExternalFileChanges()));
+        externalFileWatcherTimer.setCycleCount(javafx.animation.Animation.INDEFINITE);
+        externalFileWatcherTimer.play();
+    }
+
+    /**
+     * Compara el disco con las huellas registradas de las pestañas abiertas y
+     * actualiza el aviso en la barra inferior cuando hay un cambio externo.
+     * Se ejecuta en el hilo de JavaFX (Timeline), leyendo ficheros pequeños;
+     * los archivos grandes quedan excluidos del aviso en vivo.
+     */
+    private void pollExternalFileChanges() {
+        if (externalFileChangeMonitor == null || tabPane == null) return;
+        Map<File, String> registrations = new HashMap<>();
+        for (Tab tab : tabPane.getTabs()) {
+            File file = tabFileMap.get(tab);
+            String registered = fxUtils.getDiskFingerprint(tab);
+            if (file != null && registered != null) {
+                registrations.put(file, registered);
+            }
+        }
+        externalFileChangeMonitor.refresh(registrations);
+        updateExternalChangeBanner();
+    }
+
+    /** Sincroniza el banner de cambio externo con el estado actual del monitor. */
+    private void updateExternalChangeBanner() {
+        if (lblExternalChange == null || externalFileChangeMonitor == null) return;
+        Set<File> changed = externalFileChangeMonitor.currentExternalChanges();
+        if (changed.isEmpty()) {
+            hideExternalChangeBanner();
+            return;
+        }
+        File representative = externalFileChangeMonitor.lastNotifiedFile();
+        if (representative == null || !changed.contains(representative)) {
+            representative = changed.iterator().next();
+        }
+        if (representative.equals(pendingExternalChangeFile)) {
+            return;
+        }
+        pendingExternalChangeFile = representative;
+        String fileName = representative.getName();
+        lblExternalChange.setText(msgFmt("external.change.banner",
+            "''{0}'' cambió fuera del editor — clic para recargar", fileName));
+        lblExternalChange.setTooltip(new Tooltip(msg("external.change.banner.tooltip",
+            "El archivo se modificó fuera de Samaruc (p. ej. por opencode). Haz clic para recargar desde disco.")));
+        lblExternalChange.setVisible(true);
+        lblExternalChange.setManaged(true);
+    }
+
+    private void hideExternalChangeBanner() {
+        pendingExternalChangeFile = null;
+        if (lblExternalChange != null) {
+            lblExternalChange.setVisible(false);
+            lblExternalChange.setManaged(false);
+        }
+    }
+
+    @FXML
+    private void onExternalChangeBannerClicked() {
+        File file = pendingExternalChangeFile;
+        if (file == null) return;
+        Tab tab = null;
+        for (Tab t : tabPane.getTabs()) {
+            if (file.equals(tabFileMap.get(t))) {
+                tab = t;
+                break;
+            }
+        }
+        CodeArea codeArea = tab != null ? fxUtils.getCodeArea(tab) : null;
+        if (tab != null && codeArea != null) {
+            reloadTabFromDisk(tab, file, codeArea);
         }
     }
 

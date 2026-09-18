@@ -11,32 +11,52 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.ResourceBundle;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.fxmisc.richtext.CodeArea;
 import org.fxmisc.richtext.LineNumberFactory;
 import org.fxmisc.flowless.VirtualizedScrollPane;
+import org.fxmisc.richtext.model.StyleSpan;
+import org.fxmisc.richtext.model.StyleSpans;
+import org.fxmisc.richtext.model.StyleSpansBuilder;
+import org.fxmisc.richtext.model.TwoDimensional;
 
 import com.retroeditor.model.ConfigModel;
+import com.retroeditor.service.ExternalFileChangeService;
+import com.retroeditor.service.SymbolBreadcrumbService;
 import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.service.syntax.SyntaxHighlighter;
 import com.retroeditor.view.UIElements;
 
+import javafx.scene.Cursor;
+import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
-import javafx.scene.control.ToggleButton;
-import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.Tooltip;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.control.Tooltip;
-import javafx.scene.Node;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebView;
 import javafx.stage.DirectoryChooser;
@@ -49,6 +69,7 @@ public class FXUtils {
     private static final String TAB_PROP_CODE_AREA = "editor.codeArea";
     private static final String TAB_PROP_MARKDOWN_WEBVIEW = "editor.markdownWebView";
     private static final String TAB_PROP_MARKDOWN_PREVIEW = "editor.markdownPreviewVisible";
+    private static final String TAB_PROP_DISK_FINGERPRINT = "editor.diskFingerprint";
     private static final String EDITOR_STYLESHEET_MODERN = "/css/c-syntax.css";
     private static final String EDITOR_STYLESHEET_CLASSIC = "/css/c-syntax-classic.css";
 
@@ -89,6 +110,28 @@ public class FXUtils {
     private String editorAppearance = ConfigModel.EDITOR_APPEARANCE_MODERN_DARK;
     private java.util.function.BiConsumer<String, CodeArea> doubleClickHandler;
     private java.util.function.Consumer<CodeArea> editorThemeApplier;
+    private Label cursorStatusLabel;
+
+    public void setCursorStatusLabel(Label label) {
+        this.cursorStatusLabel = label;
+    }
+
+    /** Refresca la posición del cursor en la barra de estado a partir de la pestaña activa. */
+    public void updateCursorStatus(TabPane tabPane) {
+        if (cursorStatusLabel == null || tabPane == null) return;
+        CodeArea area = getCurrentCodeArea(tabPane);
+        if (area == null) {
+            cursorStatusLabel.setText("");
+            return;
+        }
+        StringBuilder sb = new StringBuilder()
+                .append("Ln ").append(area.getCurrentParagraph() + 1)
+                .append(", Col ").append(area.getCaretColumn() + 1);
+        if (area.getSelection().getLength() > 0) {
+            sb.append(", Sel ").append(area.getSelection().getLength());
+        }
+        cursorStatusLabel.setText(sb.toString());
+    }
 
     public void setDoubleClickHandler(java.util.function.BiConsumer<String, CodeArea> handler) {
         this.doubleClickHandler = handler;
@@ -238,44 +281,113 @@ public class FXUtils {
         codeArea.replaceText(initialText);
 
         // Aplica el resaltado inicial de sintaxis
-        codeArea.setStyleSpans(0, syntaxHighlighter.computeHighlighting(initialText, title));
+        StyleSpans<Collection<String>> initialSpans = syntaxHighlighter.computeHighlighting(initialText, title);
+        codeArea.setStyleSpans(0, initialSpans);
+
+        final Tab tab = new Tab(title, editorLayout);
+        tab.getProperties().put(TAB_PROP_BASE_TITLE, title != null ? title : "");
+        tab.getProperties().put(TAB_PROP_BASE_TEXT, initialText);
+        tab.getProperties().put(TAB_PROP_CODE_AREA, codeArea);
+        recordDiskFingerprint(tab, initialText);
+
+        // Barra de migas de pan (breadcrumbs) sobre el editor
+        HBox breadcrumbBar = buildBreadcrumbBar();
+        editorLayout.setTop(breadcrumbBar);
+
+        final CodeArea area = codeArea;
+        final AtomicReference<StyleSpans<Collection<String>>> baseSpans = new AtomicReference<>(initialSpans);
+        final AtomicInteger baseLength = new AtomicInteger(initialText.length());
+        final String[] lastHighlightWord = {null};
+        final int[] lastHighlightPair = {-1, -1};
+        final int[] lastBreadcrumbLine = {-1};
+
+        Runnable refreshExtras = () -> {
+            try {
+                if (area.getText().length() != baseLength.get()) return;
+                int cp = area.getCaretPosition();
+                String text = area.getText();
+                int[] pair = findMatchingBracket(text, cp);
+                String word = extractWordAtCaretStatic(text, cp);
+                boolean sameWord = word == null ? lastHighlightWord[0] == null : word.equals(lastHighlightWord[0]);
+                boolean samePair = pair == null
+                        ? (lastHighlightPair[0] == -1 && lastHighlightPair[1] == -1)
+                        : (pair[0] == lastHighlightPair[0] && pair[1] == lastHighlightPair[1]);
+                if (sameWord && samePair) return;
+                lastHighlightWord[0] = word;
+                lastHighlightPair[0] = pair != null ? pair[0] : -1;
+                lastHighlightPair[1] = pair != null ? pair[1] : -1;
+
+                List<TextStyleRange> extras = new ArrayList<>();
+                if (pair != null) {
+                    extras.add(new TextStyleRange(pair[0], pair[1], List.of("bracket-match")));
+                }
+                if (word != null && word.length() >= 2) {
+                    int wi = text.indexOf(word);
+                    while (wi >= 0) {
+                        extras.add(new TextStyleRange(wi, wi + word.length(), List.of("word-occurrence")));
+                        wi = text.indexOf(word, wi + word.length());
+                    }
+                }
+                StyleSpans<Collection<String>> combined = applyExtraStyles(baseSpans.get(), extras);
+                area.setStyleSpans(0, combined);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        };
+
+        Runnable refreshBaseAndExtras = () -> {
+            try {
+                StyleSpans<Collection<String>> base = syntaxHighlighter.computeHighlighting(area.getText(), title);
+                baseSpans.set(base);
+                baseLength.set(area.getText().length());
+                lastHighlightWord[0] = null;
+                lastHighlightPair[0] = -1;
+                lastHighlightPair[1] = -1;
+
+                int maxP = area.getParagraphs().size();
+                for (int p = 0; p < maxP; p++) {
+                    area.setParagraphStyle(p, java.util.Collections.emptyList());
+                }
+
+                var diags = com.retroeditor.service.StaticAnalysisService.analyzeCode(area.getText());
+                for (var d : diags) {
+                    if (d.isError()) {
+                        int pIdx = d.line() - 1;
+                        if (pIdx >= 0 && pIdx < maxP) {
+                            area.setParagraphStyle(pIdx, java.util.Collections.singleton("compile-error-line"));
+                        }
+                    }
+                }
+                refreshExtras.run();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        };
 
         // Reduce el tiempo de ejecuciÃ³n de las ediciones posteriores para evitar actualizaciones de estilo demasiado frecuentes
         codeArea.multiPlainChanges()
                 .successionEnds(Duration.ofMillis(250))
-                .subscribe(ignore -> {
-                    try {
-                        // Aplica el resaltado de sintaxis al texto modificado
-                        codeArea.setStyleSpans(0, syntaxHighlighter.computeHighlighting(codeArea.getText(), title));
-                        
-                        int maxP = codeArea.getParagraphs().size();
-                        for (int p = 0; p < maxP; p++) {
-                            codeArea.setParagraphStyle(p, java.util.Collections.emptyList());
-                        }
+                .subscribe(ignore -> refreshBaseAndExtras.run());
 
-                        var diags = com.retroeditor.service.StaticAnalysisService.analyzeCode(codeArea.getText());
-                        for (var d : diags) {
-                            if (d.isError()) {
-                                int pIdx = d.line() - 1;
-                                if (pIdx >= 0 && pIdx < maxP) {
-                                    codeArea.setParagraphStyle(pIdx, java.util.Collections.singleton("compile-error-line"));
-                                }
-                            }
-                        }
-                    } catch (Exception ex) {
-                        ex.printStackTrace();
-                    }
-                });
+        codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> {
+            refreshExtras.run();
+            int line = area.getCurrentParagraph() + 1;
+            if (line != lastBreadcrumbLine[0]) {
+                lastBreadcrumbLine[0] = line;
+                updateBreadcrumbBar(breadcrumbBar, area, baseTitleOf(tab));
+            }
+            updateCursorStatus(tabPane, tab);
+        });
+
+        codeArea.textProperty().addListener((obs, oldText, newText) -> updateTabDirtyIndicator(tab, codeArea));
 
         applyEditorThemeToNewCodeArea(codeArea);
         attachCodeAreaDoubleClickHandler(codeArea);
         MultiCursorManager.attach(codeArea);
-        Tab tab = new Tab(title, editorLayout);
-        tab.getProperties().put(TAB_PROP_BASE_TITLE, title != null ? title : "");
-        tab.getProperties().put(TAB_PROP_BASE_TEXT, initialText);
-        tab.getProperties().put(TAB_PROP_CODE_AREA, codeArea);
+        attachProfessionalEditingKeys(codeArea);
 
-        codeArea.textProperty().addListener((obs, oldText, newText) -> updateTabDirtyIndicator(tab, codeArea));
+        updateBreadcrumbBar(breadcrumbBar, area, baseTitleOf(tab));
+        updateCursorStatus(tabPane, tab);
 
         tabPane.getTabs().add(tab);
         tabPane.getSelectionModel().select(tab);
@@ -332,8 +444,14 @@ public class FXUtils {
         tab.getProperties().put(TAB_PROP_CODE_AREA, codeArea);
         tab.getProperties().put(TAB_PROP_MARKDOWN_WEBVIEW, previewView);
         tab.getProperties().put(TAB_PROP_MARKDOWN_PREVIEW, Boolean.FALSE);
+        recordDiskFingerprint(tab, initialText);
 
         codeArea.textProperty().addListener((obs, oldText, newText) -> updateTabDirtyIndicator(tab, codeArea));
+        codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> {
+            if (cursorStatusLabel != null && tabPane.getSelectionModel().getSelectedItem() == tab) {
+                updateCursorStatus(tabPane);
+            }
+        });
 
         tabPane.getTabs().add(tab);
         tabPane.getSelectionModel().select(tab);
@@ -444,12 +562,32 @@ public class FXUtils {
 
         tab.getProperties().put(TAB_PROP_BASE_TITLE, normalizedTitle);
         tab.getProperties().put(TAB_PROP_BASE_TEXT, normalizedText);
+        recordDiskFingerprint(tab, normalizedText);
         tab.setText(normalizedTitle);
         Object preview = tab.getProperties().get(TAB_PROP_MARKDOWN_WEBVIEW);
         Object codeArea = tab.getProperties().get(TAB_PROP_CODE_AREA);
         if (preview instanceof WebView && codeArea instanceof CodeArea) {
             updateMarkdownPreview((WebView) preview, normalizedText, normalizedTitle);
         }
+    }
+
+    /**
+     * Registra en la pestaña la huella del contenido tal como se leyó/guardó por
+     * última vez. Sobre esa huella se detectan cambios externos en disco.
+     */
+    public void recordDiskFingerprint(Tab tab, String content) {
+        if (tab == null) return;
+        tab.getProperties().put(TAB_PROP_DISK_FINGERPRINT, ExternalFileChangeService.fingerprint(content));
+    }
+
+    /**
+     * Huella del último contenido sincronizado de la pestaña, o {@code null} si
+     * la pestaña no es de editor (no se puede detectar cambios externos).
+     */
+    public String getDiskFingerprint(Tab tab) {
+        if (tab == null) return null;
+        Object value = tab.getProperties().get(TAB_PROP_DISK_FINGERPRINT);
+        return value instanceof String ? (String) value : null;
     }
 
     private void updateTabDirtyIndicator(Tab tab, CodeArea codeArea) {
@@ -946,15 +1084,19 @@ public class FXUtils {
         Path projectPath = projectDir.toPath();
         Path srcPath = projectPath.resolve("src");
 
-        Files.createDirectories(srcPath);
-
-        if (template == ProjectTemplate.ASM) {
-            Files.writeString(srcPath.resolve("main.asm"), getTemplateMainContent(template));
-        } else if (template == ProjectTemplate.MAKEFILE) {
-            Files.writeString(srcPath.resolve("main.c"), getTemplateMainContent(template));
-            Files.writeString(projectPath.resolve("Makefile"), getMakefileContent());
+        if (template == ProjectTemplate.TRANSLATOR) {
+            Files.createDirectories(projectPath);
+            Files.writeString(projectPath.resolve("translation.smt"), getTranslatorSmtContent());
         } else {
-            Files.writeString(srcPath.resolve("main.c"), getTemplateMainContent(template));
+            Files.createDirectories(srcPath);
+            if (template == ProjectTemplate.ASM) {
+                Files.writeString(srcPath.resolve("main.asm"), getTemplateMainContent(template));
+            } else if (template == ProjectTemplate.MAKEFILE) {
+                Files.writeString(srcPath.resolve("main.c"), getTemplateMainContent(template));
+                Files.writeString(projectPath.resolve("Makefile"), getMakefileContent());
+            } else {
+                Files.writeString(srcPath.resolve("main.c"), getTemplateMainContent(template));
+            }
         }
 
         if (options != null && options.createReadme) {
@@ -981,6 +1123,19 @@ public class FXUtils {
             "",
             "clean:",
             "\trm -rf out",
+            ""
+        );
+    }
+
+    private String getTranslatorSmtContent() {
+        return String.join("\n",
+            "{",
+            "  \"version\": 1,",
+            "  \"romPath\": \"\",",
+            "  \"fontTable\": \"pokemon\",",
+            "  \"encoding\": \"SENTINEL_0x50\",",
+            "  \"entries\": []",
+            "}",
             ""
         );
     }
@@ -1015,7 +1170,8 @@ public class FXUtils {
     }
 
     private String resolveWorkspaceTarget(ProjectTemplate template) {
-        if (template == ProjectTemplate.GAMEBOY || template == ProjectTemplate.GAMEBOY_SPRITE) {
+        if (template == ProjectTemplate.GAMEBOY || template == ProjectTemplate.GAMEBOY_SPRITE
+                || template == ProjectTemplate.TRANSLATOR) {
             return "gameboy";
         }
         if (template == ProjectTemplate.SPECTRUM || template == ProjectTemplate.SPECTRUM_SCREEN) {
@@ -1643,6 +1799,299 @@ public class FXUtils {
             .replace("<", "&lt;")
             .replace(">", "&gt;")
             .replace("\"", "&quot;");
+    }
+
+    // ---------------------------------------------------------------------
+    // Edición profesional: breadcrumbs, Ln/Col, auto-cierre, atajos de línea
+    // ---------------------------------------------------------------------
+
+    private HBox buildBreadcrumbBar() {
+        HBox bar = new HBox();
+        bar.getStyleClass().add("breadcrumb-bar");
+        bar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        return bar;
+    }
+
+    private void updateBreadcrumbBar(HBox bar, CodeArea area, String baseTitle) {
+        if (bar == null || area == null) return;
+        try {
+            List<SymbolBreadcrumbService.BreadcrumbItem> items =
+                new SymbolBreadcrumbService().getBreadcrumbs(area.getText(), baseTitle, area.getCurrentParagraph() + 1);
+            bar.getChildren().clear();
+            for (int i = 0; i < items.size(); i++) {
+                SymbolBreadcrumbService.BreadcrumbItem item = items.get(i);
+                Label chip = new Label(item.getName());
+                chip.getStyleClass().add(i == 0 ? "breadcrumb-file" : "breadcrumb-item");
+                chip.setCursor(Cursor.HAND);
+                final int line = item.getLine();
+                chip.setOnMouseClicked(e -> {
+                    int off = area.position(line - 1, 0).toOffset();
+                    area.moveTo(Math.min(off, area.getLength()));
+                    area.requestFollowCaret();
+                    area.requestFocus();
+                });
+                bar.getChildren().add(chip);
+                if (i < items.size() - 1) {
+                    Label sep = new Label("\u203a");
+                    sep.getStyleClass().add("breadcrumb-sep");
+                    bar.getChildren().add(sep);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static String baseTitleOf(Tab tab) {
+        Object t = tab.getProperties().get(TAB_PROP_BASE_TITLE);
+        return t instanceof String ? (String) t : (tab.getText() != null ? tab.getText() : "");
+    }
+
+    private void updateCursorStatus(TabPane tabPane, Tab tab) {
+        if (cursorStatusLabel == null || tabPane == null) return;
+        if (tabPane.getSelectionModel().getSelectedItem() != tab) return;
+        updateCursorStatus(tabPane);
+    }
+
+    /** Aplica los atajos estándar de edición de línea y el auto-cierre de pares. */
+    private void attachProfessionalEditingKeys(CodeArea codeArea) {
+        codeArea.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            boolean ctrlLike = event.isControlDown() || event.isMetaDown();
+            KeyCode code = event.getCode();
+
+            if (ctrlLike && event.isShiftDown() && !event.isAltDown() && code == KeyCode.K) {
+                deleteSelectedLines(codeArea);
+                event.consume();
+                return;
+            }
+            if (event.isAltDown() && !ctrlLike && (code == KeyCode.UP || code == KeyCode.DOWN)) {
+                boolean up = code == KeyCode.UP;
+                if (event.isShiftDown()) {
+                    duplicateSelectedLines(codeArea);
+                } else {
+                    moveSelectedLines(codeArea, up);
+                }
+                event.consume();
+                return;
+            }
+            if (!ctrlLike && !event.isAltDown() && isPlainTypingChar(event)) {
+                handleAutoCloseAndSkip(codeArea, event);
+            }
+        });
+    }
+
+    private static boolean isPlainTypingChar(KeyEvent event) {
+        String t = event.getText();
+        return t != null && t.length() == 1
+            && event.getCode() != KeyCode.UNDEFINED
+            && !Character.isISOControl(t.charAt(0));
+    }
+
+    private void handleAutoCloseAndSkip(CodeArea area, KeyEvent event) {
+        char c = event.getText().charAt(0);
+        int cp = area.getCaretPosition();
+        String text = area.getText();
+        if (area.getSelection().getLength() > 0) return;
+        if (isOpenBracket(c)) {
+            area.insertText(cp, String.valueOf(c) + closingOf(c));
+            area.moveTo(cp + 1);
+            area.requestFollowCaret();
+            event.consume();
+        } else if (c == '"') {
+            area.insertText(cp, "\"\"");
+            area.moveTo(cp + 1);
+            area.requestFollowCaret();
+            event.consume();
+        } else if (c == '\'') {
+            char after = cp < text.length() ? text.charAt(cp) : '\0';
+            if (!Character.isLetterOrDigit(after)) {
+                area.insertText(cp, "''");
+                area.moveTo(cp + 1);
+                area.requestFollowCaret();
+                event.consume();
+            }
+        } else if (isCloseBracket(c)) {
+            if (cp < text.length() && text.charAt(cp) == c) {
+                area.moveTo(cp + 1);
+                area.requestFollowCaret();
+                event.consume();
+            }
+        }
+    }
+
+    private static int[] lineBlockBounds(CodeArea area) {
+        int n = area.getParagraphs().size();
+        int ss = area.getSelection().getStart();
+        int se = area.getSelection().getEnd();
+        var sp = area.offsetToPosition(ss, TwoDimensional.Bias.Forward);
+        var ep = area.offsetToPosition(se, TwoDimensional.Bias.Forward);
+        int firstP = sp.getMajor();
+        int lastP = ep.getMajor();
+        int start = lineStartOffset(area, firstP);
+        int end = lastP + 1 < n ? lineStartOffset(area, lastP + 1) : area.getLength();
+        return new int[] { start, end, firstP, lastP };
+    }
+
+    private static int lineStartOffset(CodeArea area, int paragraph) {
+        int n = area.getParagraphs().size();
+        if (n == 0) return 0;
+        if (paragraph >= n) return area.getLength();
+        if (paragraph < 0) return 0;
+        return area.position(paragraph, 0).toOffset();
+    }
+
+    private void moveSelectedLines(CodeArea area, boolean up) {
+        int[] b = lineBlockBounds(area);
+        int start = b[0], end = b[1], firstP = b[2], lastP = b[3];
+        int n = area.getParagraphs().size();
+        String text = area.getText();
+        if (up && firstP > 0) {
+            int targetStart = lineStartOffset(area, firstP - 1);
+            String targetLine = text.substring(targetStart, start);
+            String blockLine = text.substring(start, end);
+            area.replaceText(targetStart, end, blockLine + targetLine);
+            area.selectRange(targetStart, targetStart + blockLine.length());
+            area.moveTo(targetStart);
+            area.requestFollowCaret();
+        } else if (!up && lastP < n - 1) {
+            int targetEnd = lastP + 2 < n ? lineStartOffset(area, lastP + 2) : area.getLength();
+            String targetLine = text.substring(end, targetEnd);
+            String blockLine = text.substring(start, end);
+            area.replaceText(start, targetEnd, targetLine + blockLine);
+            int newStart = start + targetLine.length();
+            area.selectRange(newStart, newStart + blockLine.length());
+            area.moveTo(newStart);
+            area.requestFollowCaret();
+        }
+    }
+
+    private void duplicateSelectedLines(CodeArea area) {
+        int[] b = lineBlockBounds(area);
+        int start = b[0], end = b[1];
+        String blockLine = area.getText().substring(start, end);
+        String insertion = end >= area.getLength() ? blockLine + "\n" : blockLine;
+        area.insertText(start, insertion);
+        int copyEnd = start + insertion.length();
+        area.selectRange(start, Math.min(copyEnd, area.getLength()));
+        area.moveTo(start);
+        area.requestFollowCaret();
+    }
+
+    private void deleteSelectedLines(CodeArea area) {
+        int[] b = lineBlockBounds(area);
+        int start = b[0], end = b[1], firstP = b[2];
+        area.deleteText(start, end);
+        int n = area.getParagraphs().size();
+        int target = lineStartOffset(area, Math.min(firstP, Math.max(0, n - 1)));
+        area.moveTo(Math.min(target, area.getLength()));
+        area.requestFollowCaret();
+    }
+
+    private StyleSpans<Collection<String>> applyExtraStyles(StyleSpans<Collection<String>> base, List<TextStyleRange> extras) {
+        if (extras == null || extras.isEmpty()) return base;
+        List<TextStyleRange> sorted = new ArrayList<>(extras);
+        sorted.sort((a1, b1) -> Integer.compare(a1.start, b1.start));
+        StyleSpansBuilder<Collection<String>> builder = new StyleSpansBuilder<>();
+        int pos = 0;
+        for (StyleSpan<Collection<String>> span : base) {
+            int s = pos;
+            int e = pos + span.getLength();
+            TreeSet<Integer> cuts = new TreeSet<>();
+            cuts.add(s);
+            cuts.add(e);
+            for (TextStyleRange r : sorted) {
+                if (r.end <= s || r.start >= e) continue;
+                cuts.add(Math.max(r.start, s));
+                cuts.add(Math.min(r.end, e));
+            }
+            java.util.Iterator<Integer> it = cuts.iterator();
+            it.next();
+            int prev = s;
+            while (it.hasNext()) {
+                int cut = it.next();
+                if (cut <= prev) continue;
+                Set<String> cls = new HashSet<>(span.getStyle());
+                for (TextStyleRange r : sorted) {
+                    if (r.start <= prev && r.end >= cut) {
+                        cls.addAll(r.classes);
+                    }
+                }
+                builder.add(new StyleSpan<>(cls, cut - prev));
+                prev = cut;
+            }
+            pos = e;
+        }
+        return builder.create();
+    }
+
+    private static int[] findMatchingBracket(String text, int caret) {
+        if (text == null || text.isEmpty()) return null;
+        int n = text.length();
+        int idx = -1;
+        char at = caret >= 0 && caret < n ? text.charAt(caret) : '\0';
+        char prev = caret > 0 && caret - 1 < n ? text.charAt(caret - 1) : '\0';
+        if (isOpenBracket(prev) || isCloseBracket(prev)) {
+            idx = caret - 1;
+        } else if (isOpenBracket(at) || isCloseBracket(at)) {
+            idx = caret;
+        }
+        if (idx < 0) return null;
+        char ch = text.charAt(idx);
+        if (isOpenBracket(ch)) {
+            char close = closingOf(ch);
+            int depth = 1;
+            for (int i = idx + 1; i < n; i++) {
+                char c = text.charAt(i);
+                if (c == ch) depth++;
+                else if (c == close && --depth == 0) return new int[] { idx, i };
+            }
+            return null;
+        }
+        char open = openingOf(ch);
+        int depth = 1;
+        for (int i = idx - 1; i >= 0; i--) {
+            char c = text.charAt(i);
+            if (c == ch) depth++;
+            else if (c == open && --depth == 0) return new int[] { i, idx };
+        }
+        return null;
+    }
+
+    private static boolean isOpenBracket(char c) {
+        return c == '(' || c == '[' || c == '{';
+    }
+
+    private static boolean isCloseBracket(char c) {
+        return c == ')' || c == ']' || c == '}';
+    }
+
+    private static char closingOf(char c) {
+        switch (c) {
+            case '(': return ')';
+            case '[': return ']';
+            case '{': return '}';
+            default: return c;
+        }
+    }
+
+    private static char openingOf(char c) {
+        switch (c) {
+            case ')': return '(';
+            case ']': return '[';
+            case '}': return '{';
+            default: return c;
+        }
+    }
+
+    private static final class TextStyleRange {
+        final int start;
+        final int end;
+        final List<String> classes;
+
+        TextStyleRange(int start, int end, List<String> classes) {
+            this.start = start;
+            this.end = end;
+            this.classes = classes;
+        }
     }
 
     public static class CodeMinimapPane extends javafx.scene.layout.Pane {

@@ -37,6 +37,7 @@ public class ConfigDialogCoordinator {
         ThemeService themeService,
         ResourceBundle bundle,
         Runnable onLanguageChanged,
+        Runnable onAppearanceApplied,
         Runnable onOpened,
         Runnable onClosed,
         Consumer<Exception> onError
@@ -60,6 +61,7 @@ public class ConfigDialogCoordinator {
             configController.setThemeService(themeService);
             configController.reloadFromModel();
             configController.setOnLanguageChanged(onLanguageChanged);
+            configController.setOnAppearanceApplied(onAppearanceApplied);
             configController.setOnCloseCallback(() -> {
                 closeInternals();
                 if (onClosed != null) onClosed.run();

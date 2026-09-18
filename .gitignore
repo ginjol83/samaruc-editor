@@ -97,5 +97,8 @@ jarlist.txt
 AGENTS.md
 /.agents
 
+# Documentation: local analyses, not versioned (user decision)
+/docs/
+
 # opencode local runtime state (sessions, caches)
 /.opencode/

@@ -200,3 +200,14 @@
 .code-area .diag-gutter-marker-warning {
     -fx-text-fill: #fbbf24;
 }
+
+/* Resaltado extra: par de corchetes y ocurrencias de la palabra */
+.code-area .bracket-match {
+    -fx-fill: #fbbf24;
+    -fx-font-weight: bold;
+    -fx-underline: true;
+}
+.code-area .word-occurrence {
+    -fx-fill: #93c5fd;
+    -fx-underline: true;
+}

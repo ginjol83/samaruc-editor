@@ -96,3 +96,14 @@
 
 .code-area .diag-gutter-marker-error { -fx-background-color: #dc2626; }
 .code-area .diag-gutter-marker-warning { -fx-background-color: #d97706; }
+
+/* Resaltado extra: par de corchetes y ocurrencias de la palabra */
+.code-area .bracket-match {
+    -fx-fill: #b45309;
+    -fx-font-weight: bold;
+    -fx-underline: true;
+}
+.code-area .word-occurrence {
+    -fx-fill: #1d4ed8;
+    -fx-underline: true;
+}
