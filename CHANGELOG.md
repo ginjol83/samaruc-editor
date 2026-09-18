@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.2 - 2026-09-18
+
+### Añadido
+- **Emuladores empaquetados**: Altirra 4.21 (Atari 8-bit) y openMSX 21.0 (MSX) incluidos en `libs/`.
+- **Detección de cambios externos en vivo**: un watcher avisa en la barra inferior cuando un archivo abierto se modifica fuera del editor (p. ej. por opencode) y permite recargarlo con un clic. Además, antes de compilar, ejecutar o guardar se confirma cómo proceder (recargar desde disco / conservar la versión del editor / usar la versión de disco / cancelar).
+
+### Mejorado
+- **Editor**: resaltado de la palabra bajo el cursor, emparejamiento visual de paréntesis/corchetes/llaves y indicador de línea:columna en la barra de estado.
+- **Editor de audio Game Boy**: scroll y rejilla del tracker mejorados.
+- **Configuración**: opciones para habilitar logs y para mostrar la Home al iniciar.
+- **Sincronización de versión** resuelta: `pom.xml`, `VERSION.txt` y `build-release.ps1` apuntan a la misma versión.
+
 ## 1.3.1 - 2026-09-17
 
 ### Añadido
