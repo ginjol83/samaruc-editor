@@ -407,6 +407,13 @@ public class GameBoyAudioEditorController {
                 gc.setLineWidth(2);
                 gc.strokeLine(x, 0, x, trackerCanvas.getHeight());
 
+                double viewportW = trackerScroll.getViewportBounds().getWidth();
+                double contentW = trackerCanvas.getWidth();
+                if (viewportW > 0 && contentW > viewportW && x > trackerScroll.getHvalue() * (contentW - viewportW) + viewportW - 40) {
+                    double target = (x - viewportW * 0.5) / (contentW - viewportW);
+                    trackerScroll.setHvalue(Math.max(0.0, Math.min(1.0, target)));
+                }
+
                 if (elapsedMs >= maxDuration[0]) {
                     isPlaying[0] = false;
                     stop();
@@ -432,7 +439,7 @@ public class GameBoyAudioEditorController {
 
             int defaultStart = 0;
             for (GameBoyAudioPlayer.NoteStep step : melodyNotesList) {
-                if (step.getChannel().equals(ch)) {
+                if (ch != null && ch.equals(step.getChannel())) {
                     int end = step.getStartTimeMs() + step.getDurationMs();
                     if (end > defaultStart) defaultStart = end;
                 }
