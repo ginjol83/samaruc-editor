@@ -1,0 +1,669 @@
+!!!
+!!! This file is no longer updated (and hasn't been for a while).
+!!! Instead we prefer to put changelog messages in the git commit
+!!! messages. The only reason to keep this file around is that in
+!!! the old days the messages in this file were more detailed than
+!!! the commit messages, so this file may still contain useful info
+!!! when you're investigating old changes.
+!!!
+
+2009-02-20 Max Feingold <maf6@cornell.edu>
+	* Added VC++ 2008 projects.
+
+2008-12-27 Manuel Bilderbeek <manuel@msxnet.org>
+	* Prepared for yet another 'dead' release: 0.7.0-R1...
+
+2008-04-13 Manuel Bilderbeek <manuel@msxnet.org>
+	* Fix in probe.mk: use proper order for argc and argv, to prevent not
+	  finding any libraries with gcc 4.3. Thanks to Lucas Nussbaum of
+	  Debian for reporting it and to Chris Lamb for providing a patch.
+
+2007-08-22 Manuel Bilderbeek <manuel@msxnet.org>
+	* Prepared for another 'dead' release: 0.6.3-R1...
+
+2007-05-09 Albert Beevendorp
+	* Added Keyboard Master
+	* Updated audio device _mode setting to the new audio device
+	  _balance setting and partial mute/unmute.
+
+2007-04-15 Manuel Bilderbeek <manuel@msxnet.org>
+	* Today we released 0.6.2-R1.
+
+2007-02-18 Manuel Bilderbeek <manuel@msxnet.org>
+	* Prepared for release 0.6.2-R1, hopefully the last release.
+	  Several compatibility fixes have been done, mostly by Wouter.
+	  Thanks!
+
+2006-08-06 Joost Yervante Damad <joost@lumatec.be>
+	* compile with --no-strict-aliasing to avoid possible problems in
+	  wx2.6 library
+
+2006-08-01 Joost Yervante Damad <joost@lumatec.be>
+	* support for powerpc64
+
+2006-07-30 Manuel Bilderbeek <manuel@msxnet.org>
+	* Prepared for release of 0.6.1-R1.
+
+2006-05-26 Manuel Bilderbeek <manuel@msxnet.org>
+	* Use 'cart' i.s.o. 'carta' and 'cartb' to specify the cartridges.
+	  openMSX now guarantees to place them in slot order, so if we use the
+	  generic options, we don't have problems with slotexpanders anymore
+	  (which can e.g. take up slot a) and still have the proper order.
+
+2006-05-24 Manuel Bilderbeek <manuel@msxnet.org>
+	* Added a hack that puts slotexpander always as first extension, so
+	  that it can work with the post 0.6.0 release of openMSX. Let's hope
+	  this is enough to keep it working.
+
+2006-04-24 Manuel Bilderbeek <manuel@msxnet.org>
+	* Fix compilation for GCC 4.1, thanks to Martin Michlmayr
+
+2006-01-27 Manuel Bilderbeek <manuel@msxnet.org>
+	* Small (yet hacky?) fix for the problem that no MSX Type is selected
+	  at the very first startup... I hope this is my very last commit on
+	  this version of Catapult. Let's go for Qt!
+	* Set version to 0.6.0-R2, which includes this fix and a rebuild for
+	  Windows, because the FontMap stuff of wxWidgets gives registry
+	  problems for some Windows users. Note that this release is only
+	  interesting for Windows users.
+
+2006-01-21 Maarten ter Huurne <maarten@treewalker.org>
+	* Released 0.6.0-R1.
+
+2006-01-15 Maarten ter Huurne <maarten@treewalker.org>
+	* Compile resources on MinGW32 as part of the build process.
+	  Implemented in cooperation with BiFi.
+
+2006-01-01 Manuel Bilderbeek <manuel@msxnet.org>
+	* Do a cleaner exit if the openMSX binary cannot be found at all
+	* Don't continue if the 'check openMSX binary before launch' fails.
+
+2005-12-31 Arnold Metselaar  <arnold.metselaar@planet.nl>
+	* Add support for standard options --version and --help, closes
+	  bug 1394202.
+
+2005-12-30 Manuel Bilderbeek <manuel@msxnet.org>
+	* Check exit status of version test, handle failure.
+	* Upgrade version check: only 0.6.0 or higher is allowed now.
+	* Give the Edit Configuration dialog if the wrong version is found
+	* Do not start Catapult if the right version cannot be found at all or
+	  if the dialog was cancelled.
+	* Removed some code duplication.
+
+2005-12-28 Manuel Bilderbeek <manuel@msxnet.org>
+	* Start check configs dialog after editing configuration, unless you
+	  uncheck the checkbox.
+	* Only use alternative way to show icon in about dialog on wxMSW 2.6.
+	* Fixed placement and greying out of "x" between scaler algo and
+	  factor.
+
+2005-12-11 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fixed scale_factor in videocontrols
+
+2005-12-10 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Added recordmode to the cassette controls
+	* Fixed the aboutbox in windows (due to a bug in wxWidgets 2.6)
+
+2005-12-08 Manuel Bilderbeek <manuel@msxnet.org>
+	* Add controls for separate scaler factor and scaler algorithm. WIP,
+	  because scaler factor is not an EnumSetting (yet?), this still needs
+	  work.
+
+2005-11-20 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fixed problems with ejecting media
+	* removed code duplication with ejecting media
+
+2005-11-04 Manuel Bilderbeek <manuel@msxnet.org>
+	* Also check if executable can be found just before starting to
+	  prevent problems if the executable was renamed/moved/deleted in the
+	  mean time
+
+2005-10-23 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Implemented 'Hide Broken Configurations'
+
+2005-10-22 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fixed dialog size problem with wx2.6
+	* Fixed several segfaults when the current machine isn't valid.
+	* Fixed configuration check for paths with a space in it
+	* Added menu item for the 'Display Broken Configurations' option.
+
+2005-10-18 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Rewrote the communication between CheckConfigsDialog and it's
+	   thread using messages.
+
+2005-10-15 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Machine and Extensionlists are now updated and saved.
+
+2005-10-14 Manuel Bilderbeek <manuel@msxnet.org>
+	* Updated configuration check to work on my system. :)
+	  - the form needed more space for several stuff to work properly
+	    (Herman, please check if this can be done in a better way.)
+	  - fix compilation issues
+	  - small cleanups (still a lot TODO, though)
+	  - don't output stdout stuff from openMSX to stdout
+	  - still WIP!
+
+2005-10-14 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Added configuration check (WIP).
+
+2005-07-16 Maarten ter Huurne <maarten@treewalker.org>
+	* Compile fixes for wxWidgets 2.6.1.
+
+2005-07-02 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Added support for 2 keyjoysticks
+
+2005-06-23 Manuel Bilderbeek <manuel@msxnet.org>
+	* There is a bug in wxGTK making ListBox::GetSelections() not work
+	  when it is disabled. Fixed it by doing the disable a bit later,
+	  after the GetSelections() stuff is done
+
+2005-06-05 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fixed some about dialog sizes
+	* Fixed placing of child dialogs
+
+2005-05-29 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fixed hang in catapult and/or openMSX when selecting a disk from
+	   the history.
+	* Fixed a problem with selecting a disk for drive B from the history
+	* Changed the about dialog
+
+2005-05-14 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fixed rensha turbo update problem
+	* Fixed missing backslashes with printer log file
+	* Fixed pressing F10 (menu) before openMSX shows its screen
+
+2005-05-13 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Added socket support (enable it by uncommenting line 82 of
+	   openMSXController.cpp)
+	* Replaced bitmaps with png's and removed the masking code.
+
+2005-04-25 Manuel Bilderbeek <manuel@msxnet.org>
+	* Added EXPERIMENTAL AND UNTESTED build support for the following CPUs.
+	  DEC Alpha, ARM, HP PA-RISC, IA-64, Motorola 680x0, MIPS (Big and
+	  Little Endian), IBM S/390.
+	  Everything should work (endianness is OK), but we have no systems to
+	  test on. Let's wait until someone complains that it doesn't work and
+	  then fix it (if needed at all).
+
+2005-03-05 Maarten ter Huurne <maarten@treewalker.org>
+	* Released openmsx-catapult-0.5.1-R1.
+
+2005-03-05 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Control groups are now disabled if all controls in that group are.
+	* Cassette is no longer first disabled and then enabled.
+	* Fixed disk sometimes not getting changed when selected from history
+
+2005-03-01 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Romtypes are now saved/restored for all roms in the history
+	* Doubleclick in the RomTypeDialog works now
+
+2005-02-09 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fixed a crash in the 'type' command.
+	* Remove rich edit flag of the input page
+
+2005-02-08 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fixed the 'type' command.
+
+2005-02-05 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* When selecting Disk IPS while openMSX is running, it's now applied
+	* Last used IPS path is now remembered
+	* Max Speed doesn't set speed to 500 anymore. This gave too much
+	  problems
+
+2005-02-03 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fixed updating the popup menu's for mapper and ips
+	* Restricted the history to 25 items (hardcoded for now)
+
+2005-01-31 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fix IPS and mapper support
+	* Added multiple IPS and disk IPS.
+
+2005-01-26 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fixed problems with non-lowercase settings in the audiopage
+	* Made some more adjustments for wxmsw 2.5 with unicode
+
+2005-01-09 Manuel Bilderbeek <manuel@msxnet.org>
+	* Fixed fps counter on wx unicode.
+
+2005-01-08 Manuel Bilderbeek <manuel@msxnet.org>
+	* Added tool tips for new menus. Fixed some typos.
+
+2005-01-06 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Catapult now works with wxWidgets 2.5.3, however the main screen
+	  appears to be too wide.
+	* Catapult is now 100% unicode compatible.
+	* Added possibility to drop files on diskA,diskB, etc, but that doesn't
+	  work in wxmsw because of (yet another) bug in wxWidgets.
+	* Added compile targets in vc++ to compile in 2.5.3 with or without
+	  unicode. wx2.4 targets are also still available.
+
+2004-12-26 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Removed some non-game romtypes
+	* Made the romtype dialog autosizing by contents
+	* Added Cassette stuff by popup menu
+	* Fixed some minor bugs and warnings
+
+2004-12-25 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Added popup menu's to the sessionpage.
+	* Added romtype selection (romtypes are hardcoded for now)
+	* Added IPS selection
+	* Added Browse for directory (dirasdisk)
+	* Added Empty disk
+
+2004-12-13 Manuel Bilderbeek <manuel@msxnet.org>
+	* Added proper enable/disable behaviour for Clear and Type buttons on
+	  InputPage
+
+2004-12-03 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* fixed info2code.mk so config.h and version.ii are created with
+	  wxT macro's
+	* removed wxT macro where used in combination with XRCID since
+	  this also includes the wxT macro.
+	* added (char *) cast to all functions using wxString.c_str()
+	* fixed a redefinition warning in vc++
+
+2004-12-01 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* added wxT macro's for compilation with unicode
+
+2004-11-14 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* catapult can be compiled in mingw without any alteration of
+	  wx-config. The result is still far bigger than using vc++, so it's
+	  not perfect yet.
+
+2004-11-11 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fixed gcc compiler warning (signed/unsigned mismatch) in FOREACH
+	  code
+	* First step for compiling using mingw:
+		- Included <windows.h> where HANDLE is needed
+		- Replaced FindWindow() by FindWindowByName() because mingw gets
+		  confused about the FindWindow defined in winbase.h (windows.h)
+		- Replaced __WINDOWS__ by __WXMSW__ (wx-config has only -D__WXMSW__)
+		- Fixed vc++ compiler error in CatapultConfigDlg.
+
+2004-11-10 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* All static arrays that used to be looped through by for-loops, are
+	  now looped by the new macro FOREACH
+
+2004-11-10 Joost Yervante Damad <joost@lumatec.be>
+	* debian packaging is working
+	* make configurable:
+		- default openmsx binary location
+		- default openmsx system share dir location
+		- creation of the desktop entries can be disabled
+
+2004-11-06 Joost Yervante Damad <joost@lumatec.be>
+	* make it possible to disable symlink for install
+	* removed some ^M's from AUTHORS file
+
+2004-11-06 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Removed all hard loopends used in combination with static arrays to
+	  avoid problem with adding or removing elements in those arrays (e.g.
+	  the media types).
+
+2004-11-06 Manuel Bilderbeek <manuel@msxnet.org>
+	* Removed all .Cas stuff, and replaced it by two cassetteplayer
+	  controls, which still need to be made functional. Thanks to Herman
+	  for finding some bugs. See his commit of today :)
+	* Internally renamed all Tape(1) stuff to Cassette
+	* Some layout tweaks (mainly esthetical) and added tool tip
+	* Made Rewind and Force Play buttons functional
+	* Disable Cassette stuff when there's no cassette port in the running
+	  machine; disable buttons when there's no cassette selected
+	  TODO: the controls get disabled briefly (during silent launch) and
+	  then get enabled again if the port is found... Fix it if you can! ;)
+	* Fixed initial enabled-state of buttons, depending on CassetteComboBox
+
+2004-10-16 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fixed a problem with inserting a disk while openMSX is running.
+	* Fixed a problem with change focus and diskb (value from
+	   diska was taken instead of diskb).
+
+2004-10-11 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Paths are now saved as soon as the openMSX config dialog
+	   is closed.
+
+2004-10-10 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fixed printerport plugin mechanism.
+	* Instead of using LaunchMode, every openMSX reply
+	   is linked to a handler-target. This can be either the
+	   interactive handler code or the automatic startup code.
+	   Advantage is that commands are no longer ignored, even
+	   at startup (Thanks to BifiMsx, Albert Beevendorp, for this
+	   solution).
+
+2004-10-08 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fixed printerlogger pluggable
+	* removed tear-off option from menu's
+	* Disabled labels of disabled controls
+	* Fixed a problem in the startup script
+	* Added Save settings at exit (menu check)
+
+2004-10-06 Herman Oudejans <hn.oudeans@quicknet.nl>
+	* Added support for the 'firmwareswitch' setting.
+
+2004-10-04 Herman Oudejans
+	* Browse file buttons are now picture buttons
+	* Catapult now sends an 'unplug' before sending 'plug'
+	* Minor clean ups.
+
+2004-10-03 Herman Oudejans <hn.oudeans@quicknet.nl>
+	* Joystick settings are now saved.
+	* Provided user feedback for screenshot without parameters
+	* Added printerport functionality
+
+2004-10-02 Herman Oudejans <hn.oudeans@quicknet.nl>
+	* Added Screenshot support
+	* 'Grab' and 'Type' buttons are now disabled until openMSX runs
+	* fixed initial state of the mute button
+
+2004-10-02 Manuel Bilderbeek <manuel@msxnet.org>
+	* Changed the order of video controls
+	* Fixed capitalisation issues
+
+2004-10-01 Herman Oudejans <hn.oudeans@quicknet.nl>
+	* Added 'type' command support.
+
+2004-09-26 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Converter underscores to spaces in machines and extensions
+	* Fixed: If machines and/or extensions were saved the last time
+		    and catapult is started and stopped immidiately,
+		    the selected stuff was lost.
+	* Machine and extension names can now contain spaces.
+	* Added 'touch' in the windows build steps to avoid having to copy
+	   the bitmaps over and over again.
+	* Cleaned up the output of the windows build process.
+
+2004-09-24 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fixed some sizers in the video and misc pages
+	* Added rensha turbo support
+	* Added Load/Save/Save As OpenMSX settings.
+
+2004-09-11 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Changed the Misc Controls page layout
+	* Several cosmetic fixes
+	* Removed the Throttle button. Same functionality is now in the
+	   'Max speed' button.
+
+2004-08-29 Manuel Bilderbeek <manuel@msxnet.org>
+	* Implemented minframeskip and maxframeskip completely.
+
+2004-08-26 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Added pause status in statusbar.
+	* Fixed width of machine/extension lists.
+	* Statusbar is now restore after closing a menu.
+
+2004-06-06 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Removed all openMSX 0.3.4 support
+	* Prepared GUI for minframeskip setting support.
+
+2004-05-29 Manuel Bilderbeek <manuel@msxnet.org>
+	* Added support for muting individual channels via channel mode
+
+2004-05-28 Maarten ter Huurne <maarten@treewalker.org>
+	* Released openmsx-catapult-0.4.0-R1.
+
+2004-05-28 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Windows executable is now created in derived/bin, which is
+	   better for package creation.
+	* Windows build defaults now to the Release version.
+	* Disabled the m_commands assert. When no commands are
+	   available, the GetPendingCommand function will return an empty
+	   string. Effectively, this means that the reception of a reply without
+	   a sent command will simply be ignored.
+
+2004-05-09 Maarten ter Huurne <maarten@treewalker.org>
+	* Ported system probe from openMSX to Catapult.
+
+2004-05-09 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* made the windows build system work with the version info
+	* updated the README to point out the manuals
+
+2004-05-08 Maarten ter Huurne <maarten@treewalker.org>
+	* Ported build system stuff from openMSX to Catapult.
+	  Includes handling of version info.
+	* Implemented "make dist".
+
+2004-05-06 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Added manuals (thx to Manuel).
+
+2004-04-30 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* the m_command != NULL assert should be fixed now. I tried
+	   to reproduce the assert but just couldn't.
+
+2004-04-27 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Personal share dir is now also used in windows to find machines
+	   and extensions
+	* Items added to history are now converted to the native (back)slash.
+	* file filters with capitals extensions added. .DSK and alike should now be
+	   also found in linux.
+	* If normal tape (wave) is used and the machine is equiped with a
+	   cassetteport it's automaticly plugged.
+
+2004-04-25 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Catapult now initially guesses where openmsx could be and checks
+	   for it. If users maintain default values, those values should be good
+	   from the start.
+	* Fixed a bug in returning from fullscreen in Windows.
+	* Cataputl should now accept non-dev openmsx versions higher than
+	   0.3.4. This should cause the soon to release 0.4.0 to be accepted as
+	   a new version instead of an old.
+	* Fixed the layout of the midi/sample panel a bit.
+
+2004-04-20 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Move screen after returning from full screen is now ONLY done
+	   with an old openmsx.
+
+2004-04-18 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fullscreen button in windows works.
+	* removed segfault in ChangeJoystickport.
+	* fixed a bug with frameskip in the launchscript interpreter.
+
+2004-04-17 Manuel Bilderbeek <manuel@msxnet.org>
+	* added loads of tooltips to the wxg files and changed some texts
+	* in the mixer, the audio channels have also tooltips with their full
+	  name and type now
+	* added preliminary documentation files, license file (GPL), AUTHORS
+	  and README. Also added doc directory with release notes and other
+	  stuff, which still need to be filled in! It's mostly copied from
+	  openMSX and adjusted for Catapult. But remember: TODO: fill all that
+	  stuff in!
+
+2004-04-17 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fixed: openmsx fatal errors were sometimes repeated over and
+	   over again.
+	* Added: Full screen button (disabled in windows for now).
+	* Fixed segfault on close catapult while openmsx runs (again).
+	  Thanks to wouter.
+	* Aligned most resources. Changed Launch/Abort to Start/Stop.
+
+2004-04-16 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Restructured the videocontrolpage.
+	* Made 'Skip frames' / 'Max Frameskip' autochanging depending
+	   on openmsx version.
+
+2004-04-15 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* fixed gtk segfault when catapult closes and openmsx still runs
+	* fixed gtk segfault when mouse is being hold while selecting the
+	   same joystickdevice in both joystick ports
+	* Openmsx executable and share path are now saved when
+	   closing the configuration dialog with Ok.
+	* Auto Frame Skip is now hidden if not used
+	* When (un)plugging devices, the mixer is only re-initiated if
+	   the number of sounddevices has changed.
+
+2004-04-12 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* fixed gtk segfault when starting openmsx.
+	* in case of openmsx crashing, leds are now turned off
+	* Made the linux openmsx launch procedure in linux native code
+	   (thanks to wouter). Removing wxProcess and wxExecute seems
+	   to get rid of the segfault when closing openmsx.
+	* fixed wxCatapult.dsp (added winmm library for joystick checking).
+	* openmsx 1211 has a new versionstring (openmsx -v). adapted
+	   catapult for it.
+	* (un)plugging sounds devices now updates the mixer.
+
+2004-04-11 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* joystickport devices are now prepluggable.
+	* fixed UpdateComboSetting for gtk (was corrupted since the new
+	   launch script).
+
+2004-04-10 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* catapult displays pluggables being plugged in on openmsx.
+	* catapult displays media changed in openmsx.
+
+2004-04-09 Herman Oudejnas <hn.oudejans@quicknet.nl>
+	* fixed bug: not able to use disk b, roms or tapes.
+
+2004-04-08 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fixed windows build system. config.h is now created.
+	   Unfortunately, I don't know how to set it as a dependency for
+	   other files, so if it doesn't work, do a 'rebuild all'
+	   - Moved dsp and dsw files to the build directory.
+	   - Remove hardpaths (this means that the paths to wx includes and
+	     and libs need to be added to: tools->options->directories in vc++).
+	     There's no way to automate this, sorry :(
+	* Devices can now be plugged in the joystick ports
+	* Changed default directory behaviour while browsing for openmsx
+	   share directory
+
+2004-04-07 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* History is updated when a new disk or tape is inserted while
+	   openMSX is running.
+	* History and used hardware is saved before openMSX is started and
+	   when a disk or tape is changed when openMSX is running.
+	* Fixed: Media comboboxes were cleared on launch.
+
+2004-04-06 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* When the configuration dialog is closed with Ok, catapult will
+	   now run openmsx -v to make sure all parameter are set properly.
+	* If the openmsx executable and/or share directory is changed,
+	   catapult tries to restore the previous machine and extensions.
+
+2004-04-05 Maarten ter Huurne <maarten@treewalker.org>
+	* Added "make install".
+
+2004-04-05 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Frameskip works now for openmsx 1198 and higher
+	* Minor fixes in the launch script interpreter.
+
+2004-04-04 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Catapult no longer segfaults when it can't find the resources
+	* launching openmsx is now script based. Should work faster and
+	   more stable.
+
+2004-04-01 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* fixed memory leaks
+
+2004-03-31 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* openmsx -v is now used to find out openmsx' possibilities
+	* fixed a bug when there is not soundhardware available
+
+2004-03-28 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Fixed linux disk/cart/tape combobox problems
+	* Fixed Audio/Video combobox problems
+	* Fixed "no audiomixer when no firmware"
+	* Fixed more combo problems
+	* Accuracies are now asked from openmsx
+
+2004-03-27 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Catapult now sends update enable commands to openmsx
+	* Firmware button only available if firmware available on the
+	   current machine
+
+2004-03-26 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Updates for audiocontrol on openmsx now result in update
+	   the audiomixer in catapult.
+	* Videocontrols with reset button now reset to the first value
+	   taken from openmsx.
+	* Moved statusinfo to the last tab
+	* Firmware should now only be enabled if a machine has it
+
+2004-03-25 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* updates from openmsx result now in update to the controls
+	   (all but the dynamic audio controls)
+	* Added the layout of the launchbutton / Leds a bit
+
+2004-03-23 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Implemented autoappy for textcontrols
+	* Removed apply en quit buttons
+	* Move leds from statuspage to global
+	* Finished the midi/sample sound I/O part
+
+2004-03-22 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Added midi in/out and sample input plugins
+	* Filenames still need to be done
+
+2004-03-21 Manuel Bilderbeek <manuel@msxnet.org>
+	* removed Mute button from MiscControls, made the new one in
+	  AudioControls functional
+	* some code layout clean ups
+	* set status properly during hidden launch
+
+2004-03-21 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* use openmsx_info sounddevice <device> to query the devicetype.
+	* Moonsound devices are now noted as stereo.
+	* linux comboboxwidth in audiomixer is for now fixed on 40 pixels.
+	* When not availble, mastervolume is disabled and sliders are ranged
+	   from 0-32767.
+	* When available, the 'unset' command is used instead of 'restoredefault'
+
+2004-03-20 Manuel Bilderbeek <manuel@msxnet.org>
+	* added frames per second display in status bar
+	* set status in status bar (could be expanded)
+
+2004-03-19 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Added audiocontrolspage
+	* fixed volume (voor devices containing a space)
+	* fixed compile error in linux
+
+2004-03-06 Maarten ter Huurne <maarten@treewalker.org>
+	* Moved build files to a subdir named "build".
+	* Define RESOURCEDIR from within build process.
+	  For the time being, developers should edit "build/config.mk" and set
+	  INSTALL_BASE to "<catapult_dir>/derived".
+
+2004-03-03 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* adapted for openmsx cvs Changelog version 1.1156 (openmsx_info
+	  command output is now a tcl-list).
+
+2004-02-27 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* fixed a sync error when querying the settings
+
+2004-02-12 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* When RESOURCEDIR is defined, catapult will use this as the
+	  basedirectory for the resources.
+	* Suppressed output when launching openMSX in hidden mode
+	* When used with openMSX 0.3.4 release, catapult will now filter
+	  excessive information from the set command reply if set is used
+	  to query the current value.
+
+2004-02-08 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* Make renderers and scalers dynamicly
+	* Catapult now asks all needed settings from openMSX
+
+2004-02-07 Maarten ter Huurne <maarten@treewalker.org>
+	* Integrated dependency checking from openMSX alternative.mk.
+	* Fixed compile warnings that showed up at "-Wall".
+
+2004-02-06 Manuel Bilderbeek <manuel@msxnet.org>
+	* added version variable in Makefile (maybe add config.h?)
+	* more .cvsignore entries
+
+2004-02-06 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* machines and extensions are refreshed after the
+	  configuration dialog has been called
+	* added program icon
+	* removed unicode from xml parser
+	* replaced diskimage.bmp
+	* moved version number to config.h
+
+2004-02-05 Wouter Vermaelen <wouter.vermaelen@pi.be>
+	* handle unknown XML tags better
+
+2004-02-05 Herman Oudejans <hn.oudejans@quicknet.nl>
+	* the xml parser now supports the new xml structure.
+	* removed the fake xml parser from the windowsversion.
+	* fixed the win32 build process (wxg to xrc)
+
+2004-02-04 Manuel Bilderbeek <manuel@msxnet.org>
+	* openMSX Catapult: initial CVS version (Oss Release)
