@@ -54,11 +54,19 @@ public class MainApp extends Application {
 
             primaryStage.getIcons().clear();
             primaryStage.getIcons().add(favicon);
-            primaryStage.setOnCloseRequest(event -> {
-                if (mainController != null) {
-                    mainController.shutdown();
+        primaryStage.setOnCloseRequest(event -> {
+            if (mainController != null) {
+                // Antes de cerrar la aplicación, pregunta por cada pestaña de
+                // editor que tenga un cambio externo pendiente (Recargar /
+                // Conservar mi versión / Cancelar). Si el usuario cancela
+                // alguna, se aborta el cierre de la app.
+                if (!mainController.confirmAllEditorTabsBeforeApplicationExit()) {
+                    event.consume();
+                    return;
                 }
-            });
+                mainController.shutdown();
+            }
+        });
             primaryStage.show();
 
         } catch (Exception e) {

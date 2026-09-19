@@ -49,6 +49,7 @@ import com.retroeditor.controller.search.FileOpenPort;
 import com.retroeditor.service.CompilationDiagnosticParserService;
 import com.retroeditor.service.ExternalFileChangeMonitor;
 import com.retroeditor.service.ExternalFileChangeService;
+import com.retroeditor.service.LocalHistoryService;
 import com.retroeditor.service.ProjectPlatformDetectionService;
 import com.retroeditor.service.PropertiesConfigRepository;
 import com.retroeditor.service.syntax.SyntaxHighlighter;
@@ -1270,6 +1271,16 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             
             tabFileMap.put(tab, file.getAbsoluteFile());
             secondaryTabPane.getSelectionModel().select(tab);
+            persistSessionState();
+
+            // Antes de cerrar con la X integrada, si la pestaña está sucia y el
+            // archivo cambió externamente, pregunta (Recargar/Conservar/Cancelar)
+            // en vez de descartar el buffer o sobrescribir la versión de disco.
+            tab.setOnCloseRequest(e -> {
+                if (!confirmCloseEditorTab(tab)) {
+                    e.consume();
+                }
+            });
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -1298,6 +1309,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         tabFileMap.put(tab, file);
         applyDiagnosticsForTab(tab);
         persistSessionState();
+
+        // Antes de cerrar con la X integrada, si la pestaña está sucia y el
+        // archivo cambió externamente, pregunta (Recargar/Conservar/Cancelar)
+        // en vez de descartar o sobrescribir en silencio.
+        tab.setOnCloseRequest(e -> {
+            if (!confirmCloseEditorTab(tab)) {
+                e.consume();
+            }
+        });
 
         // Limpieza cuando el usuario cierra el tab con la X integrada
         tab.setOnClosed(e -> {
@@ -1837,6 +1857,37 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         Platform.exit(); 
     }
 
+    /**
+     * Comprueba, antes de cerrar la aplicación, si alguna pestaña de editor
+     * (tanto del panel principal como del panel secundario) tiene un archivo en
+     * disco modificado externamente con un buffer sucio en el editor. Si es así,
+     * pregunta con el diálogo de 3 botones (Recargar desde disco / Conservar mi
+     * versión del editor / Cancelar) en lugar de descartar o sobrescribir en
+     * silencio.
+     *
+     * @return {@code false} si el usuario decidió cancelar el cierre de alguna
+     *     pestaña; {@code true} si todas las pestañas tienen el conflicto
+     *     resuelto (recargado o conservado) o no presentan conflicto y se puede
+     *     continuar con el apagado.
+     */
+    public boolean confirmAllEditorTabsBeforeApplicationExit() {
+        if (tabPane != null) {
+            for (Tab tab : new ArrayList<>(tabPane.getTabs())) {
+                if (!confirmCloseEditorTab(tab)) {
+                    return false;
+                }
+            }
+        }
+        if (secondaryTabPane != null) {
+            for (Tab tab : new ArrayList<>(secondaryTabPane.getTabs())) {
+                if (!confirmCloseEditorTab(tab)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     public void shutdown() {
         persistSessionState();
         try {
@@ -1967,6 +2018,67 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             default -> { return false; }
         }
         return true;
+    }
+
+    /**
+     * Decide si se puede cerrar la pestaña dada sin sobrescribir silenciosamente
+     * un archivo que cambió en disco fuera del editor.
+     * <p>
+     * Si la pestaña está sucia y el archivo se modificó externamente (p. ej. por
+     * opencode), no se cierra directamente: se pregunta al usuario con las mismas
+     * opciones que al guardar (Recargar desde disco / Conservar mi versión en el
+     * editor / Cancelar). Así se evita perder las ediciones sin guardar o pisar el
+     * cambio externo sin confirmación.
+     *
+     * @param tab pestaña cuyo cierre se solicita
+     * @return {@code true} si procede cerrar (sin conflicto, o ya resuelto
+     *     recargando o conservando la versión del editor); {@code false} si el
+     *     cierre debe cancelarse (el diálogo se cerró o el usuario eligió
+     *     «Cancelar»)
+     */
+    private boolean confirmCloseEditorTab(Tab tab) {
+        if (tab == null) return true;
+        File file = tabFileMap.get(tab);
+        CodeArea codeArea = fxUtils.getCodeArea(tab);
+        String registered = fxUtils.getDiskFingerprint(tab);
+        if (file == null || codeArea == null || registered == null) {
+            return true;
+        }
+        if (!ExternalFileChangeService.hasExternalChange(file, registered)) {
+            return true;
+        }
+
+        Optional<ExternalChangeAction> decision = askExternalChangeAction(file.getName(), true);
+        if (decision.isEmpty()) return false;
+        switch (decision.get()) {
+            case RELOAD -> {
+                if (!reloadTabFromDisk(tab, file, codeArea)) return false;
+            }
+            case OVERWRITE -> {
+                if (!persistEditorVersionToDisk(tab, file, codeArea)) return false;
+            }
+            default -> { return false; }
+        }
+        return true;
+    }
+
+    /**
+     * Consigna el buffer del editor de la pestaña sobre el archivo en disco,
+     * marcando la pestaña como guardada y actualizando la huella registrada.
+     * Se usa cuando el usuario elige «Conservar mi versión» ante un cambio externo.
+     *
+     * @return {@code true} si se escribió al disco correctamente
+     */
+    private boolean persistEditorVersionToDisk(Tab tab, File file, CodeArea codeArea) {
+        try {
+            editorModel.saveFile(file, codeArea.getText());
+            LocalHistoryService.recordSnapshot(file, codeArea.getText());
+            fxUtils.markTabSaved(tab, fxUtils.getDefaultFileName(tab), codeArea.getText());
+            return true;
+        } catch (IOException ex) {
+            terminalController.appendConsoleOutput("No se conservar la versión del editor: " + ex.getMessage(), consoleOutputArea);
+            return false;
+        }
     }
 
     @FXML
