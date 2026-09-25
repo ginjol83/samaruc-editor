@@ -36,6 +36,35 @@ class ProjectPlatformDetectionServiceTest {
     }
 
     @Test
+    void detectCpcByWorkspaceTarget() throws IOException {
+        Files.writeString(tempDir.resolve("settings.json"), "{\"samaruc.target\": \"cpc\"}");
+
+        ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
+
+        Assertions.assertEquals(ProjectPlatformDetectionService.Platform.CPC, result.getPlatform());
+        Assertions.assertTrue(result.getConfidence() > 0);
+    }
+
+    @Test
+    void detectCpcByHeaderAndApi() throws IOException {
+        Files.writeString(tempDir.resolve("main.c"), "#include <conio.h>\n#include <cpc.h>\nvoid main(void){ cpc_ClrScr(); }");
+
+        ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
+
+        Assertions.assertEquals(ProjectPlatformDetectionService.Platform.CPC, result.getPlatform());
+        Assertions.assertTrue(result.getConfidence() > 0);
+    }
+
+    @Test
+    void detectCpcByZ88dkTargetWithoutSpectrumSignal() throws IOException {
+        Files.writeString(tempDir.resolve("main.c"), "#include <cpc.h>\n// z88dk +cpc\nvoid main(void){ cpc_ClrScr(); }");
+
+        ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
+
+        Assertions.assertEquals(ProjectPlatformDetectionService.Platform.CPC, result.getPlatform());
+    }
+
+    @Test
     void detectUnknownWhenNoSignals() throws IOException {
         Files.writeString(tempDir.resolve("main.c"), "int main(void){ return 0; }");
 

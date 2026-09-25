@@ -18,6 +18,7 @@ public class ProjectPlatformDetectionService {
     public enum Platform {
         GAMEBOY,
         SPECTRUM,
+        CPC,
         SMS,
         ATARI,
         C64,
@@ -55,6 +56,7 @@ public class ProjectPlatformDetectionService {
 
         int gameBoyScore = 0;
         int spectrumScore = 0;
+        int cpcScore = 0;
         int smsScore = 0;
         int atariScore = 0;
         int c64Score = 0;
@@ -83,6 +85,10 @@ public class ProjectPlatformDetectionService {
                     spectrumScore += 15;
                     evidence.add("samaruc.target=spectrum");
                 }
+                if (content.contains("\"samaruc.target\":\"cpc\"") || content.contains("\"samaruc.target\": \"cpc\"")) {
+                    cpcScore += 15;
+                    evidence.add("samaruc.target=cpc");
+                }
                 if (content.contains("\"samaruc.target\":\"cc65\"") || content.contains("\"samaruc.target\": \"cc65\"")) {
                     atariScore += 15;
                     evidence.add("samaruc.target=cc65");
@@ -109,12 +115,30 @@ public class ProjectPlatformDetectionService {
                     evidence.add("DISPLAY_ON");
                 }
 
+                boolean cpcSpecific = content.contains("<cpc.h>")
+                    || content.contains("+cpc")
+                    || content.contains("cpc_");
+                if (content.contains("#include <cpc.h>")) {
+                    cpcScore += 6;
+                    evidence.add("cpc.h");
+                }
+                if (content.contains("+cpc")) {
+                    cpcScore += 5;
+                    evidence.add("+cpc");
+                }
+                if (content.contains("cpc_")) {
+                    cpcScore += 3;
+                    evidence.add("cpc_*");
+                }
                 if (content.contains("#include <conio.h>") && !content.contains("dos.h")) {
                     if (content.contains("c64.h") || content.contains("vic.h") || content.contains("sid.h")
                             || content.contains("cia.h") || content.contains("cbm_kernal.h")
                             || content.contains("-t c64") || content.contains("c64.cfg")) {
                         c64Score += 6;
                         evidence.add("conio.h (cc65 C64)");
+                    } else if (cpcSpecific) {
+                        cpcScore += 4;
+                        evidence.add("conio.h (CPC)");
                     } else if (content.contains("atari.h")
                         || content.contains("atarixl")
                         || content.contains("cl65")
@@ -142,9 +166,13 @@ public class ProjectPlatformDetectionService {
                         evidence.add("kbhit()");
                     }
                 }
-                if (content.contains("z88dk") || content.contains("+zx")) {
+                if (content.contains("+zx")) {
+                    spectrumScore += 3;
+                    evidence.add("+zx");
+                }
+                if (content.contains("z88dk") && !cpcSpecific) {
                     spectrumScore += 2;
-                    evidence.add("z88dk/+zx");
+                    evidence.add("z88dk");
                 }
 
                 if (content.contains("#include <atari.h>")) {
@@ -200,22 +228,24 @@ public class ProjectPlatformDetectionService {
             return new DetectionResult(Platform.UNKNOWN, 0, "");
         }
 
-        int total = gameBoyScore + spectrumScore + smsScore + atariScore + c64Score;
+        int total = gameBoyScore + spectrumScore + cpcScore + smsScore + atariScore + c64Score;
         if (total == 0) {
             return new DetectionResult(Platform.UNKNOWN, 0, "");
         }
 
-        int maxScore = Math.max(gameBoyScore, Math.max(spectrumScore, Math.max(smsScore, Math.max(atariScore, c64Score))));
+        int maxScore = Math.max(gameBoyScore, Math.max(spectrumScore, Math.max(cpcScore, Math.max(smsScore, Math.max(atariScore, c64Score)))));
         Platform platform = Platform.UNKNOWN;
-        if (maxScore == gameBoyScore && gameBoyScore > spectrumScore && gameBoyScore > smsScore && gameBoyScore > atariScore && gameBoyScore > c64Score) {
+        if (maxScore == gameBoyScore && gameBoyScore > spectrumScore && gameBoyScore > cpcScore && gameBoyScore > smsScore && gameBoyScore > atariScore && gameBoyScore > c64Score) {
             platform = Platform.GAMEBOY;
-        } else if (maxScore == spectrumScore && spectrumScore > gameBoyScore && spectrumScore > smsScore && spectrumScore > atariScore && spectrumScore > c64Score) {
+        } else if (maxScore == spectrumScore && spectrumScore > gameBoyScore && spectrumScore > cpcScore && spectrumScore > smsScore && spectrumScore > atariScore && spectrumScore > c64Score) {
             platform = Platform.SPECTRUM;
-        } else if (maxScore == smsScore && smsScore > gameBoyScore && smsScore > spectrumScore && smsScore > atariScore && smsScore > c64Score) {
+        } else if (maxScore == cpcScore && cpcScore > gameBoyScore && cpcScore > spectrumScore && cpcScore > smsScore && cpcScore > atariScore && cpcScore > c64Score) {
+            platform = Platform.CPC;
+        } else if (maxScore == smsScore && smsScore > gameBoyScore && smsScore > spectrumScore && smsScore > cpcScore && smsScore > atariScore && smsScore > c64Score) {
             platform = Platform.SMS;
-        } else if (maxScore == atariScore && atariScore > gameBoyScore && atariScore > spectrumScore && atariScore > smsScore && atariScore > c64Score) {
+        } else if (maxScore == atariScore && atariScore > gameBoyScore && atariScore > spectrumScore && atariScore > cpcScore && atariScore > smsScore && atariScore > c64Score) {
             platform = Platform.ATARI;
-        } else if (maxScore == c64Score && c64Score > gameBoyScore && c64Score > spectrumScore && c64Score > smsScore && c64Score > atariScore) {
+        } else if (maxScore == c64Score && c64Score > gameBoyScore && c64Score > spectrumScore && c64Score > cpcScore && c64Score > smsScore && c64Score > atariScore) {
             platform = Platform.C64;
         }
 

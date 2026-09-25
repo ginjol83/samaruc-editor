@@ -21,6 +21,18 @@ class ConfigModelLegacyCompatibilityTest {
     }
 
     @Test
+    void appliesCpcProfileWithZ88dkAndCpcBox() {
+        ConfigModel model = new ConfigModel();
+
+        model.applyCpcProfile();
+
+        Assertions.assertEquals("z88dk", model.getConfigProperty("compilador_seleccionado", "GBDK"));
+        Assertions.assertEquals("cpc", model.getConfigProperty("z88dk_profile", "spectrum"));
+        Assertions.assertEquals("CPCBoxWeb", model.getConfigProperty("emulador_seleccionado", ""));
+        Assertions.assertEquals("+cpc", model.getConfigProperty("z88dk_cpc_target", ""));
+    }
+
+    @Test
     void loadsExplicitZ88dkCpcLabelAsZ88dkProfileCpcWhenProfileProvided() {
         ConfigModel model = new ConfigModel();
         Properties props = new Properties();

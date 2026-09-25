@@ -2,6 +2,7 @@ package com.retroeditor.util;
 
 import java.io.File;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -43,6 +44,44 @@ class FXUtilsProjectCreationTest {
         Assertions.assertTrue(json.contains("\"samaruc.workspaceVersion\": 1"));
         Assertions.assertTrue(json.contains("\"samaruc.target\": \"gameboy\""));
         Assertions.assertTrue(json.contains("\"**/out\": true"));
+    }
+
+    @Test
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    void createProjectFromCpcTemplateWritesCorrectTargetAndFiles() throws Exception {
+        FXUtils utils = new FXUtils();
+
+        Path projectDir = tempDir.resolve("cpc-project");
+        Files.createDirectories(projectDir);
+
+        Class templateClass = Class.forName("com.retroeditor.util.FXUtils$ProjectTemplate");
+        Object cpcTemplate = Enum.valueOf(templateClass, "CPC");
+
+        Class optionsClass = Class.forName("com.retroeditor.util.FXUtils$ProjectCreationOptions");
+        Constructor ctor = optionsClass.getDeclaredConstructor(templateClass, boolean.class, boolean.class);
+        ctor.setAccessible(true);
+        Object options = ctor.newInstance(cpcTemplate, true, true);
+
+        Method createProjectMethod = FXUtils.class.getDeclaredMethod("createProjectFromTemplate", File.class, optionsClass);
+        createProjectMethod.setAccessible(true);
+        createProjectMethod.invoke(utils, projectDir.toFile(), options);
+
+        String json = Files.readString(projectDir.resolve(".samarucws").resolve("settings.json"), StandardCharsets.UTF_8);
+        Assertions.assertTrue(json.contains("\"samaruc.target\": \"cpc\""));
+        Assertions.assertTrue(Files.exists(projectDir.resolve("src/main.c")));
+    }
+
+    @Test
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    void reportsLastCreatedProjectAsCpcTemplate() throws Exception {
+        FXUtils utils = new FXUtils();
+        Class templateClass = Class.forName("com.retroeditor.util.FXUtils$ProjectTemplate");
+        Object cpcTemplate = Enum.valueOf(templateClass, "CPC");
+        Field templateField = FXUtils.class.getDeclaredField("lastCreatedProjectTemplate");
+        templateField.setAccessible(true);
+        templateField.set(utils, cpcTemplate);
+
+        Assertions.assertTrue(utils.wasLastCreatedProjectCpcTemplate());
     }
 
     @Test

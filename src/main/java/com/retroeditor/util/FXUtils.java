@@ -221,6 +221,10 @@ public class FXUtils {
             || lastCreatedProjectTemplate == ProjectTemplate.SPECTRUM_SCREEN;
     }
 
+    public boolean wasLastCreatedProjectCpcTemplate() {
+        return lastCreatedProjectTemplate == ProjectTemplate.CPC;
+    }
+
     public boolean wasLastCreatedProjectCc65Template() {
         return lastCreatedProjectTemplate == ProjectTemplate.CC65;
     }

@@ -11,6 +11,7 @@ import java.util.function.Consumer;
 
 import javax.imageio.ImageIO;
 
+import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.canvas.Canvas;
@@ -27,8 +28,11 @@ import javafx.scene.paint.Color;
 import javafx.stage.FileChooser;
 import javafx.stage.Window;
 
+import com.retroeditor.service.tilemap.TilemapCodeGenerator;
+import com.retroeditor.service.tilemap.TilemapPlatform;
+
 /**
- * Editor visual de Mapas de Tiles (Tilemap Editor) con scroll, capas de colisión, carga de tileset PNG con paleta Game Boy y generación de C arrays.
+ * Editor visual de Mapas de Tiles (Tilemap Editor) con scroll, capas de colisión, tileset PNG y generación de C arrays multiformato.
  */
 public class TilemapEditorController {
 
@@ -41,7 +45,10 @@ public class TilemapEditorController {
 
     private int selectedTileIndex = 0;
     private boolean collisionMode = false;
+    private TilemapPlatform selectedPlatform = TilemapPlatform.GAMEBOY;
+    private final TilemapCodeGenerator codeGenerator = new TilemapCodeGenerator();
 
+    private final List<BufferedImage> sourceTileImages = new ArrayList<>();
     private final List<javafx.scene.image.Image> tileImages = new ArrayList<>();
     private final ListView<Integer> tileListView = new ListView<>();
 
@@ -80,7 +87,19 @@ public class TilemapEditorController {
         Button btnExportC = new Button("Exportar Código C");
         btnExportC.setOnAction(e -> exportCode(projectDir, onExported));
 
-        HBox toolbar = new HBox(10, btnClear, btnLoadTileset, btnToggleCollision, btnExportC);
+        ChoiceBox<TilemapPlatform> platformChoice = new ChoiceBox<>(FXCollections.observableArrayList(TilemapPlatform.values()));
+        platformChoice.setValue(selectedPlatform);
+        platformChoice.setPrefWidth(190);
+        platformChoice.valueProperty().addListener((obs, oldValue, newValue) -> {
+            if (newValue != null) {
+                selectedPlatform = newValue;
+                rebuildTileImages();
+                redrawMap();
+                updateCode();
+            }
+        });
+
+        HBox toolbar = new HBox(10, new Label("Plataforma:"), platformChoice, btnClear, btnLoadTileset, btnToggleCollision, btnExportC);
         toolbar.setPadding(new Insets(8));
 
         // Canvas interactivo del mapa con ScrollPane
@@ -168,16 +187,17 @@ public class TilemapEditorController {
             try {
                 BufferedImage sheet = ImageIO.read(file);
                 if (sheet != null) {
-                    tileImages.clear();
+                    sourceTileImages.clear();
                     int cols = sheet.getWidth() / 8;
                     int rows = sheet.getHeight() / 8;
                     for (int r = 0; r < rows; r++) {
                         for (int c = 0; c < cols; c++) {
-                            BufferedImage sub = sheet.getSubimage(c * 8, r * 8, Math.min(8, sheet.getWidth() - c * 8), Math.min(8, sheet.getHeight() - r * 8));
-                            BufferedImage gbTile = convertToGameBoyTile(sub);
-                            tileImages.add(bufferedImageToFxImage(gbTile));
+                            int tileWidth = Math.min(8, sheet.getWidth() - c * 8);
+                            int tileHeight = Math.min(8, sheet.getHeight() - r * 8);
+                            sourceTileImages.add(sheet.getSubimage(c * 8, r * 8, tileWidth, tileHeight));
                         }
                     }
+                    rebuildTileImages();
                     tileListView.getItems().clear();
                     for (int i = 0; i < tileImages.size(); i++) {
                         tileListView.getItems().add(i);
@@ -191,16 +211,26 @@ public class TilemapEditorController {
         }
     }
 
-    private BufferedImage convertToGameBoyTile(BufferedImage src) {
+    private void rebuildTileImages() {
+        tileImages.clear();
+        for (BufferedImage source : sourceTileImages) {
+            tileImages.add(bufferedImageToFxImage(convertTileForPlatform(source)));
+        }
+    }
+
+    private BufferedImage convertTileForPlatform(BufferedImage src) {
+        if (selectedPlatform != TilemapPlatform.GAMEBOY) {
+            return src;
+        }
+
         BufferedImage dest = new BufferedImage(src.getWidth(), src.getHeight(), BufferedImage.TYPE_INT_ARGB);
-        // Classic Game Boy DMG Green Palette (4 shades)
         int[] gbPalette = {
-            0xFFE0F8D0, // 0: Lightest green
-            0xFF88C070, // 1: Light green
-            0xFF346856, // 2: Dark green
-            0xFF081820  // 3: Darkest green
+            0xFFE0F8D0,
+            0xFF88C070,
+            0xFF346856,
+            0xFF081820
         };
-        
+
         for (int x = 0; x < src.getWidth(); x++) {
             for (int y = 0; y < src.getHeight(); y++) {
                 int argb = src.getRGB(x, y);
@@ -212,13 +242,13 @@ public class TilemapEditorController {
                 int r = (argb >> 16) & 0xFF;
                 int g = (argb >> 8) & 0xFF;
                 int b = argb & 0xFF;
-                int lum = (int)(0.299 * r + 0.587 * g + 0.114 * b);
+                int lum = (int) (0.299 * r + 0.587 * g + 0.114 * b);
                 int idx;
                 if (lum > 192) idx = 0;
                 else if (lum > 128) idx = 1;
                 else if (lum > 64) idx = 2;
                 else idx = 3;
-                
+
                 dest.setRGB(x, y, gbPalette[idx]);
             }
         }
@@ -289,38 +319,7 @@ public class TilemapEditorController {
     }
 
     private void updateCode() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("// Tilemap generado por Samaruc Editor\n");
-        sb.append("#define MAP_WIDTH  ").append(MAP_WIDTH).append("\n");
-        sb.append("#define MAP_HEIGHT ").append(MAP_HEIGHT).append("\n\n");
-
-        sb.append("const unsigned char level_tilemap[MAP_HEIGHT][MAP_WIDTH] = {\n");
-        for (int r = 0; r < MAP_HEIGHT; r++) {
-            sb.append("    { ");
-            for (int c = 0; c < MAP_WIDTH; c++) {
-                sb.append(String.format("%3d", tilemap[r][c]));
-                if (c < MAP_WIDTH - 1) sb.append(", ");
-            }
-            sb.append(" }");
-            if (r < MAP_HEIGHT - 1) sb.append(",");
-            sb.append("\n");
-        }
-        sb.append("};\n\n");
-
-        sb.append("const unsigned char level_collisions[MAP_HEIGHT][MAP_WIDTH] = {\n");
-        for (int r = 0; r < MAP_HEIGHT; r++) {
-            sb.append("    { ");
-            for (int c = 0; c < MAP_WIDTH; c++) {
-                sb.append(collisions[r][c] ? "1" : "0");
-                if (c < MAP_WIDTH - 1) sb.append(", ");
-            }
-            sb.append(" }");
-            if (r < MAP_HEIGHT - 1) sb.append(",");
-            sb.append("\n");
-        }
-        sb.append("};\n");
-
-        codeOutputArea.setText(sb.toString());
+        codeOutputArea.setText(codeGenerator.generate(selectedPlatform, tilemap, collisions));
     }
 
     private void exportCode(File projectDir, Consumer<File> onExported) {

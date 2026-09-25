@@ -180,7 +180,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     private final EditOptionsController   editOptionsController   = new EditOptionsController();
     private final FileOptionsController   fileOptionsController   = new FileOptionsController();
-    private final TilemapEditorController tilemapEditorController = new TilemapEditorController();
     private final PngToZxConverterController pngToZxConverterController = new PngToZxConverterController();
     private final PngToGameBoyConverterController pngToGameBoyConverterController = new PngToGameBoyConverterController();
     private final GameBoyAudioEditorController    gameBoyAudioEditorController    = new GameBoyAudioEditorController();
@@ -1109,6 +1108,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             } else if (fxUtils.wasLastCreatedProjectSpectrumTemplate()) {
                 configModel.applySpectrumProfile();
                 configRepository.save(userConfigFile, configModel.toProperties());
+            } else if (fxUtils.wasLastCreatedProjectCpcTemplate()) {
+                configModel.applyCpcProfile();
+                configRepository.save(userConfigFile, configModel.toProperties());
             } else if (fxUtils.wasLastCreatedProjectCc65Template()) {
                 configModel.applyAtariProfile();
                 configRepository.save(userConfigFile, configModel.toProperties());
@@ -1164,16 +1166,20 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (detected == null || detected.getPlatform() == ProjectPlatformDetectionService.Platform.UNKNOWN) return;
 
         boolean profileAlreadyMatches =
-            (detected.getPlatform() == ProjectPlatformDetectionService.Platform.GAMEBOY && isCurrentProfileGameBoy())
+                (detected.getPlatform() == ProjectPlatformDetectionService.Platform.GAMEBOY && isCurrentProfileGameBoy())
                 || (detected.getPlatform() == ProjectPlatformDetectionService.Platform.SPECTRUM && isCurrentProfileSpectrum())
+                || (detected.getPlatform() == ProjectPlatformDetectionService.Platform.CPC && isCurrentProfileCpc())
                 || (detected.getPlatform() == ProjectPlatformDetectionService.Platform.ATARI && isCurrentProfileAtari())
                 || (detected.getPlatform() == ProjectPlatformDetectionService.Platform.C64 && isCurrentProfileC64());
+
 
         if (profileAlreadyMatches) return;
 
         String detectedProfileName;
         if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.GAMEBOY) {
             detectedProfileName = msg("dialog.project.detected.profile.gameboy", "Game Boy (GBDK)");
+        } else if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.CPC) {
+            detectedProfileName = msg("dialog.project.detected.profile.cpc", "Amstrad CPC (Z88DK)");
         } else if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.ATARI) {
             detectedProfileName = msg("dialog.project.detected.profile.atari", "Atari 8-bit (CC65)");
         } else if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.C64) {
@@ -1209,11 +1215,13 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
         if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.GAMEBOY) {
             configModel.applyGameBoyProfile();
+        } else if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.CPC) {
+            configModel.applyCpcProfile();
         } else if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.ATARI) {
             configModel.applyAtariProfile();
         } else if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.C64) {
             configModel.applyC64Profile();
-        } else {
+        } else if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.SPECTRUM) {
             configModel.applySpectrumProfile();
         }
         configRepository.save(userConfigFile, configModel.toProperties());
@@ -1230,7 +1238,16 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     private boolean isCurrentProfileSpectrum() {
         String compiler = configModel.getConfigProperty("compilador_seleccionado", "GBDK");
-        return "z88dk".equalsIgnoreCase(compiler) || "Spectrum".equalsIgnoreCase(compiler);
+        if (!"z88dk".equalsIgnoreCase(compiler) && !"Spectrum".equalsIgnoreCase(compiler)) {
+            return false;
+        }
+        return "spectrum".equalsIgnoreCase(configModel.getConfigProperty("z88dk_profile", "spectrum"));
+    }
+
+    private boolean isCurrentProfileCpc() {
+        String compiler = configModel.getConfigProperty("compilador_seleccionado", "GBDK");
+        return "z88dk".equalsIgnoreCase(compiler)
+            && "cpc".equalsIgnoreCase(configModel.getConfigProperty("z88dk_profile", "spectrum"));
     }
 
     private boolean isCurrentProfileAtari() {
@@ -3048,7 +3065,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     @FXML
     private void onOpenTilemapEditor(ActionEvent event) {
-        String title = toolTitle("menu.tools.tilemapEditor", "Editor de Mapas de Tiles (Game Boy)");
+        String title = toolTitle("menu.tools.tilemapEditor", "Editor de Mapas de Tiles");
         Consumer<File> onExported = exportedFile -> {
             if (projectExplorerController != null) {
                 projectExplorerController.refreshTree();
@@ -3056,7 +3073,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             openFileFromExplorer(exportedFile);
             persistSessionState();
         };
-        Node node = tilemapEditorController.createNode(currentProjectDir, bundle, onExported);
+        Node node = new TilemapEditorController().createNode(currentProjectDir, bundle, onExported);
         fxUtils.addToolTab(title, node, tabPane);
     }
 
