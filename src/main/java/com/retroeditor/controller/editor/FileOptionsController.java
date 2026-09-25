@@ -11,6 +11,7 @@ import com.retroeditor.service.LocalHistoryService;
 import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.service.syntax.SyntaxHighlighter;
 import com.retroeditor.util.FXUtils;
+import com.retroeditor.util.FoldingCodeArea;
 
 import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
@@ -56,6 +57,7 @@ public class FileOptionsController {
     public File onOpenFile(ActionEvent event, TabPane tabPane, Map<Tab, File> tabFileMap, EditorModel editorModel, SyntaxHighlighter syntaxHighlighter) {
         FileChooser fileChooser = new FileChooser();
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("C / Assembly / Markdown", "*.c", "*.h", "*.asm", "*.s", "*.md", "*.markdown"));
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Sprite Project (*.tile)", "*.tile"));
         if (defaultOpenDirectory != null && defaultOpenDirectory.exists() && defaultOpenDirectory.isDirectory()) {
             try {
                 fileChooser.setInitialDirectory(defaultOpenDirectory);
@@ -123,6 +125,7 @@ public class FileOptionsController {
         CodeArea codeArea = fxUtils.getCurrentCodeArea(tabPane);
 
         if (file != null && codeArea != null) {
+            FoldingCodeArea.expandAllFolds(codeArea);
             try {
                 editorModel.saveFile(file, codeArea.getText());
                 LocalHistoryService.recordSnapshot(file, codeArea.getText());
@@ -169,6 +172,7 @@ public class FileOptionsController {
 
         if (file != null && codeArea != null) {
             UserActionMonitor.fileSaveAsDialogShown(file.getName());
+            FoldingCodeArea.expandAllFolds(codeArea);
             try {
                 editorModel.saveFile(file, codeArea.getText());
                 LocalHistoryService.recordSnapshot(file, codeArea.getText());

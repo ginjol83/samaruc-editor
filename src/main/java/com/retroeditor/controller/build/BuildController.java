@@ -61,10 +61,14 @@ public class BuildController {
     private static final String EMULATOR_JSPECCY    = "JSpeccy";
     private static final String EMULATOR_CPCBOX_WEB = "CPCBoxWeb";
     private static final String EMULATOR_ALTIRRA    = "Altirra";
+    private static final String EMULATOR_VICE       = "VICE";
+    private static final String CC65_TARGET_ATARI   = "atari";
+    private static final String CC65_TARGET_C64     = "c64";
     private static final List<String> GAMEBOY_ROM_EXTENSIONS = Collections.unmodifiableList(Arrays.asList("gb", "gbc"));
     private static final List<String> SPECTRUM_ROM_EXTENSIONS = Collections.unmodifiableList(Arrays.asList("tap", "tzx", "sna", "z80"));
     private static final List<String> CPC_ROM_EXTENSIONS = Collections.unmodifiableList(Arrays.asList("cdt", "wav", "dsk", "edsk"));
     private static final List<String> ATARI_ROM_EXTENSIONS = Collections.unmodifiableList(Arrays.asList("xex", "atr", "com", "exe"));
+    private static final List<String> C64_ROM_EXTENSIONS = Collections.unmodifiableList(Arrays.asList("prg", "d64", "t64", "tap", "crt"));
     private static final List<String> CPC_AUTORUN_PRIORITY = Collections.unmodifiableList(Arrays.asList(
         "DISC", "DISK", "MENU", "START", "RUN", "RUNME", "LOADER", "BOOT", "GAME"
     ));
@@ -302,13 +306,32 @@ public class BuildController {
 
         } else if ("cc65".equalsIgnoreCase(selectedCompiler)) {
             String cc65Bin = configModel.getConfigProperty("cc65_bin", "");
-            String cl65 = resolveCompilerExecutable(cc65Bin, "cl65");
+            String cl65;
+            if (cc65Bin != null && !cc65Bin.isBlank()) {
+                cl65 = resolveCompilerExecutable(cc65Bin, "cl65");
+            } else {
+                File bundledCc65 = resolveBundledCc65Bin();
+                if (bundledCc65 == null) {
+                    Alert alert = new Alert(AlertType.ERROR);
+                    alert.setTitle("Error de compilación");
+                    alert.setHeaderText("No se encontró CC65 integrado");
+                    alert.setContentText("No se ha encontrado la distribución de CC65 incluida con Samaruc en la carpeta libs/cc65/bin.");
+                    alert.showAndWait();
 
-            String outputXex = new File(outputDir, outputBaseName + ".xex").getAbsolutePath();
+                    terminalController.appendConsoleOutput("ERROR: No se encontró la distribución de CC65 integrada en libs/cc65/bin.", consoleOutputArea);
+
+                    return;
+                }
+                cl65 = resolveCompilerExecutable(bundledCc65.getAbsolutePath(), "cl65");
+            }
+
+            String cc65Target = normalizeCc65Target(configModel.getConfigProperty("cc65_target", CC65_TARGET_ATARI));
+            String cc65TargetFlag = CC65_TARGET_C64.equals(cc65Target) ? "c64" : "atari";
+            String outputArtifact = new File(outputDir, outputBaseName + (CC65_TARGET_C64.equals(cc65Target) ? ".prg" : ".xex")).getAbsolutePath();
             List<String> cc65Cmd = new ArrayList<>();
             cc65Cmd.add(cl65);
             cc65Cmd.add("-t");
-            cc65Cmd.add("atari");
+            cc65Cmd.add(cc65TargetFlag);
             String optLevel = configModel.getConfigProperty("cc65_opt_level", "none");
             if (!optLevel.equals("none")) {
                 cc65Cmd.add(optLevel);
@@ -317,7 +340,7 @@ public class BuildController {
             compilerArgs.addIncludeFlags(cc65Cmd, configModel.getConfigProperty("cc65_includes", ""));
             compilerArgs.addExtraArgs(cc65Cmd, configModel.getConfigProperty("cc65_extra_args", ""));
             cc65Cmd.add("-o");
-            cc65Cmd.add(outputXex);
+            cc65Cmd.add(outputArtifact);
             cc65Cmd.add(sourceFilePath);
 
             cmd = cc65Cmd.toArray(new String[0]);
@@ -622,7 +645,7 @@ public class BuildController {
         String selectedProfile = normalizeZ88dkProfile(configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM));
         String selectedEmulator = configModel.getConfigProperty(
             "emulador_seleccionado",
-            getEmulatorForCompiler(selectedCompiler, selectedProfile)
+            getEmulatorForCompiler(selectedCompiler, selectedProfile, configModel)
         );
 
         // F6/Play compila primero y, si termina OK, lanza el emulador o el ejecutable nativo.
@@ -682,6 +705,11 @@ public class BuildController {
             return;
         }
 
+        if (C64_ROM_EXTENSIONS.contains(ext)) {
+            launchViceRom(romFile, consoleOutputArea, ownerStage, null);
+            return;
+        }
+
         terminalController.appendConsoleOutput(
             "Extensión de ROM no soportada para ejecución directa: ." + ext,
             consoleOutputArea
@@ -694,7 +722,8 @@ public class BuildController {
         return GAMEBOY_ROM_EXTENSIONS.contains(ext)
             || SPECTRUM_ROM_EXTENSIONS.contains(ext)
             || CPC_ROM_EXTENSIONS.contains(ext)
-            || ATARI_ROM_EXTENSIONS.contains(ext);
+            || ATARI_ROM_EXTENSIONS.contains(ext)
+            || C64_ROM_EXTENSIONS.contains(ext);
     }
 
     private boolean shouldUseMakeBuild(String selectedCompiler, File selectedFile, File projectRootDir) {
@@ -1169,13 +1198,23 @@ public class BuildController {
         }
     }
 
-    private String getEmulatorForCompiler(String compiler, String z88dkProfile) {
+    private String getEmulatorForCompiler(String compiler, String z88dkProfile, ConfigModel configModel) {
         if (isSpectrumCompiler(compiler)) {
             return Z88DK_PROFILE_CPC.equalsIgnoreCase(normalizeZ88dkProfile(z88dkProfile))
                 ? EMULATOR_CPCBOX_WEB
                 : EMULATOR_JSPECCY;
         }
+        if (COMPILER_CC65.equalsIgnoreCase(compiler)) {
+            String target = configModel != null
+                ? normalizeCc65Target(configModel.getConfigProperty("cc65_target", CC65_TARGET_ATARI))
+                : CC65_TARGET_ATARI;
+            return CC65_TARGET_C64.equals(target) ? EMULATOR_VICE : EMULATOR_ALTIRRA;
+        }
         return EMULATOR_EMULICIOUS;
+    }
+
+    private String normalizeCc65Target(String target) {
+        return target != null && target.trim().equalsIgnoreCase(CC65_TARGET_C64) ? CC65_TARGET_C64 : CC65_TARGET_ATARI;
     }
 
     private boolean isSpectrumCompiler(String compiler) {
@@ -1231,6 +1270,13 @@ public class BuildController {
         if (!binDir.isDirectory()) return null;
         String zccName = isWindows() ? "zcc.exe" : "zcc";
         return new File(binDir, zccName).isFile() ? binDir : null;
+    }
+
+    private File resolveBundledCc65Bin() {
+        File binDir = new File(System.getProperty("user.dir"), "libs/cc65/bin");
+        if (!binDir.isDirectory()) return null;
+        String cl65Name = isWindows() ? "cl65.exe" : "cl65";
+        return new File(binDir, cl65Name).isFile() ? binDir : null;
     }
 
     private boolean hasZccExecutable(String binDir) {
@@ -1656,6 +1702,7 @@ public class BuildController {
                         || SPECTRUM_ROM_EXTENSIONS.contains(ext)
                         || CPC_ROM_EXTENSIONS.contains(ext)
                         || ATARI_ROM_EXTENSIONS.contains(ext)
+                        || C64_ROM_EXTENSIONS.contains(ext)
                         || "rom".equals(ext)) {
                         artifacts.add(file);
                     }
@@ -1694,7 +1741,19 @@ public class BuildController {
             return;
         }
 
-        if (EMULATOR_ALTIRRA.equalsIgnoreCase(selectedEmulator) || "cc65".equalsIgnoreCase(configModel.getConfigProperty("compilador_seleccionado", ""))) {
+        boolean compilerIsCc65 = configModel != null && "cc65".equalsIgnoreCase(configModel.getConfigProperty("compilador_seleccionado", ""));
+        String forcedCc65Target = configModel != null
+            ? normalizeCc65Target(configModel.getConfigProperty("cc65_target", CC65_TARGET_ATARI))
+            : CC65_TARGET_ATARI;
+
+        if (EMULATOR_VICE.equalsIgnoreCase(selectedEmulator)
+                || (compilerIsCc65 && CC65_TARGET_C64.equals(forcedCc65Target))) {
+            launchVice(sourceFile, projectRootDir, consoleOutputArea, ownerStage, configModel);
+            return;
+        }
+
+        if (EMULATOR_ALTIRRA.equalsIgnoreCase(selectedEmulator)
+                || (compilerIsCc65 && CC65_TARGET_ATARI.equals(forcedCc65Target))) {
             launchAltirra(sourceFile, projectRootDir, consoleOutputArea, ownerStage, configModel);
             return;
         }
@@ -1706,18 +1765,30 @@ public class BuildController {
     }
 
     private File resolveAtariArtifact(File sourceFile, File projectRootDir) {
-        for (String extension : new String[] { ".xex", ".com", ".atr", ".exe" }) {
+        return resolveCc65Artifact(sourceFile, projectRootDir, CC65_TARGET_ATARI);
+    }
+
+    private File resolveCc65Artifact(File sourceFile, File projectRootDir, String cc65Target) {
+        List<String> extensions = CC65_TARGET_C64.equals(cc65Target)
+            ? Arrays.asList(".prg", ".d64")
+            : Arrays.asList(".xex", ".com", ".atr", ".exe");
+
+        for (String extension : extensions) {
             File artifact = buildOutputFile(sourceFile, extension, projectRootDir);
             if (artifact.exists()) return artifact;
         }
 
         File outputDir = resolveOutputDirectory(sourceFile, projectRootDir);
-        File fallbackArtifact = findNewestArtifact(outputDir, Arrays.asList("xex", "com", "atr", "exe"));
+        File fallbackArtifact = findNewestArtifact(outputDir, extensions.stream().map(ext -> ext.replaceFirst("^\\.", "")).toList());
         if (fallbackArtifact != null) {
             return fallbackArtifact;
         }
 
         return null;
+    }
+
+    private File resolveC64Artifact(File sourceFile, File projectRootDir) {
+        return resolveCc65Artifact(sourceFile, projectRootDir, CC65_TARGET_C64);
     }
 
     private void launchAltirra(File sourceFile, File projectRootDir, StyleClassedTextArea consoleOutputArea, Stage ownerStage, ConfigModel configModel) {
@@ -1741,6 +1812,12 @@ public class BuildController {
             }
             if (!altirraExe.exists() && !altirraPath.isBlank()) {
                 altirraExe = new File(altirraPath, "altirra.exe");
+            }
+            if (!altirraExe.exists()) {
+                File bundledDir = new File(System.getProperty("user.dir"), "libs/Altirra-4.21");
+                File bundledExe = new File(bundledDir, isWindows() ? "Altirra64.exe" : "Altirra");
+                if (!bundledExe.exists()) bundledExe = new File(bundledDir, "Altirra.exe");
+                if (bundledExe.exists()) altirraExe = bundledExe;
             }
 
             if (!altirraExe.exists()) {
@@ -1770,6 +1847,77 @@ public class BuildController {
             alert.showAndWait();
             terminalController.appendConsoleOutput("Error al lanzar Altirra: " + ex.getMessage(), consoleOutputArea);
         }
+    }
+
+    private void launchVice(File sourceFile, File projectRootDir, StyleClassedTextArea consoleOutputArea, Stage ownerStage, ConfigModel configModel) {
+        File c64Artifact = resolveC64Artifact(sourceFile, projectRootDir);
+        if (c64Artifact == null || !c64Artifact.exists()) {
+            terminalController.appendConsoleOutput("No se encontró el archivo ejecutable para C64 (.prg/.d64). Compila el proyecto antes de ejecutar.", consoleOutputArea);
+            return;
+        }
+        launchViceRom(c64Artifact, consoleOutputArea, ownerStage, configModel);
+    }
+
+    private void launchViceRom(File romFile, StyleClassedTextArea consoleOutputArea, Stage ownerStage, ConfigModel configModel) {
+        try {
+            String vicePath = configModel != null ? configModel.getConfigProperty("vice_bin", "") : "";
+            File viceExe = vicePath.isBlank() ? null : new File(vicePath);
+            if (viceExe == null || (viceExe.isDirectory() ? !new File(viceExe, isWindows() ? "x64sc.exe" : "x64sc").exists() : !viceExe.exists())) {
+                viceExe = new File(vicePath, isWindows() ? "x64sc.exe" : "x64sc");
+            }
+            if (viceExe == null || !viceExe.exists()) {
+                File bundledDir = new File(System.getProperty("user.dir"), "libs");
+                File viceRoot = findViceRoot(bundledDir);
+                if (viceRoot != null) {
+                    File bundledExe = new File(viceRoot, isWindows() ? "x64sc.exe" : "x64sc");
+                    if (!bundledExe.exists()) bundledExe = new File(viceRoot, "x64.exe");
+                    if (bundledExe.exists()) viceExe = bundledExe;
+                }
+            }
+
+            if (viceExe == null || !viceExe.exists()) {
+                Alert alert = new Alert(AlertType.ERROR);
+                alert.setTitle("Error al ejecutar emulador VICE");
+                alert.setHeaderText("No se encontró el ejecutable de VICE");
+                alert.setContentText("Por favor, configura la ruta de VICE (x64sc.exe) en las opciones de configuración.");
+                alert.showAndWait();
+                terminalController.appendConsoleOutput("ERROR: No se encontró el ejecutable de VICE en: " + vicePath, consoleOutputArea);
+                return;
+            }
+
+            UserActionMonitor.emulatorLaunched("VICE", romFile.getName());
+            EmulatorLauncher.launchVice(viceExe, romFile, consoleOutputArea, null);
+            UserActionMonitor.emulatorRunning("VICE");
+            handoffFocusToEmulator(ownerStage, consoleOutputArea);
+            terminalController.appendConsoleOutput(
+                "Lanzando VICE con archivo: " + romFile.getName(),
+                consoleOutputArea
+            );
+        } catch (Exception ex) {
+            UserActionMonitor.executionError("VICE: " + ex.getMessage());
+            Alert alert = new Alert(AlertType.ERROR);
+            alert.setTitle("Error al ejecutar VICE");
+            alert.setHeaderText("No se pudo iniciar VICE");
+            alert.setContentText(ex.getMessage());
+            alert.showAndWait();
+            terminalController.appendConsoleOutput("Error al lanzar VICE: " + ex.getMessage(), consoleOutputArea);
+        }
+    }
+
+    private File findViceRoot(File parentDir) {
+        File[] children = parentDir.listFiles();
+        if (children == null) return null;
+        for (File child : children) {
+            if (!child.isDirectory()) continue;
+            String name = child.getName().toLowerCase();
+            if (name.contains("vice")) {
+                File candidate = new File(child, isWindows() ? "x64sc.exe" : "x64sc");
+                if (candidate.exists()) return child;
+                File sub = findViceRoot(child);
+                if (sub != null) return sub;
+            }
+        }
+        return null;
     }
 
     /**

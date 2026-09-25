@@ -252,6 +252,65 @@ class CompilationDiagnosticParserServiceTest {
     }
 
     /**
+     * Escenario: diagnostico cc65/cl65 en formato "file(line): Error: ...",
+     * tipico de ca65/cc65/ld65 con plantillas de C64 o Atari.
+     */
+    @Test
+    void parseCompilerDiagnosticCc65FileLineBareForm() throws IOException {
+        Path source = tempDir.resolve("main.c");
+        Files.writeString(source, "int main() { return 0; }\n");
+
+        CompilationDiagnosticParserService.DiagnosticLocation location = service.parseCompilerDiagnosticLocation(
+            source.toFile(),
+            "main.c(7): Error: ';' expected",
+            raw -> {
+                if ("main.c".equals(raw)) return source.toFile();
+                return null;
+            }
+        );
+
+        Assertions.assertNotNull(location);
+        Assertions.assertEquals(7, location.getLine());
+        Assertions.assertEquals(source.toFile().getAbsolutePath(), location.getFile().getAbsolutePath());
+        Assertions.assertFalse(location.isWarning());
+    }
+
+    /**
+     * Escenario: clic en consola sobre un diagnostico cc65 con prefijo "cl65:"
+     * y severidad Warning.
+     */
+    @Test
+    void parseConsoleFileLineCc65PrefixedWarning() throws IOException {
+        Path source = tempDir.resolve("src").resolve("main.c");
+        Files.createDirectories(source.getParent());
+        Files.writeString(source, "int main() { return 0; }\n");
+
+        CompilationDiagnosticParserService.DiagnosticLocation location = service.parseConsoleFileLine(
+            "cl65: src/main.c(12): Warning: unused variable 'x'",
+            raw -> tempDir.resolve(raw).toFile()
+        );
+
+        Assertions.assertNotNull(location);
+        Assertions.assertEquals(12, location.getLine());
+        Assertions.assertEquals(source.toFile().getAbsolutePath(), location.getFile().getAbsolutePath());
+        Assertions.assertTrue(location.isWarning());
+    }
+
+    /**
+     * Escenario: diagnostico ld65 sin archivo fuente con "(line)" no debe
+     * producir una ubicacion navegable (no hay file.ext antes del parentesis).
+     */
+    @Test
+    void parseCompilerDiagnosticCc65Ld65SegmentErrorReturnsNull() {
+        CompilationDiagnosticParserService.DiagnosticLocation location = service.parseCompilerDiagnosticLocation(
+            new File("main.c"),
+            "ld65: Error: segment 'CODE' overflows memory",
+            null
+        );
+        Assertions.assertNull(location);
+    }
+
+    /**
      * Escenario: diagnostico de compilacion con ruta entrecomillada.
      */
     @Test

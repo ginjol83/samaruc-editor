@@ -4,13 +4,26 @@ import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.SourceDataLine;
 import java.util.List;
-import java.util.Random;
 
 /**
- * Reproductor de audio sintetizado para Game Boy (preview polifónico multi-canal basado en timeline).
+ * Reproductor de audio sintetizado (preview polifónico multi-canal basado en timeline).
+ * Sintetiza el carácter de cada chip: la APU de Game Boy (onda cuadrada con duty ajustable, DAC
+ * no lineal y ruido LFSR de 15 bits), el AY-3-8912 de CPC/ZX Spectrum (cuadrada fija al 50 %,
+ * DAC por corriente casi lineal y ruido LFSR de 17 bits), el POKEY de Atari (tono puro $A0), el
+ * SN76489 de SMS/GG (cuadrada al 50 %, atenuación logarítmica y ruido LFSR de 16 bits) y el
+ * SID 6581 de C64 (pulso con ancho ajustable y ruido LFSR de 23 bits).
  */
 public class GameBoyAudioPlayer {
     private static final float SAMPLE_RATE = 44100f;
+
+    /** Motor de sonido usado en la síntesis del preview. */
+    public enum SoundEngine { GAMEBOY, AY_3_8912, POKEY, SN76489, SID6581 }
+
+    /**
+     * Ruido del AY/YM: LFSR de 17 bits con retroalimentación XOR de las posiciones 16 y 13;
+     * periodo 2^17-1. Se avanza una posición por pulso de ruido.
+     */
+    private static final double AY_NOISE_HZ = 1773400.0 / 16.0 / 9.0; // R6=8, PAL /16 ≈ 12,3 kHz
 
     public static final class NoteStep {
         private final String channel;
@@ -46,10 +59,18 @@ public class GameBoyAudioPlayer {
     }
 
     public void playTone(int frequency, int durationMs, int volume, String dutyCycle) {
-        new Thread(() -> playToneBlocking(frequency, durationMs, volume, dutyCycle), "gb-audio-preview").start();
+        playTone(frequency, durationMs, volume, dutyCycle, SoundEngine.GAMEBOY);
+    }
+
+    public void playTone(int frequency, int durationMs, int volume, String dutyCycle, SoundEngine engine) {
+        new Thread(() -> playToneBlocking(frequency, durationMs, volume, dutyCycle, engine), "tone-preview").start();
     }
 
     public void playMelody(List<NoteStep> steps) {
+        playMelody(steps, SoundEngine.GAMEBOY);
+    }
+
+    public void playMelody(List<NoteStep> steps, SoundEngine engine) {
         if (steps == null || steps.isEmpty()) return;
         new Thread(() -> {
             try {
@@ -66,30 +87,25 @@ public class GameBoyAudioPlayer {
                     String ch = step.getChannel() != null ? step.getChannel() : "Square 1";
                     int startSample = (int) (SAMPLE_RATE * step.getStartTimeMs() / 1000.0);
                     int noteSamples = (int) (SAMPLE_RATE * step.getDurationMs() / 1000.0);
+                    int freq = step.getFrequency();
 
-                    double duty = 0.5;
-                    String dutyCycle = step.getDutyCycle();
-                    if ("12.5%".equals(dutyCycle)) duty = 0.125;
-                    else if ("25%".equals(dutyCycle)) duty = 0.25;
-                    else if ("75%".equals(dutyCycle)) duty = 0.75;
-
-                    double vol = (step.getVolume() / 15.0) * 16.0;
-
-                    for (int i = 0; i < noteSamples && (startSample + i) < totalSamples; i++) {
-                        int idx = startSample + i;
-                        double time = i / SAMPLE_RATE;
-                        double val = 0;
-                        if (ch.contains("Noise")) {
-                            val = (Math.random() * 2.0 - 1.0) * vol;
-                        } else {
-                            int freq = step.getFrequency();
-                            if (freq > 0) {
-                                double period = 1.0 / freq;
-                                double cycleTime = time % period;
-                                val = (cycleTime < period * duty) ? vol : -vol;
-                            }
+                    if (ch.contains("Noise") || ch.contains("Ruido")) {
+                        double[] noise = noiseSamples(noteSamples, engine, amplitude(engine, step.getVolume(), 16.0));
+                        for (int i = 0; i < noteSamples && startSample + i < totalSamples; i++) {
+                            masterBuffer[startSample + i] += noise[i];
                         }
-                        masterBuffer[idx] += val;
+                        continue;
+                    }
+
+                    if (freq <= 0) continue; // silencio (rest)
+
+                    double duty = toneDuty(engine, step.getDutyCycle());
+                    double amp = amplitude(engine, step.getVolume(), 16.0);
+                    double period = 1.0 / freq;
+                    for (int i = 0; i < noteSamples && startSample + i < totalSamples; i++) {
+                        double time = i / SAMPLE_RATE;
+                        double cycleTime = time % period;
+                        masterBuffer[startSample + i] += (cycleTime < period * duty) ? amp : -amp;
                     }
                 }
 
@@ -109,10 +125,10 @@ public class GameBoyAudioPlayer {
                     line.drain();
                 }
             } catch (Exception ignored) {}
-        }, "gb-multichannel-preview").start();
+        }, "multichannel-preview").start();
     }
 
-    private void playToneBlocking(int frequency, int durationMs, int volume, String dutyCycle) {
+    private void playToneBlocking(int frequency, int durationMs, int volume, String dutyCycle, SoundEngine engine) {
         try {
             AudioFormat af = new AudioFormat(SAMPLE_RATE, 8, 1, true, false);
             try (SourceDataLine line = AudioSystem.getSourceDataLine(af)) {
@@ -121,12 +137,8 @@ public class GameBoyAudioPlayer {
 
                 int numSamples = (int) (SAMPLE_RATE * durationMs / 1000.0);
                 byte[] buffer = new byte[numSamples];
-                double duty = 0.5;
-                if ("12.5%".equals(dutyCycle)) duty = 0.125;
-                else if ("25%".equals(dutyCycle)) duty = 0.25;
-                else if ("75%".equals(dutyCycle)) duty = 0.75;
-
-                double vol = (volume / 15.0) * 64.0;
+                double duty = toneDuty(engine, dutyCycle);
+                double amp = amplitude(engine, volume, 64.0);
 
                 for (int i = 0; i < numSamples; i++) {
                     double time = i / SAMPLE_RATE;
@@ -134,7 +146,7 @@ public class GameBoyAudioPlayer {
                     if (frequency > 0) {
                         double period = 1.0 / frequency;
                         double cycleTime = time % period;
-                        val = (cycleTime < period * duty) ? vol : -vol;
+                        val = (cycleTime < period * duty) ? amp : -amp;
                     }
                     buffer[i] = (byte) val;
                 }
@@ -146,10 +158,14 @@ public class GameBoyAudioPlayer {
     }
 
     public void playNoise(int durationMs, int volume) {
-        new Thread(() -> playNoiseBlocking(durationMs, volume), "gb-noise-preview").start();
+        playNoise(durationMs, volume, SoundEngine.GAMEBOY);
     }
 
-    private void playNoiseBlocking(int durationMs, int volume) {
+    public void playNoise(int durationMs, int volume, SoundEngine engine) {
+        new Thread(() -> playNoiseBlocking(durationMs, volume, engine), "noise-preview").start();
+    }
+
+    private void playNoiseBlocking(int durationMs, int volume, SoundEngine engine) {
         try {
             AudioFormat af = new AudioFormat(SAMPLE_RATE, 8, 1, true, false);
             try (SourceDataLine line = AudioSystem.getSourceDataLine(af)) {
@@ -157,18 +173,116 @@ public class GameBoyAudioPlayer {
                 line.start();
 
                 int numSamples = (int) (SAMPLE_RATE * durationMs / 1000.0);
+                double[] noise = noiseSamples(numSamples, engine, amplitude(engine, volume, 64.0));
                 byte[] buffer = new byte[numSamples];
-                double vol = (volume / 15.0) * 64.0;
-                Random rnd = new Random();
-
                 for (int i = 0; i < numSamples; i++) {
-                    double val = (rnd.nextDouble() * 2.0 - 1.0) * vol;
-                    buffer[i] = (byte) val;
+                    buffer[i] = (byte) noise[i];
                 }
 
                 line.write(buffer, 0, buffer.length);
                 line.drain();
             }
         } catch (Exception ignored) {}
+    }
+
+    /**
+     * Onda cuadrada: el AY, el SN76489 y el POKEY (tono puro $A0) fijan el duty al 50 %; la APU
+     * de GB y el pulso del SID (ancho de pulso) lo ajustan al valor del tracker.
+     */
+    private static double toneDuty(SoundEngine engine, String dutyCycle) {
+        if (engine == SoundEngine.AY_3_8912 || engine == SoundEngine.SN76489 || engine == SoundEngine.POKEY) {
+            return 0.5;
+        }
+        double duty = 0.5;
+        if ("12.5%".equals(dutyCycle)) duty = 0.125;
+        else if ("25%".equals(dutyCycle)) duty = 0.25;
+        else if ("75%".equals(dutyCycle)) duty = 0.75;
+        return duty;
+    }
+
+    /**
+     * Amplitud por volumen: DAC lineales del AY, POKEY y SID (v/15); DAC no lineal de la APU de
+     * GB (raíz, para que las notas bajas no decaigan tanto) y atenuación logarítmica del SN76489
+     * (~2 dB por paso, 30 dB entre volumen 15 y 0).
+     */
+    private static double amplitude(SoundEngine engine, int volume, double max) {
+        double v = (volume & 0x0F) / 15.0;
+        double rel;
+        switch (engine) {
+            case GAMEBOY: rel = Math.sqrt(v); break;
+            case SN76489: rel = Math.pow(10.0, -(15.0 - v * 15.0) / 10.0); break;
+            default: rel = v;
+        }
+        return max * rel;
+    }
+
+    /**
+     * Sintetiza la textura de ruido con el LFSR propio de cada chip, todos de distinto tamaño y
+     * con distinta textura "metálica": GB 15 bits, SN76489 16 bits, AY/POKEY 17 bits y SID 23 bits.
+     * <ul>
+     *   <li>GB: LFSR de 15 bits (XOR de bits 0 y 1, realimentado al bit 14) de la APU.</li>
+     *   <li>SN76489: LFSR de 16 bits en modo "ruido blanco" (XOR de bits 0 y 1, realimentado al bit 15).</li>
+     *   <li>AY-3-8912: LFSR de 17 bits (XOR de bits 0 y 3, realimentado al bit 16), a ~12,3 kHz con R6=8.</li>
+     *   <li>POKEY: aproximación al poly counter de 17 bits (LFSR maximal); el tracker Atari solo usa tono puro.</li>
+     *   <li>SID 6581: LFSR de 23 bits (XOR de bits 0 y 1, realimentado al bit 22), el generador aleatorio del SID.</li>
+     * </ul>
+     */
+    private static double[] noiseSamples(int count, SoundEngine engine, double amp) {
+        double[] out = new double[count];
+        switch (engine) {
+            case SN76489: {
+                int lfsr = 0x8000; // 16 bits
+                for (int i = 0; i < count; i++) {
+                    int feedback = (lfsr & 1) ^ ((lfsr >> 1) & 1);
+                    lfsr = (lfsr >> 1) | (feedback << 15);
+                    out[i] = (lfsr & 1) == 0 ? amp : -amp;
+                }
+                break;
+            }
+            case AY_3_8912: {
+                int lfsr = 0x17DE3; // semilla no nula, 17 bits
+                double phase = 0.0;
+                for (int i = 0; i < count; i++) {
+                    phase += AY_NOISE_HZ / SAMPLE_RATE;
+                    while (phase >= 1.0) {
+                        phase -= 1.0;
+                        int feedback = ((lfsr & 1) ^ ((lfsr >> 3) & 1)) & 1;
+                        lfsr = (lfsr >> 1) | (feedback << 16);
+                    }
+                    out[i] = (lfsr & 1) == 0 ? amp : -amp;
+                }
+                break;
+            }
+            case POKEY: {
+                int lfsr = 0x1FFFF; // 17 bits
+                for (int i = 0; i < count; i++) {
+                    int feedback = ((lfsr & 1) ^ ((lfsr >> 3) & 1)) & 1;
+                    lfsr = (lfsr >> 1) | (feedback << 16);
+                    out[i] = (lfsr & 1) == 0 ? amp : -amp;
+                }
+                break;
+            }
+            case SID6581: {
+                int lfsr = 0x7FFFFF; // 23 bits, semilla no nula
+                for (int i = 0; i < count; i++) {
+                    int feedback = (lfsr & 1) ^ ((lfsr >> 1) & 1);
+                    lfsr = (lfsr >> 1) | (feedback << 22);
+                    out[i] = (lfsr & 1) == 0 ? amp : -amp;
+                }
+                break;
+            }
+            default: {
+                int lfsr = 0x7FFF; // 15 bits (Game Boy)
+                for (int i = 0; i < count; i++) {
+                    int bit = lfsr & 1;
+                    lfsr >>= 1;
+                    if ((bit ^ (lfsr & 1)) != 0) {
+                        lfsr |= 0x4000;
+                    }
+                    out[i] = (lfsr & 1) == 0 ? amp : -amp;
+                }
+            }
+        }
+        return out;
     }
 }

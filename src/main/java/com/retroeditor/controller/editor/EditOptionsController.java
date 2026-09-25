@@ -54,10 +54,6 @@ public class EditOptionsController {
         "kbhit", "getch", "inkey", "zx_border", "plot", "draw", "delay"
     );
 
-    private static final List<String> MSDOS_KEYWORDS = List.of(
-        "int86", "union REGS", "struct SREGS", "segread", "bdos", "sound", "nosound"
-    );
-
     private static final List<String> C_KEYWORDS = List.of(
         "printf", "scanf", "malloc", "free", "strlen", "strcpy", "strcmp",
         "memcpy", "memset", "fopen", "fclose", "fread", "fwrite", "abs", "rand", "srand"
@@ -484,7 +480,6 @@ public class EditOptionsController {
         Set<String> pool = new HashSet<>();
         pool.addAll(GBDK_KEYWORDS);
         pool.addAll(CONIO_KEYWORDS);
-        pool.addAll(MSDOS_KEYWORDS);
         pool.addAll(C_KEYWORDS);
 
         Map<String, Integer> frequencies = new HashMap<>();

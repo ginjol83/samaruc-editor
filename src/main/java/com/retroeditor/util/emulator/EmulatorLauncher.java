@@ -20,6 +20,13 @@ public class EmulatorLauncher {
 
     private static final String JSPECCY_MAIN_CLASS = "gui.JSpeccy";
 
+    /**
+     * Modelo por defecto de JSpeccy: Spectrum 128K. Es el modelo que generan los targets z88dk
+     * (+zx) con AY-3-8912, por lo que Samaruc siempre arranca el emulador en 128K ("-m sp128k"),
+     * en lugar del 48K que es el valor por defecto de JSpeccy.
+     */
+    private static final String JSPECCY_DEFAULT_MODEL = "sp128k";
+
     /** Resultado del lanzamiento del emulador */
     public static class LaunchResult {
         public final Process process;
@@ -29,6 +36,7 @@ public class EmulatorLauncher {
 
     /**
      * Lanza JSpeccy usando el classpath de la propia aplicación (sin configuración XML externa).
+     * Fuerza el modelo Spectrum 128K por defecto (véase {@link #JSPECCY_DEFAULT_MODEL}).
      * @param romFile Archivo ROM a cargar en el emulador.
      * @param console Área de texto JavaFX donde se transmitirá la salida del emulador (puede ser null).
      * @param extraArgs Argumentos adicionales para pasar a JSpeccy (puede ser null).
@@ -48,6 +56,8 @@ public class EmulatorLauncher {
         cmd.add("-cp");
         cmd.add(appClasspath);
         cmd.add(JSPECCY_MAIN_CLASS);
+        cmd.add("-m");
+        cmd.add(JSPECCY_DEFAULT_MODEL);
         cmd.add(romFile.getAbsolutePath());
 
         if (extraArgs != null) cmd.addAll(extraArgs);
@@ -133,20 +143,25 @@ public class EmulatorLauncher {
     }
 
     /**
-     * Lanza DOSBox con el ejecutable MS-DOS especificado.
-     * @param dosBoxExe Ruta al ejecutable de DOSBox (dosbox.exe).
-     * @param targetFile Archivo ejecutable o script a ejecutar en DOSBox (.com o .exe).
+     * Lanza VICE (x64sc/x64) con un archivo de Commodore 64 (.prg, .d64, .t64,
+     * .tap, .crt). Usa autostart por sistema de ficheros virtuales (mode 0) para
+     * los .prg con cabecera correcta.
+     * @param viceExe Ruta al ejecutable de VICE (x64sc.exe / x64.exe).
+     * @param romFile Archivo a ejecutar.
      * @param console Área de texto de consola.
      * @param extraArgs Argumentos adicionales.
      * @return LaunchResult con el proceso.
      */
-    public static LaunchResult launchDosBox(File dosBoxExe, File targetFile, StyleClassedTextArea console, List<String> extraArgs) throws IOException {
-        if (dosBoxExe == null || !dosBoxExe.exists()) throw new IOException("Ruta de DOSBox no válida: " + dosBoxExe);
-        if (targetFile == null || !targetFile.exists()) throw new IOException("Archivo MS-DOS no encontrado: " + targetFile);
+    public static LaunchResult launchVice(File viceExe, File romFile, StyleClassedTextArea console, List<String> extraArgs) throws IOException {
+        if (viceExe == null || !viceExe.exists()) throw new IOException("Ruta de VICE no válida: " + viceExe);
+        if (romFile == null || !romFile.exists()) throw new IOException("Archivo C64 no encontrado: " + romFile);
 
         List<String> cmd = new ArrayList<>();
-        cmd.add(dosBoxExe.getAbsolutePath());
-        cmd.add(targetFile.getAbsolutePath());
+        cmd.add(viceExe.getAbsolutePath());
+        cmd.add("-autostartprgmode");
+        cmd.add("0");
+        cmd.add("-autostart");
+        cmd.add(romFile.getAbsolutePath());
 
         if (extraArgs != null) cmd.addAll(extraArgs);
 
@@ -155,7 +170,7 @@ public class EmulatorLauncher {
         Process proc = pb.start();
 
         ExecutorService es = Executors.newSingleThreadExecutor(r -> {
-            Thread t = new Thread(r, "dosbox-output");
+            Thread t = new Thread(r, "vice-output");
             t.setDaemon(true);
             return t;
         });

@@ -81,6 +81,9 @@ public class ConfigController {
     private static final String EMULATOR_JSPECCY   = "JSpeccy";
     private static final String EMULATOR_CPCBOX_WEB = "CPCBoxWeb";
     private static final String EMULATOR_ALTIRRA   = ConfigModel.EMULATOR_ALTIRRA;
+    private static final String EMULATOR_VICE      = ConfigModel.EMULATOR_VICE;
+    private static final String CC65_TARGET_ATARI  = ConfigModel.CC65_TARGET_ATARI;
+    private static final String CC65_TARGET_C64    = ConfigModel.CC65_TARGET_C64;
 
     @FXML private TabPane          tabPaneConfig;
     @FXML private TabPane          tabPaneCompilerOptions;
@@ -110,6 +113,7 @@ public class ConfigController {
     @FXML private CheckBox         chkProjectDetectAutoApply;
     @FXML private CheckBox         chkEnableLogs;
     @FXML private CheckBox         chkShowHomeOnStartup;
+    @FXML private CheckBox         chkSyntaxCheckOnSave;
     @FXML private TextField        txtProjectDetectThreshold;
     @FXML private TextField        txtMakeExecutable;
     @FXML private TextField        txtMakeBuildTarget;
@@ -131,6 +135,7 @@ public class ConfigController {
     @FXML private Button           btnSaveGccOpts;
     @FXML private TextField        txtCc65Bin;
     @FXML private TextField        txtAltirraBin;
+    @FXML private TextField        txtViceBin;
     @FXML private TextField        txtCc65Defines;
     @FXML private TextField        txtCc65Includes;
     @FXML private TextField        txtCc65ExtraArgs;
@@ -138,6 +143,7 @@ public class ConfigController {
     @FXML private Tab              tabCompilerCc65;
     @FXML private Label            lblCc65Bin;
     @FXML private Label            lblAltirraBin;
+    @FXML private Label            lblViceBin;
     @FXML private Label            lblCc65Opts;
     @FXML private Label            lblCc65OptLevel;
     @FXML private Label            lblCc65Defines;
@@ -145,6 +151,7 @@ public class ConfigController {
     @FXML private Label            lblCc65ExtraArgs;
     @FXML private Button           btnSeleccionarCc65Bin;
     @FXML private Button           btnSeleccionarAltirraBin;
+    @FXML private Button           btnSeleccionarViceBin;
     @FXML private Button           btnSaveCc65Opts;
     @FXML private Tab              tabIdioma;
     @FXML private Tab              tabAppearance;
@@ -406,7 +413,8 @@ public class ConfigController {
 
         String normalizedCompiler = configModel.getConfigProperty("compilador_seleccionado", COMPILER_GBDK);
         String normalizedProfile = configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM);
-        String expectedEmulator = getEmulatorForCompiler(normalizedCompiler, normalizedProfile);
+        String cc65Target = resolveCurrentCc65Target();
+        String expectedEmulator = getEmulatorForCompiler(normalizedCompiler, normalizedProfile, cc65Target);
         boolean emulatorMismatch = !emulatorRaw.isEmpty() && !expectedEmulator.equalsIgnoreCase(emulatorRaw);
 
         List<String> migrationCauses = new ArrayList<>();
@@ -459,6 +467,9 @@ public class ConfigController {
         }
         if (chkShowHomeOnStartup != null) {
             chkShowHomeOnStartup.setSelected(configModel.isShowHomeOnStartup());
+        }
+        if (chkSyntaxCheckOnSave != null) {
+            chkSyntaxCheckOnSave.setSelected(configModel.isSyntaxCheckOnSave());
         }
 
         loadZ88dkFlagsFromConfig();
@@ -1238,6 +1249,20 @@ public class ConfigController {
         if (txtGccDefines != null) workspace.setSetting("gcc_defines", txtGccDefines.getText());
         if (txtGccIncludes != null) workspace.setSetting("gcc_includes", txtGccIncludes.getText());
         if (txtGccExtraArgs != null) workspace.setSetting("gcc_extra_args", txtGccExtraArgs.getText());
+
+        // CC65 (Atari / C64)
+        String cc65ComboLabel = comboCompilador != null ? comboCompilador.getSelectionModel().getSelectedItem() : null;
+        String cc65TargetForWorkspace = comboCompilador != null
+            ? resolveCc65TargetFromSelection(cc65ComboLabel)
+            : resolveCurrentCc65Target();
+        workspace.setSetting("cc65_target", cc65TargetForWorkspace);
+        if (txtCc65Bin != null) workspace.setSetting("cc65_bin", txtCc65Bin.getText());
+        if (txtAltirraBin != null) workspace.setSetting("altirra_bin", txtAltirraBin.getText());
+        if (txtViceBin != null) workspace.setSetting("vice_bin", txtViceBin.getText());
+        if (comboCc65OptLevel != null) workspace.setSetting("cc65_opt_level", comboCc65OptLevel.getSelectionModel().getSelectedItem());
+        if (txtCc65Defines != null) workspace.setSetting("cc65_defines", txtCc65Defines.getText());
+        if (txtCc65Includes != null) workspace.setSetting("cc65_includes", txtCc65Includes.getText());
+        if (txtCc65ExtraArgs != null) workspace.setSetting("cc65_extra_args", txtCc65ExtraArgs.getText());
     }
 
     /**
@@ -1323,6 +1348,8 @@ public class ConfigController {
                 COMPILER_GBDK,
                 getZ88dkSpectrumDisplayLabel(),
                 getZ88dkCpcDisplayLabel(),
+                getCc65DisplayLabel(),
+                getCc65C64DisplayLabel(),
                 getGccDisplayLabel(),
                 COMPILER_MAKEFILE
             );
@@ -1380,7 +1407,15 @@ public class ConfigController {
     private void saveCompilerSelection(String compiler, String z88dkProfile, boolean persist) {
         String normalizedCompiler = normalizeCompiler(compiler);
         String normalizedProfile = normalizeZ88dkProfile(z88dkProfile);
-        String normalizedEmulator = getEmulatorForCompiler(normalizedCompiler, normalizedProfile);
+
+        String cc65Target = resolveCurrentCc65Target();
+        if (ConfigModel.COMPILER_CC65.equalsIgnoreCase(normalizedCompiler) && comboCompilador != null) {
+            String comboLabel = comboCompilador.getSelectionModel().getSelectedItem();
+            if (comboLabel != null && (comboLabel.equalsIgnoreCase(getCc65DisplayLabel()) || comboLabel.equalsIgnoreCase(getCc65C64DisplayLabel()))) {
+                cc65Target = resolveCc65TargetFromSelection(comboLabel);
+            }
+        }
+        String normalizedEmulator = getEmulatorForCompiler(normalizedCompiler, normalizedProfile, cc65Target);
 
         syncingCompilerUi = true;
         try {
@@ -1409,6 +1444,7 @@ public class ConfigController {
 
         configModel.setConfigProperty("compilador_seleccionado", normalizedCompiler);
         configModel.setConfigProperty("z88dk_profile", normalizedProfile);
+        configModel.setConfigProperty("cc65_target", cc65Target);
         configModel.setConfigProperty("emulador_seleccionado", normalizedEmulator);
 
         if (persist) {
@@ -1417,13 +1453,13 @@ public class ConfigController {
         }
     }
 
-    private String getEmulatorForCompiler(String compiler, String z88dkProfile) {
+    private String getEmulatorForCompiler(String compiler, String z88dkProfile, String cc65Target) {
         String norm = normalizeCompiler(compiler);
         if (COMPILER_Z88DK.equalsIgnoreCase(norm)) {
             return Z88DK_PROFILE_CPC.equals(normalizeZ88dkProfile(z88dkProfile)) ? EMULATOR_CPCBOX_WEB : EMULATOR_JSPECCY;
         }
         if (ConfigModel.COMPILER_CC65.equalsIgnoreCase(norm)) {
-            return EMULATOR_ALTIRRA;
+            return CC65_TARGET_C64.equalsIgnoreCase(cc65Target) ? EMULATOR_VICE : EMULATOR_ALTIRRA;
         }
         return EMULATOR_EMULICIOUS;
     }
@@ -1470,7 +1506,8 @@ public class ConfigController {
         if (ConfigModel.COMPILER_CC65.equalsIgnoreCase(normalized)
             || normalized.equalsIgnoreCase(getCc65DisplayLabel())
             || normalized.toLowerCase(Locale.ROOT).contains("cc65")
-            || normalized.toLowerCase(Locale.ROOT).contains("atari")) {
+            || normalized.toLowerCase(Locale.ROOT).contains("atari")
+            || normalized.toLowerCase(Locale.ROOT).contains("c64")) {
             return ConfigModel.COMPILER_CC65;
         }
 
@@ -1484,7 +1521,9 @@ public class ConfigController {
                 : getZ88dkSpectrumDisplayLabel();
         }
         if (COMPILER_GCC.equalsIgnoreCase(normalizedCompiler)) return getGccDisplayLabel();
-        if (ConfigModel.COMPILER_CC65.equalsIgnoreCase(normalizedCompiler)) return getCc65DisplayLabel();
+        if (ConfigModel.COMPILER_CC65.equalsIgnoreCase(normalizedCompiler)) {
+            return CC65_TARGET_C64.equals(resolveCurrentCc65Target()) ? getCc65C64DisplayLabel() : getCc65DisplayLabel();
+        }
         if (COMPILER_MAKEFILE.equalsIgnoreCase(normalizedCompiler)) return COMPILER_MAKEFILE;
         return COMPILER_GBDK;
     }
@@ -1494,6 +1533,25 @@ public class ConfigController {
         return bundle.containsKey("config.compiler.option.cc65")
             ? bundle.getString("config.compiler.option.cc65")
             : "CC65 (Atari XE/XL)";
+    }
+
+    private String getCc65C64DisplayLabel() {
+        ResourceBundle bundle = getCurrentBundle();
+        return bundle.containsKey("config.compiler.option.cc65.c64")
+            ? bundle.getString("config.compiler.option.cc65.c64")
+            : "CC65 (C64)";
+    }
+
+    private String resolveCurrentCc65Target() {
+        return CC65_TARGET_C64.equalsIgnoreCase(configModel.getConfigProperty("cc65_target", CC65_TARGET_ATARI))
+            ? CC65_TARGET_C64
+            : CC65_TARGET_ATARI;
+    }
+
+    private String resolveCc65TargetFromSelection(String compilerLabel) {
+        return compilerLabel != null && compilerLabel.equalsIgnoreCase(getCc65C64DisplayLabel())
+            ? CC65_TARGET_C64
+            : CC65_TARGET_ATARI;
     }
 
     private String resolveZ88dkProfileFromSelection(String compilerLabel, String fallbackProfile) {
@@ -1536,6 +1594,8 @@ public class ConfigController {
             COMPILER_GBDK,
             getZ88dkSpectrumDisplayLabel(),
             getZ88dkCpcDisplayLabel(),
+            getCc65DisplayLabel(),
+            getCc65C64DisplayLabel(),
             getGccDisplayLabel(),
             COMPILER_MAKEFILE
         );
@@ -1717,6 +1777,9 @@ public class ConfigController {
         if (txtAltirraBin != null) {
             txtAltirraBin.setText(configModel.getConfigProperty("altirra_bin", ""));
         }
+        if (txtViceBin != null) {
+            txtViceBin.setText(configModel.getConfigProperty("vice_bin", ""));
+        }
         if (comboCc65OptLevel != null) {
             comboCc65OptLevel.getItems().setAll(ConfigModel.CC65_OPT_LEVELS);
             String selected = configModel.getConfigProperty("cc65_opt_level", ConfigModel.CC65_OPT_NONE);
@@ -1736,11 +1799,13 @@ public class ConfigController {
     private boolean persistCc65Opts(boolean persist) {
         String cc65Bin = txtCc65Bin != null ? txtCc65Bin.getText().trim() : "";
         String altirraBin = txtAltirraBin != null ? txtAltirraBin.getText().trim() : "";
+        String viceBin = txtViceBin != null ? txtViceBin.getText().trim() : "";
         String optLevel = comboCc65OptLevel != null && comboCc65OptLevel.getValue() != null
             ? comboCc65OptLevel.getValue() : ConfigModel.CC65_OPT_NONE;
 
         configModel.setConfigProperty("cc65_bin", cc65Bin);
         configModel.setConfigProperty("altirra_bin", altirraBin);
+        configModel.setConfigProperty("vice_bin", viceBin);
         configModel.setConfigProperty("cc65_opt_level", optLevel);
         configModel.setConfigProperty("cc65_defines", txtCc65Defines != null ? txtCc65Defines.getText().trim() : "");
         configModel.setConfigProperty("cc65_includes", txtCc65Includes != null ? txtCc65Includes.getText().trim() : "");
@@ -1779,6 +1844,18 @@ public class ConfigController {
         if (selectedFile != null) {
             txtAltirraBin.setText(selectedFile.getAbsolutePath());
             UserActionMonitor.emulatorPathUpdated("Altirra", selectedFile.getAbsolutePath());
+        }
+    }
+
+    @FXML
+    public void onSeleccionarViceBin(ActionEvent event) {
+        javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
+        chooser.setTitle("Seleccionar ejecutable de VICE");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("VICE Executable", "x64sc.exe", "x64.exe", "x64sc", "x64", "*.exe"));
+        File selectedFile = chooser.showOpenDialog(txtViceBin.getScene().getWindow());
+        if (selectedFile != null) {
+            txtViceBin.setText(selectedFile.getAbsolutePath());
+            UserActionMonitor.emulatorPathUpdated("VICE", selectedFile.getAbsolutePath());
         }
     }
 
@@ -2107,6 +2184,9 @@ public class ConfigController {
         if (chkShowHomeOnStartup != null) {
             configModel.setShowHomeOnStartup(chkShowHomeOnStartup.isSelected());
         }
+        if (chkSyntaxCheckOnSave != null) {
+            configModel.setSyntaxCheckOnSave(chkSyntaxCheckOnSave.isSelected());
+        }
         persistConfig();
         applyApplicationAppearanceToCurrentScene(appearance);
         if (onAppearanceApplied != null) {
@@ -2312,6 +2392,16 @@ public class ConfigController {
         if (lblGccIncludes       != null) lblGccIncludes       .setText(bundle.getString("label.compiler.gcc.includes"));
         if (lblGccExtraArgs      != null) lblGccExtraArgs      .setText(bundle.getString("label.compiler.gcc.extra"));
         if (btnSaveGccOpts       != null) btnSaveGccOpts       .setText(bundle.getString("button.saveGcc"));
+        if (tabCompilerCc65      != null) tabCompilerCc65      .setText(bundle.getString("label.compiler.cc65Tab"));
+        if (lblCc65Bin           != null) lblCc65Bin           .setText(bundle.getString("label.compiler.cc65.bin"));
+        if (lblAltirraBin        != null) lblAltirraBin        .setText(bundle.getString("label.compiler.altirra.bin"));
+        if (lblViceBin           != null) lblViceBin           .setText(bundle.getString("label.compiler.vice.bin"));
+        if (lblCc65Opts          != null) lblCc65Opts          .setText(bundle.getString("label.compiler.cc65.opts"));
+        if (lblCc65OptLevel      != null) lblCc65OptLevel      .setText(bundle.getString("label.compiler.cc65.opt.level"));
+        if (lblCc65Defines       != null) lblCc65Defines       .setText(bundle.getString("label.compiler.cc65.defines"));
+        if (lblCc65Includes      != null) lblCc65Includes      .setText(bundle.getString("label.compiler.cc65.includes"));
+        if (lblCc65ExtraArgs     != null) lblCc65ExtraArgs     .setText(bundle.getString("label.compiler.cc65.extra"));
+        if (btnSaveCc65Opts      != null) btnSaveCc65Opts      .setText(bundle.getString("button.saveCc65"));
         if (chkProjectDetectAutoApply != null) chkProjectDetectAutoApply.setText(bundle.getString("config.projectDetection.autoApply"));
         if (lblProjectDetectThreshold != null) lblProjectDetectThreshold.setText(bundle.getString("config.projectDetection.threshold"));
         if (btnCerrarConfig      != null) btnCerrarConfig      .setText(bundle.getString("button.close"));
@@ -2320,6 +2410,7 @@ public class ConfigController {
         if (btnGuardarAppearance != null) btnGuardarAppearance .setText(bundle.getString("button.saveAppearance"));
         if (chkEnableLogs != null) chkEnableLogs.setText(bundle.containsKey("config.appearance.enable_logs") ? bundle.getString("config.appearance.enable_logs") : "Habilitar guardado de logs en archivo (samaruc.log)");
         if (chkShowHomeOnStartup != null) chkShowHomeOnStartup.setText(bundle.containsKey("config.appearance.show_home_on_startup") ? bundle.getString("config.appearance.show_home_on_startup") : "Mostrar página de inicio al arrancar");
+        if (chkSyntaxCheckOnSave != null) chkSyntaxCheckOnSave.setText(bundle.containsKey("config.appearance.syntax_check_on_save") ? bundle.getString("config.appearance.syntax_check_on_save") : "Comprobar errores de sintaxis al guardar (GCC)");
         if (btnGuardarCompilador != null) btnGuardarCompilador .setText(bundle.getString("button.saveConfig"));
         if (btnSaveMakeOpts      != null) btnSaveMakeOpts      .setText(bundle.getString("button.saveMake"));
         if (btnGuardarSpectrumBin!= null) btnGuardarSpectrumBin.setText(bundle.getString("button.saveZ88dk"));

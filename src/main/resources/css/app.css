@@ -294,3 +294,59 @@
     -fx-font-size: 9px;
     -fx-text-fill: #e67e22;
 }
+
+/* Iconos de tipo de archivo (pestañas y explorador) */
+.file-icon-c       { -fx-icon-color: #2563eb; }
+.file-icon-header  { -fx-icon-color: #0ea5e9; }
+.file-icon-asm     { -fx-icon-color: #9333ea; }
+.file-icon-md      { -fx-icon-color: #475569; }
+.file-icon-text    { -fx-icon-color: #64748b; }
+.file-icon-json    { -fx-icon-color: #b45309; }
+.file-icon-tile    { -fx-icon-color: #0d9488; }
+.file-icon-smt     { -fx-icon-color: #c2410c; }
+.file-icon-image   { -fx-icon-color: #16a34a; }
+.file-icon-rom     { -fx-icon-color: #dc2626; }
+.file-icon-audio   { -fx-icon-color: #7c3aed; }
+.file-icon-make    { -fx-icon-color: #78716c; }
+.file-icon-dir     { -fx-icon-color: #f59e0b; }
+.file-icon-generic { -fx-icon-color: #94a3b8; }
+
+/* Paleta de comandos */
+.palette-root {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #d1d5db;
+    -fx-border-width: 1;
+    -fx-padding: 10;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.25), 16, 0.2, 0, 4);
+}
+.palette-filter {
+    -fx-pref-height: 30;
+    -fx-font-size: 13px;
+}
+.palette-list {
+    -fx-background-radius: 4;
+    -fx-background-color: #f9fafb;
+    -fx-border-color: #e5e7eb;
+    -fx-border-radius: 4;
+}
+.palette-list .list-cell {
+    -fx-padding: 6 10 6 10;
+    -fx-background-color: transparent;
+    -fx-text-fill: #111827;
+    -fx-font-size: 13px;
+}
+.palette-list .list-cell:filled:hover {
+    -fx-background-color: #eef2ff;
+}
+.palette-list .list-cell:filled:selected {
+    -fx-background-color: #dbeafe;
+    -fx-text-fill: #1d4ed8;
+}
+.palette-item-label {
+    -fx-font-weight: bold;
+    -fx-text-fill: #111827;
+}
+.palette-item-hint {
+    -fx-text-fill: #6b7280;
+    -fx-font-size: 12px;
+}

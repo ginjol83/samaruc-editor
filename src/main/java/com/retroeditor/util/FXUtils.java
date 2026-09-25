@@ -64,7 +64,8 @@ import javafx.stage.Stage;
 
 public class FXUtils {
 
-    private static final String TAB_PROP_BASE_TITLE = "editor.baseTitle";
+    public static final String TAB_PROP_BASE_TITLE = "editor.baseTitle";
+    public static final String TAB_PROP_FILE_ICON = "editor.fileIcon";
     private static final String TAB_PROP_BASE_TEXT = "editor.baseText";
     private static final String TAB_PROP_CODE_AREA = "editor.codeArea";
     private static final String TAB_PROP_MARKDOWN_WEBVIEW = "editor.markdownWebView";
@@ -85,6 +86,7 @@ public class FXUtils {
         GCC,
         GCC_CALC,
         CC65,
+        CC65_C64,
         GENERIC,
         ASM,
         MAKEFILE
@@ -219,6 +221,14 @@ public class FXUtils {
             || lastCreatedProjectTemplate == ProjectTemplate.SPECTRUM_SCREEN;
     }
 
+    public boolean wasLastCreatedProjectCc65Template() {
+        return lastCreatedProjectTemplate == ProjectTemplate.CC65;
+    }
+
+    public boolean wasLastCreatedProjectCc65C64Template() {
+        return lastCreatedProjectTemplate == ProjectTemplate.CC65_C64;
+    }
+
     public boolean wasLastCreatedProjectTranslatorTemplate() {
         return lastCreatedProjectTemplate == ProjectTemplate.TRANSLATOR;
     }
@@ -268,7 +278,7 @@ public class FXUtils {
      * @return La nueva pestaÃ±a creada.
      */
     public Tab addTab(String title, String content, SyntaxHighlighter syntaxHighlighter, TabPane tabPane) {
-        CodeArea codeArea = new CodeArea();
+        CodeArea codeArea = new FoldingCodeArea();
         VirtualizedScrollPane<CodeArea> editorScrollPane = new VirtualizedScrollPane<>(codeArea);
         CodeMinimapPane minimap = new CodeMinimapPane(codeArea);
         BorderPane editorLayout = new BorderPane();
@@ -288,6 +298,7 @@ public class FXUtils {
         tab.getProperties().put(TAB_PROP_BASE_TITLE, title != null ? title : "");
         tab.getProperties().put(TAB_PROP_BASE_TEXT, initialText);
         tab.getProperties().put(TAB_PROP_CODE_AREA, codeArea);
+        applyFileTypeIcon(tab, title);
         recordDiskFingerprint(tab, initialText);
 
         // Barra de migas de pan (breadcrumbs) sobre el editor
@@ -395,8 +406,30 @@ public class FXUtils {
         return tab;
     }
 
+    /**
+     * Aplica el icono de tipo de archivo a una pestaña de editor, guardándolo
+     * como propiedad para que el indicador git pueda combinarlo sin borrarlo.
+     * El graphic de la pestaña es un contenedor {@code HBox} que el marcador git
+     * reutiliza para insertar el punto de cambios sin destruir el icono.
+     */
+    public void applyFileTypeIcon(Tab tab, String fileName) {
+        if (tab == null) return;
+        org.kordamp.ikonli.javafx.FontIcon icon = FileTypeIcons.iconForFileName(fileName);
+        javafx.scene.layout.HBox container = new javafx.scene.layout.HBox(3, icon);
+        container.getStyleClass().add("file-icon-container");
+        tab.getProperties().put(TAB_PROP_FILE_ICON, container);
+        tab.setGraphic(container);
+    }
+
+    /** Icono de tipo de archivo de una pestaña (contenedor HBox) si lo tiene. */
+    public javafx.scene.layout.HBox getFileIconContainer(Tab tab) {
+        if (tab == null) return null;
+        Object stored = tab.getProperties().get(TAB_PROP_FILE_ICON);
+        return stored instanceof javafx.scene.layout.HBox box ? box : null;
+    }
+
     public Tab addMarkdownTab(String title, String content, SyntaxHighlighter syntaxHighlighter, TabPane tabPane) {
-        CodeArea codeArea = new CodeArea();
+        CodeArea codeArea = new FoldingCodeArea();
         VirtualizedScrollPane<CodeArea> editorScrollPane = new VirtualizedScrollPane<>(codeArea);
         WebView previewView = new WebView();
         String initialText = content != null ? content : "";
@@ -444,6 +477,7 @@ public class FXUtils {
         tab.getProperties().put(TAB_PROP_CODE_AREA, codeArea);
         tab.getProperties().put(TAB_PROP_MARKDOWN_WEBVIEW, previewView);
         tab.getProperties().put(TAB_PROP_MARKDOWN_PREVIEW, Boolean.FALSE);
+        applyFileTypeIcon(tab, title);
         recordDiskFingerprint(tab, initialText);
 
         codeArea.textProperty().addListener((obs, oldText, newText) -> updateTabDirtyIndicator(tab, codeArea));
@@ -473,6 +507,7 @@ public class FXUtils {
         tab.setContent(node);
         tab.setClosable(true);
         tab.getProperties().put(TAB_PROP_BASE_TITLE, title != null ? title : "");
+        applyFileTypeIcon(tab, title);
         tabPane.getTabs().add(tab);
         tabPane.getSelectionModel().select(tab);
         return tab;
@@ -790,11 +825,19 @@ public class FXUtils {
      */
     public void addNewTab(File file, String content, Map<Tab, File> tabFileMap, SyntaxHighlighter syntaxHighlighter, TabPane tabPane, int newFileCounter) {
         String tabName = (file != null) ? file.getName() : ("new" + newFileCounter + ".c");
-        Tab    tab     = isMarkdownFileName(tabName)
-            ? addMarkdownTab(tabName, content, syntaxHighlighter, tabPane)
-            : addTab(tabName, content, syntaxHighlighter, tabPane);
+        addNewTabNamed(file, content, tabName, tabFileMap, syntaxHighlighter, tabPane);
+    }
 
-        if (file == null) newFileCounter++;
+    /**
+     * Crea una nueva pestaña sin guardar con un nombre arbitrario (p. ej.
+     * "nuevo1.txt" o "nuevo1.tile").
+     * @param tabName Nombre base mostrado en la pestaña.
+     */
+    public void addNewTabNamed(File file, String content, String tabName, Map<Tab, File> tabFileMap, SyntaxHighlighter syntaxHighlighter, TabPane tabPane) {
+        String name = (file != null) ? file.getName() : tabName;
+        Tab    tab     = isMarkdownFileName(name)
+            ? addMarkdownTab(name, content, syntaxHighlighter, tabPane)
+            : addTab(name, content, syntaxHighlighter, tabPane);
 
         tabFileMap.put(tab, file);
 
@@ -993,6 +1036,7 @@ public class FXUtils {
         labels.put(ProjectTemplate.GCC, msg(bundle, "dialog.project.new.template.option.gcc", "C normal (gcc) - Basico"));
         labels.put(ProjectTemplate.GCC_CALC, msg(bundle, "dialog.project.new.template.option.gccCalc", "C normal (gcc) - Calculadora"));
         labels.put(ProjectTemplate.CC65, msg(bundle, "dialog.project.new.template.option.cc65", "CC65 (Atari XE/XL) - Basico"));
+        labels.put(ProjectTemplate.CC65_C64, msg(bundle, "dialog.project.new.template.option.cc65C64", "CC65 (C64) - Basico"));
         labels.put(ProjectTemplate.GENERIC, msg(bundle, "dialog.project.new.template.option.generic", "C generico"));
         labels.put(ProjectTemplate.ASM, msg(bundle, "dialog.project.new.template.option.asm", "Ensamblador (z80 / Game Boy)"));
         labels.put(ProjectTemplate.MAKEFILE, msg(bundle, "dialog.project.new.template.option.makefile", "Makefile / Custom"));
@@ -1009,6 +1053,7 @@ public class FXUtils {
         descriptions.put(ProjectTemplate.GCC, msg(bundle, "dialog.project.new.template.description.gcc", "Plantilla basica de C normal para compilar y ejecutar de forma nativa con GCC."));
         descriptions.put(ProjectTemplate.GCC_CALC, msg(bundle, "dialog.project.new.template.description.gccCalc", "Ejemplo de consola en C normal con bucles y entrada por teclado."));
         descriptions.put(ProjectTemplate.CC65, msg(bundle, "dialog.project.new.template.description.cc65", "Plantilla basica para Atari XE/XL con CC65."));
+        descriptions.put(ProjectTemplate.CC65_C64, msg(bundle, "dialog.project.new.template.description.cc65C64", "Plantilla basica para Commodore 64 con CC65."));
         descriptions.put(ProjectTemplate.GENERIC, msg(bundle, "dialog.project.new.template.description.generic", "Plantilla generica en C para cualquier plataforma."));
         descriptions.put(ProjectTemplate.ASM, msg(bundle, "dialog.project.new.template.description.asm", "Plantilla de ensamblador z80 para Game Boy / ZX."));
         descriptions.put(ProjectTemplate.MAKEFILE, msg(bundle, "dialog.project.new.template.description.makefile", "Proyecto basado en Makefile con estructura base."));
@@ -1186,6 +1231,9 @@ public class FXUtils {
         if (template == ProjectTemplate.CC65) {
             return "cc65";
         }
+        if (template == ProjectTemplate.CC65_C64) {
+            return "c64";
+        }
         if (template == ProjectTemplate.MAKEFILE) {
             return "make";
         }
@@ -1201,6 +1249,10 @@ public class FXUtils {
 
         if (template == ProjectTemplate.SPECTRUM || template == ProjectTemplate.SPECTRUM_SCREEN) {
             return getSpectrumReadmeContent(normalizedName, template);
+        }
+
+        if (template == ProjectTemplate.CC65 || template == ProjectTemplate.CC65_C64) {
+            return getCc65ReadmeContent(normalizedName, template);
         }
 
         return getGenericReadmeContent(normalizedName);
@@ -1262,6 +1314,96 @@ public class FXUtils {
         );
     }
 
+    private String getCc65ReadmeContent(String projectName, ProjectTemplate template) {
+        boolean isC64 = template == ProjectTemplate.CC65_C64;
+        if (isSpanishReadme()) {
+            return isC64 ? getC64ReadmeContentEs(projectName) : getCc65ReadmeContentEs(projectName);
+        }
+        return isC64 ? getC64ReadmeContent(projectName) : getCc65ReadmeContent(projectName);
+    }
+
+    private String getCc65ReadmeContent(String projectName) {
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "Atari XE/XL project created with Samaruc.",
+            "",
+            "## Structure",
+            "- Main source file: `src/main.c`",
+            "- Build output: `out/`",
+            "",
+            "## Recommended Toolchain",
+            "- CC65 (`cl65 -t atari`)",
+            "- Emulator: Altirra",
+            "",
+            "## Notes",
+            "- If you use a Makefile, try to write artifacts to `out/`.",
+            ""
+        );
+    }
+
+    private String getCc65ReadmeContentEs(String projectName) {
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "Proyecto Atari XE/XL creado con Samaruc.",
+            "",
+            "## Estructura",
+            "- Archivo principal: `src/main.c`",
+            "- Salida de compilaci\u00f3n: `out/`",
+            "",
+            "## Toolchain recomendada",
+            "- CC65 (`cl65 -t atari`)",
+            "- Emulador: Altirra",
+            "",
+            "## Notas",
+            "- Si usas Makefile, intenta generar artefactos en `out/`.",
+            ""
+        );
+    }
+
+    private String getC64ReadmeContent(String projectName) {
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "Commodore 64 project created with Samaruc.",
+            "",
+            "## Structure",
+            "- Main source file: `src/main.c`",
+            "- Build output: `out/`",
+            "",
+            "## Recommended Toolchain",
+            "- CC65 (`cl65 -t c64`)",
+            "- Emulator: VICE (`x64sc`)",
+            "",
+            "## Notes",
+            "- The compiled artifact is a `.prg` that VICE autostarts.",
+            "- If you use a Makefile, try to write artifacts to `out/`.",
+            ""
+        );
+    }
+
+    private String getC64ReadmeContentEs(String projectName) {
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "Proyecto Commodore 64 creado con Samaruc.",
+            "",
+            "## Estructura",
+            "- Archivo principal: `src/main.c`",
+            "- Salida de compilaci\u00f3n: `out/`",
+            "",
+            "## Toolchain recomendada",
+            "- CC65 (`cl65 -t c64`)",
+            "- Emulador: VICE (`x64sc`)",
+            "",
+            "## Notas",
+            "- El artefacto compilado es un `.prg` que VICE autoejecuta.",
+            "- Si usas Makefile, intenta generar artefactos en `out/`.",
+            ""
+        );
+    }
+
     private String getGenericReadmeContent(String projectName) {
         if (isSpanishReadme()) {
             return getGenericReadmeContentEs(projectName);
@@ -1279,6 +1421,7 @@ public class FXUtils {
             "## Supported Toolchains",
             "- ZX Spectrum (z88dk)",
             "- Game Boy (GBDK)",
+            "- Atari XE/XL and Commodore 64 (CC65)",
             "",
             "## Notes",
             "- You can switch platform from the compiler configuration.",
@@ -1347,6 +1490,7 @@ public class FXUtils {
             "## Toolchains soportadas",
             "- ZX Spectrum (z88dk)",
             "- Game Boy (GBDK)",
+            "- Atari XE/XL y Commodore 64 (CC65)",
             "",
             "## Notas",
             "- Puedes cambiar la plataforma desde la configuraciÃ³n del compilador.",
@@ -1372,6 +1516,10 @@ public class FXUtils {
             appendGameBoyGitignore(sb);
         } else if (template == ProjectTemplate.SPECTRUM || template == ProjectTemplate.SPECTRUM_SCREEN) {
             appendSpectrumGitignore(sb);
+        } else if (template == ProjectTemplate.CC65) {
+            appendCc65Gitignore(sb);
+        } else if (template == ProjectTemplate.CC65_C64) {
+            appendC64Gitignore(sb);
         } else {
             appendGenericPlatformGitignore(sb);
         }
@@ -1409,6 +1557,25 @@ public class FXUtils {
         sb.append("# Game Boy outputs\n");
         sb.append("*.gb\n");
         sb.append("*.gbc\n");
+        sb.append("\n");
+    }
+
+    private void appendCc65Gitignore(StringBuilder sb) {
+        sb.append("# CC65 / Atari 8-bit outputs\n");
+        sb.append("*.xex\n");
+        sb.append("*.atr\n");
+        sb.append("*.com\n");
+        sb.append("*.exe\n");
+        sb.append("\n");
+    }
+
+    private void appendC64Gitignore(StringBuilder sb) {
+        sb.append("# Commodore 64 / CC65 outputs\n");
+        sb.append("*.prg\n");
+        sb.append("*.d64\n");
+        sb.append("*.t64\n");
+        sb.append("*.tap\n");
+        sb.append("*.crt\n");
         sb.append("\n");
     }
 
@@ -1553,6 +1720,9 @@ public class FXUtils {
         }
         if (template == ProjectTemplate.CC65) {
             return loadResourceTemplate("/templates/cc65_main.c");
+        }
+        if (template == ProjectTemplate.CC65_C64) {
+            return loadResourceTemplate("/templates/c64_main.c");
         }
         if (template == ProjectTemplate.GENERIC || template == ProjectTemplate.MAKEFILE) {
             return loadResourceTemplate("/templates/generic_main.c");

@@ -46,11 +46,25 @@
                         <SeparatorMenuItem />
                         <Menu fx:id="menuRefactor" text="Refactor">
                             <MenuItem fx:id="menuItemRename" text="Rename" onAction="#onRenameFromProjectExplorer" />
+                            <MenuItem fx:id="menuItemRenameSymbol" text="Renombrar símbolo (F2)" onAction="#onRenameSymbol" />
+                            <SeparatorMenuItem />
+                            <MenuItem fx:id="menuItemExtractConstant" text="Extraer constante..." onAction="#onExtractConstant" />
+                            <MenuItem fx:id="menuItemExtractFunction" text="Extraer función..." onAction="#onExtractFunction" />
                         </Menu>
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemGoToLine" text="Ir a la linea..." onAction="#onGoToLine" />
                         <MenuItem fx:id="menuItemGoToDefinition" text="Ir a definición" onAction="#onGoToDefinition" />
                         <MenuItem fx:id="menuItemSplitEditor" text="Dividir vista de editor" onAction="#onSplitEditor" />
+                        <SeparatorMenuItem />
+                        <Menu fx:id="menuFolding" text="Plegado de código">
+                            <MenuItem fx:id="menuItemFoldBlock" text="Plegar bloque" onAction="#onFoldBlock" />
+                            <MenuItem fx:id="menuItemUnfoldBlock" text="Desplegar bloque" onAction="#onUnfoldBlock" />
+                        </Menu>
+                        <SeparatorMenuItem />
+                        <Menu fx:id="menuSnippets" text="Snippets">
+                            <MenuItem fx:id="menuItemInsertSnippet" text="Insertar snippet..." onAction="#onInsertSnippet" />
+                            <MenuItem fx:id="menuItemManageSnippets" text="Gestionar snippets..." onAction="#onManageSnippets" />
+                        </Menu>
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemFind" text="Buscar en archivo" onAction="#onFindInFile" />
                         <MenuItem fx:id="menuItemFindProject" text="Buscar en proyecto" onAction="#onFindInProject" />
@@ -70,6 +84,7 @@
 
                     <Menu fx:id="menuGit" text="Git">
                         <MenuItem fx:id="menuItemGitPanel" text="Panel Git" onAction="#onOpenGitPanel" />
+                        <MenuItem fx:id="menuItemViewDiff" text="Ver diff de la pestaña activa" onAction="#onViewActiveFileDiff" />
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemShareToGithub" text="Publicar en GitHub..." onAction="#onShareToGithub" />
                         <MenuItem fx:id="menuItemPublishRelease" text="Publicar release..." onAction="#onPublishRelease" />
@@ -178,6 +193,11 @@
                     <Tab text="Estructura">
                         <content>
                             <AnchorPane fx:id="structureViewAnchor" />
+                        </content>
+                    </Tab>
+                    <Tab text="Tareas">
+                        <content>
+                            <AnchorPane fx:id="todoViewAnchor" />
                         </content>
                     </Tab>
                 </tabs>

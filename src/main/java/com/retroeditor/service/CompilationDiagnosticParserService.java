@@ -14,6 +14,8 @@ public class CompilationDiagnosticParserService {
     private static final Pattern COMPILER_FILE_LINE_DIAGNOSTIC_PATTERN = Pattern.compile("(?i)(['\"]?[A-Za-z]:[^:\\r\\n]*['\"]?|['\"]?[^:\\r\\n]+\\.[A-Za-z0-9_]+['\"]?):(\\d+)(?::\\d+)?\\s*:");
     private static final Pattern Z88DK_PREFIXED_FILE_LINE_DIAGNOSTIC_PATTERN = Pattern.compile("(?i)(?:sccz80|sdcc|zsdcc|zcc)\\s*:\\s*(['\"]?[^'\"\\r\\n]+?\\.[A-Za-z0-9_]+['\"]?)\\s+(?:L|line)\\s*[:=]?\\s*(\\d+)\\b.*?\\b(error|warning)\\b");
     private static final Pattern Z88DK_FILE_LINE_DIAGNOSTIC_PATTERN = Pattern.compile("(?i)(['\"]?[^'\"\\r\\n]+?\\.[A-Za-z0-9_]+['\"]?)\\s+(?:L|line)\\s*[:=]?\\s*(\\d+)\\b.*?\\b(error|warning)\\b");
+    private static final Pattern CC65_FILE_LINE_DIAGNOSTIC_PATTERN = Pattern.compile("(?i)(?:cl65|cc65|ca65|ld65)\\s*:\\s*(['\"]?[^'\"\\r\\n]+?\\.[A-Za-z0-9_]+['\"]?)\\((\\d+)\\)\\s*:\\s*((?:fatal\\s+)?(?:error|warning))\\b");
+    private static final Pattern CC65_BARE_FILE_LINE_DIAGNOSTIC_PATTERN = Pattern.compile("(?i)(['\"]?[^'\"\\r\\n]+?\\.[A-Za-z0-9_]+['\"]?)\\((\\d+)\\)\\s*:\\s*((?:fatal\\s+)?(?:error|warning))\\b");
     private static final Pattern COMPILER_AT_LINE_DIAGNOSTIC_PATTERN = Pattern.compile("(?i)\\bat\\s+(\\d+)\\s*:\\s*(error|warning)");
     private static final Pattern COMPILATION_EXIT_CODE_PATTERN = Pattern.compile("(?i)(?:c[oó]digo\\s+de\\s+salida|exit\\s+code)\\s*:\\s*(-?\\d+)");
     private static final Pattern DIAGNOSTIC_ERROR_PATTERN = Pattern.compile("(?i)\\b(?:fatal\\s+)?error\\b");
@@ -71,6 +73,9 @@ public class CompilationDiagnosticParserService {
             }
         }
 
+        DiagnosticLocation cc65 = parseCc65DiagnosticLocation(outputLine, resolver);
+        if (cc65 != null) return cc65;
+
         DiagnosticLocation z88 = parseZ88dkDiagnosticLocation(outputLine, resolver);
         if (z88 != null) return z88;
 
@@ -90,6 +95,9 @@ public class CompilationDiagnosticParserService {
 
     public DiagnosticLocation parseConsoleFileLine(String lineText, Function<String, File> resolver) {
         if (lineText == null || lineText.isBlank()) return null;
+
+        DiagnosticLocation cc65 = parseCc65DiagnosticLocation(lineText, resolver);
+        if (cc65 != null) return cc65;
 
         DiagnosticLocation z88 = parseZ88dkDiagnosticLocation(lineText, resolver);
         if (z88 != null) return z88;
@@ -115,6 +123,15 @@ public class CompilationDiagnosticParserService {
         if (prefixed != null) return prefixed;
 
         return parsePatternBasedDiagnostic(outputLine, Z88DK_FILE_LINE_DIAGNOSTIC_PATTERN, resolver);
+    }
+
+    private DiagnosticLocation parseCc65DiagnosticLocation(String outputLine, Function<String, File> resolver) {
+        if (outputLine == null || outputLine.isBlank()) return null;
+
+        DiagnosticLocation prefixed = parsePatternBasedDiagnostic(outputLine, CC65_FILE_LINE_DIAGNOSTIC_PATTERN, resolver);
+        if (prefixed != null) return prefixed;
+
+        return parsePatternBasedDiagnostic(outputLine, CC65_BARE_FILE_LINE_DIAGNOSTIC_PATTERN, resolver);
     }
 
     private DiagnosticLocation parsePatternBasedDiagnostic(String outputLine, Pattern pattern, Function<String, File> resolver) {

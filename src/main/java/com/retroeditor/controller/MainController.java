@@ -20,8 +20,12 @@ import java.io.IOException;
 import java.io.File;
 import java.text.MessageFormat;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.kordamp.ikonli.javafx.FontIcon;
@@ -31,9 +35,11 @@ import com.retroeditor.controller.projectExplorer.ProjectExplorerController;
 import com.retroeditor.controller.config.ConfigDialogCoordinator;
 import com.retroeditor.controller.editor.EditOptionsController;
 import com.retroeditor.controller.editor.FileOptionsController;
+import com.retroeditor.controller.editor.SnippetEditorDialog;
 import com.retroeditor.controller.tools.TileEditorController;
 import com.retroeditor.controller.tools.TilemapEditorController;
 import com.retroeditor.controller.tools.StructureViewController;
+import com.retroeditor.controller.tools.TodoViewController;
 import com.retroeditor.controller.tools.PngToZxConverterController;
 import com.retroeditor.controller.tools.PngToGameBoyConverterController;
 import com.retroeditor.controller.tools.GameBoyAudioEditorController;
@@ -47,9 +53,14 @@ import com.retroeditor.controller.help.HelpController;
 import com.retroeditor.controller.search.FileOpenPort;
 
 import com.retroeditor.service.CompilationDiagnosticParserService;
+import com.retroeditor.service.GccSyntaxCheckService;
+import com.retroeditor.service.SnippetService;
+import com.retroeditor.service.SnippetRepository;
 import com.retroeditor.service.ExternalFileChangeMonitor;
 import com.retroeditor.service.ExternalFileChangeService;
 import com.retroeditor.service.LocalHistoryService;
+import com.retroeditor.service.AutoSaveService;
+import com.retroeditor.service.TodoScanService;
 import com.retroeditor.service.ProjectPlatformDetectionService;
 import com.retroeditor.service.PropertiesConfigRepository;
 import com.retroeditor.service.syntax.SyntaxHighlighter;
@@ -64,6 +75,9 @@ import com.retroeditor.service.ConfigRepository;
 import com.retroeditor.service.WorkspaceService;
 import com.retroeditor.service.TranslatorPersistenceService;
 import com.retroeditor.service.CodeFormatterService;
+import com.retroeditor.service.RenameRefactoringService;
+import com.retroeditor.service.ExtractConstantService;
+import com.retroeditor.service.ExtractFunctionService;
 import com.retroeditor.model.WorkspaceModel;
 import com.retroeditor.service.LanguageService;
 import com.retroeditor.service.AppLogger;
@@ -74,7 +88,9 @@ import com.retroeditor.model.EditorTheme;
 import com.retroeditor.model.ConfigModel;
 import com.retroeditor.model.EditorModel;
 
+import com.retroeditor.service.CodeFoldingService;
 import com.retroeditor.service.git.GitService;
+import com.retroeditor.service.git.GitModels;
 import com.retroeditor.service.git.GitOperationsException;
 import com.retroeditor.service.github.GitHubAuthService;
 import com.retroeditor.service.github.GitHubReleaseService;
@@ -83,12 +99,17 @@ import com.retroeditor.service.github.GitHubShareService;
 
 import com.retroeditor.util.CompilationDiagnosticsUiHelper;
 import com.retroeditor.util.FXUtils;
+import com.retroeditor.util.FoldingCodeArea;
+import com.retroeditor.util.TabPaneDragSupport;
+import com.retroeditor.util.SnippetTabStopNavigator;
 import com.retroeditor.util.AppInfo;
+import com.retroeditor.util.CommandPalette;
 
 import com.retroeditor.view.UIElements;
 
 import javafx.application.Platform;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 
@@ -119,6 +140,7 @@ import javafx.scene.control.ButtonBar;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.control.TextInputDialog;
 
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.ClipboardContent;
@@ -131,6 +153,8 @@ import javafx.scene.layout.StackPane;
 
 import org.fxmisc.richtext.StyleClassedTextArea;
 import org.fxmisc.richtext.CodeArea;
+import org.fxmisc.flowless.VirtualizedScrollPane;
+import com.retroeditor.util.GitDiffViewer;
 
 public class MainController implements ProjectContextPort, FileOpenPort {
     private static final Set<String> NON_TEXT_EXTENSIONS = Set.of(
@@ -156,7 +180,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     private final EditOptionsController   editOptionsController   = new EditOptionsController();
     private final FileOptionsController   fileOptionsController   = new FileOptionsController();
-    private final TileEditorController    tileEditorController    = new TileEditorController();
     private final TilemapEditorController tilemapEditorController = new TilemapEditorController();
     private final PngToZxConverterController pngToZxConverterController = new PngToZxConverterController();
     private final PngToGameBoyConverterController pngToGameBoyConverterController = new PngToGameBoyConverterController();
@@ -174,14 +197,28 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private final ConfigDialogCoordinator configDialogCoordinator = new ConfigDialogCoordinator();
     private final CompilationDiagnosticParserService compilationDiagnosticParserService = new CompilationDiagnosticParserService();
     private final CompilationDiagnosticsUiHelper compilationDiagnosticsUiHelper = new CompilationDiagnosticsUiHelper();
+    private final GccSyntaxCheckService gccSyntaxCheckService = new GccSyntaxCheckService();
     private final ConfigRepository configRepository = new PropertiesConfigRepository();
     private final WorkspaceService workspaceService = new WorkspaceService();
     private final PluginApplicationService pluginApplicationService = new PluginApplicationService();
     private final ProjectPlatformDetectionService projectPlatformDetectionService = new ProjectPlatformDetectionService();
     private final ProjectSearchService projectSearchService = new ProjectSearchService();
     private final TextSearchService textSearchService = new TextSearchService();
+    private final RenameRefactoringService renameRefactoringService = new RenameRefactoringService();
+    private final ExtractConstantService extractConstantService = new ExtractConstantService();
+    private final ExtractFunctionService extractFunctionService = new ExtractFunctionService();
     private final FileTemplateService fileTemplateService = new FileTemplateService();
     private final HomeReleaseNotesService homeReleaseNotesService = new HomeReleaseNotesService();
+    private final SnippetService snippetService = new SnippetService();
+    private final SnippetRepository snippetRepository = new SnippetRepository(configRepository, SnippetRepository.defaultFile());
+    private final List<SnippetService.NamedSnippet> snippets = new java.util.ArrayList<>();
+
+    private final ScheduledExecutorService autosaveScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "samaruc-autosave");
+        t.setDaemon(true);
+        return t;
+    });
+    private static final long AUTOSAVE_INTERVAL_SECONDS = 30;
 
     private int newFileCounter = 1;
 
@@ -238,11 +275,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private Button btnGit;
     @FXML private MenuItem menuItemPegar;
     @FXML private MenuItem menuItemRename;
+    @FXML private MenuItem menuItemRenameSymbol;
+    @FXML private MenuItem menuItemExtractConstant;
+    @FXML private MenuItem menuItemExtractFunction;
     @FXML private MenuItem menuItemTileEditor;
     @FXML private MenuItem menuItemTilemapEditor;
     @FXML private MenuItem menuItemRomTextTranslator;
     @FXML private MenuItem menuItemGitHubRepos;
     @FXML private MenuItem menuItemGitPanel;
+    @FXML private MenuItem menuItemViewDiff;
     @FXML private MenuItem menuItemShareToGithub;
     @FXML private MenuItem menuItemPublishRelease;
     @FXML private MenuItem menuItemIssues;
@@ -250,6 +291,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private MenuItem menuItemGoToLine;
     @FXML private MenuItem menuItemFind;
     @FXML private MenuItem menuItemFindProject;
+    @FXML private Menu menuSnippets;
+    @FXML private MenuItem menuItemInsertSnippet;
+    @FXML private MenuItem menuItemManageSnippets;
     @FXML private MenuItem menuItemManual;
     @FXML private MenuItem menuItemGbdkDocs;
     @FXML private MenuItem menuItemZ88dkDocs;
@@ -284,6 +328,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private AnchorPane projectExplorerAnchor;
     @FXML private AnchorPane structureViewAnchor;
     private StructureViewController structureViewController;
+    @FXML private AnchorPane todoViewAnchor;
+    private TodoViewController todoViewController;
+    private final TodoScanService todoScanService = new TodoScanService();
     @FXML private TabPane outputTabPane;
     @FXML private Tab tabTerminal;
     @FXML private StyleClassedTextArea consoleOutputArea;
@@ -350,6 +397,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private static final String HOME_TAB_ID             = "home-tab";
     private static final String HOME_LINK_HOOKED        = "home-link-hooked";
     private static final String TAB_PROP_GIT_DIRTY       = "git.dirtyDot";
+    private static final String TAB_PROP_TILE_CONTROLLER = "tileEditor.controller";
     private volatile boolean lastCompilationHasErrors   = false;
     private volatile boolean lastCompilationHasWarnings = false;
 
@@ -376,8 +424,13 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private static final KeyCombination ACCEL_TOGGLE_COMMENT = new KeyCodeCombination(KeyCode.SLASH, KeyCombination.CONTROL_DOWN);
     private static final KeyCombination ACCEL_AUTO_COMPLETE = new KeyCodeCombination(KeyCode.SPACE, KeyCombination.CONTROL_DOWN);
     private static final KeyCombination ACCEL_FORMAT_CODE   = new KeyCodeCombination(KeyCode.L, KeyCombination.CONTROL_DOWN, KeyCombination.ALT_DOWN);
+    private static final KeyCombination ACCEL_RENAME_SYMBOL = new KeyCodeCombination(KeyCode.F2);
+    private static final KeyCombination ACCEL_FOLD          = new KeyCodeCombination(KeyCode.OPEN_BRACKET, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN);
+    private static final KeyCombination ACCEL_UNFOLD        = new KeyCodeCombination(KeyCode.CLOSE_BRACKET, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN);
     private static final KeyCombination ACCEL_BUILD        = new KeyCodeCombination(KeyCode.F5);
     private static final KeyCombination ACCEL_RUN          = new KeyCodeCombination(KeyCode.F6);
+    private static final KeyCombination ACCEL_COMMAND_PALETTE = new KeyCodeCombination(KeyCode.P, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN);
+    private static final KeyCombination ACCEL_QUICK_OPEN   = new KeyCodeCombination(KeyCode.P, KeyCombination.CONTROL_DOWN);
 
     @FXML
     public void initialize() {
@@ -453,6 +506,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         buildController.compilationRunningProperty().addListener((obs, wasRunning, isRunning) -> updateCompileStatusUI());
 
         if (tabPane != null) {
+            TabPaneDragSupport.install(tabPane);
             tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
                 applyDiagnosticsForTab(newTab);
                 persistSessionState();
@@ -490,6 +544,21 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             structureViewController = loader.getController();
             if (structureViewAnchor != null) {
                 structureViewAnchor.getChildren().setAll(structure);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // Cargar TodoView (TODO/FIXME del proyecto)
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/views/TodoView.fxml"));
+            Parent todoView = loader.load();
+            todoViewController = loader.getController();
+            if (todoViewAnchor != null) {
+                todoViewAnchor.getChildren().setAll(todoView);
+            }
+            if (todoViewController != null) {
+                todoViewController.setOnTodoSelectedCallback(this::openTodoItem);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -686,11 +755,17 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemCopiar        != null) menuItemCopiar.setText(bundle.getString("button.copy"));
         if (menuItemPegar         != null) menuItemPegar.setText(bundle.getString("button.paste"));
         if (menuItemRename        != null) menuItemRename.setText(bundle.getString("menu.rename"));
+        if (menuItemRenameSymbol != null) menuItemRenameSymbol.setText(bundle.getString("menu.rename.symbol"));
+        if (menuItemExtractConstant != null) menuItemExtractConstant.setText(bundle.getString("menu.refactor.extractConstant"));
+        if (menuItemExtractFunction != null) menuItemExtractFunction.setText(bundle.getString("menu.refactor.extractFunction"));
         if (menuItemTileEditor    != null) menuItemTileEditor.setText(bundle.getString("menu.tools.tileEditor"));
         if (menuItemTilemapEditor != null) menuItemTilemapEditor.setText(bundle.getString("menu.tools.tilemapEditor"));
         if (menuItemGoToLine      != null) menuItemGoToLine.setText(bundle.getString("menu.goto.line"));
         if (menuItemFind          != null) menuItemFind.setText(bundle.getString("menu.find.file"));
         if (menuItemFindProject   != null) menuItemFindProject.setText(bundle.getString("menu.find.project"));
+        if (menuSnippets          != null) menuSnippets.setText(bundle.getString("menu.edit.snippets"));
+        if (menuItemInsertSnippet != null) menuItemInsertSnippet.setText(bundle.getString("menu.edit.snippets.insert"));
+        if (menuItemManageSnippets != null) menuItemManageSnippets.setText(bundle.getString("menu.edit.snippets.manage"));
         if (menuItemManual        != null) menuItemManual.setText(bundle.getString("menu.help.manual"));
         if (menuItemGbdkDocs      != null) menuItemGbdkDocs.setText(bundle.getString("menu.help.gbdkDocs"));
         if (menuItemZ88dkDocs     != null) menuItemZ88dkDocs.setText(bundle.getString("menu.help.z88dkDocs"));
@@ -733,6 +808,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         updateCompileStatusUI();
 
         startExternalFileWatcher();
+        scheduleAutosave();
     }
 
     @FXML
@@ -749,6 +825,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private void onGoToDefinition(ActionEvent event) {
         CodeArea codeArea = fxUtils.getCurrentCodeArea(tabPane);
         if (codeArea == null) return;
+        FoldingCodeArea.expandAllFolds(codeArea);
         String text = codeArea.getText();
         int caret = codeArea.getCaretPosition();
         String symbol = editOptionsController.extractWordAtCaret(text, caret);
@@ -791,6 +868,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (editorSplitPane == null) {
             secondaryTabPane = new TabPane();
             secondaryTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
+            TabPaneDragSupport.install(secondaryTabPane);
 
             javafx.scene.Parent parent = tabPane.getParent();
             if (parent instanceof javafx.scene.layout.Pane pane) {
@@ -805,6 +883,14 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 }
             }
         } else {
+            // Devolver todas las pestañas del panel secundario al principal
+            // antes de descartarlo (evita que queden huérfanas).
+            if (secondaryTabPane != null && tabPane != null) {
+                for (Tab tab : new ArrayList<>(secondaryTabPane.getTabs())) {
+                    secondaryTabPane.getTabs().remove(tab);
+                    tabPane.getTabs().add(tab);
+                }
+            }
             javafx.scene.Parent parent = editorSplitPane.getParent();
             if (parent instanceof javafx.scene.layout.Pane pane) {
                 int idx = pane.getChildren().indexOf(editorSplitPane);
@@ -1008,6 +1094,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         CodeArea codeArea = fxUtils.getCodeArea(tab);
         if (codeArea == null) return;
         String fileName = tab.getText();
+        FoldingCodeArea.expandAllFolds(codeArea);
         String formatted = CodeFormatterService.formatCode(codeArea.getText(), fileName);
         codeArea.replaceText(formatted);
     }
@@ -1021,6 +1108,12 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 configRepository.save(userConfigFile, configModel.toProperties());
             } else if (fxUtils.wasLastCreatedProjectSpectrumTemplate()) {
                 configModel.applySpectrumProfile();
+                configRepository.save(userConfigFile, configModel.toProperties());
+            } else if (fxUtils.wasLastCreatedProjectCc65Template()) {
+                configModel.applyAtariProfile();
+                configRepository.save(userConfigFile, configModel.toProperties());
+            } else if (fxUtils.wasLastCreatedProjectCc65C64Template()) {
+                configModel.applyC64Profile();
                 configRepository.save(userConfigFile, configModel.toProperties());
             }
 
@@ -1072,13 +1165,22 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
         boolean profileAlreadyMatches =
             (detected.getPlatform() == ProjectPlatformDetectionService.Platform.GAMEBOY && isCurrentProfileGameBoy())
-                || (detected.getPlatform() == ProjectPlatformDetectionService.Platform.SPECTRUM && isCurrentProfileSpectrum());
+                || (detected.getPlatform() == ProjectPlatformDetectionService.Platform.SPECTRUM && isCurrentProfileSpectrum())
+                || (detected.getPlatform() == ProjectPlatformDetectionService.Platform.ATARI && isCurrentProfileAtari())
+                || (detected.getPlatform() == ProjectPlatformDetectionService.Platform.C64 && isCurrentProfileC64());
 
         if (profileAlreadyMatches) return;
 
-        String detectedProfileName = detected.getPlatform() == ProjectPlatformDetectionService.Platform.GAMEBOY
-            ? msg("dialog.project.detected.profile.gameboy", "Game Boy (GBDK)")
-            : msg("dialog.project.detected.profile.spectrum", "ZX Spectrum (z88dk)");
+        String detectedProfileName;
+        if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.GAMEBOY) {
+            detectedProfileName = msg("dialog.project.detected.profile.gameboy", "Game Boy (GBDK)");
+        } else if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.ATARI) {
+            detectedProfileName = msg("dialog.project.detected.profile.atari", "Atari 8-bit (CC65)");
+        } else if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.C64) {
+            detectedProfileName = msg("dialog.project.detected.profile.c64", "Commodore 64 (CC65)");
+        } else {
+            detectedProfileName = msg("dialog.project.detected.profile.spectrum", "ZX Spectrum (z88dk)");
+        }
 
         String confidenceText = Integer.toString(detected.getConfidence());
         String evidence = detected.getEvidence() != null ? detected.getEvidence() : "";
@@ -1107,10 +1209,19 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
         if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.GAMEBOY) {
             configModel.applyGameBoyProfile();
+        } else if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.ATARI) {
+            configModel.applyAtariProfile();
+        } else if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.C64) {
+            configModel.applyC64Profile();
         } else {
             configModel.applySpectrumProfile();
         }
         configRepository.save(userConfigFile, configModel.toProperties());
+    }
+
+    private boolean isCurrentProfileC64() {
+        if (!"cc65".equalsIgnoreCase(configModel.getConfigProperty("compilador_seleccionado", "GBDK"))) return false;
+        return "c64".equalsIgnoreCase(configModel.getConfigProperty("cc65_target", "atari"));
     }
 
     private boolean isCurrentProfileGameBoy() {
@@ -1120,6 +1231,11 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private boolean isCurrentProfileSpectrum() {
         String compiler = configModel.getConfigProperty("compilador_seleccionado", "GBDK");
         return "z88dk".equalsIgnoreCase(compiler) || "Spectrum".equalsIgnoreCase(compiler);
+    }
+
+    private boolean isCurrentProfileAtari() {
+        String compiler = configModel.getConfigProperty("compilador_seleccionado", "GBDK");
+        return "cc65".equalsIgnoreCase(compiler);
     }
 
     private String msg(String key, String fallback) {
@@ -1161,6 +1277,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         }
 
         if (projectExplorerController != null) projectExplorerController.setRootDirectory(carpeta);
+        refreshTodoPanel();
         gitPanelController.setProject(carpeta);
         try {
             if (carpeta != null) {
@@ -1175,6 +1292,49 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
+    }
+
+    /**
+     * Escanea el proyecto actual en busca de comentarios TODO/FIXME y actualiza
+     * el panel de tareas. La búsqueda se hace en segundo plano para no
+     * bloquear el hilo de JavaFX.
+     */
+    private void refreshTodoPanel() {
+        if (todoViewController == null) return;
+        File project = currentProjectDir;
+        CompletableFuture.runAsync(() -> {
+            List<TodoScanService.TodoItem> items = project != null
+                    ? todoScanService.scanProject(project)
+                    : java.util.List.of();
+            Platform.runLater(() -> {
+                if (todoViewController != null) {
+                    todoViewController.setItems(items);
+                }
+            });
+        });
+    }
+
+    /** Abre el archivo de un TODO en la línea indicada al hacer doble clic. */
+    private void openTodoItem(File file, int line) {
+        if (file == null) return;
+        try {
+            boolean alreadyOpen = findTabForFile(file) != null;
+            if (!alreadyOpen) {
+                openFileInEditorTab(file, false);
+            }
+            CodeArea area = fxUtils.getCurrentCodeArea(tabPane);
+            if (area != null) {
+                try {
+                    int targetOffset = area.position(Math.max(0, line - 1), 0).toOffset();
+                    area.moveTo(targetOffset);
+                    area.requestFollowCaret();
+                    area.requestFocus();
+                } catch (Exception ignored) {
+                }
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
     }
 
     public boolean isSupportedRomFile(File file) {
@@ -1194,6 +1354,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (file.getParentFile() != null) {
             fileOptionsController.setDefaultOpenDirectory(file.getParentFile());
             fileOptionsController.setDefaultSaveDirectory(file.getParentFile());
+        }
+        if (TileEditorController.isTileFile(file)) {
+            Tab existing = findTileTabForFile(file);
+            if (existing != null) {
+                tabPane.getSelectionModel().select(existing);
+                return;
+            }
+            openTileEditorTab(file);
+            return;
         }
         for (Map.Entry<Tab, File> entry : tabFileMap.entrySet()) {
             if (file.equals(entry.getValue())) { 
@@ -1293,6 +1462,11 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 tabFileMap.put(translatorTab, file.getAbsoluteFile());
             }
             persistSessionState();
+            return;
+        }
+
+        if (TileEditorController.isTileFile(file)) {
+            openTileEditorTab(file);
             return;
         }
 
@@ -1585,6 +1759,131 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             openHomeTab();
         }
         persistSessionState();
+
+        promptAutosaveRecovery();
+    }
+
+    /**
+     * Programa el volcado periódico de las pestañas modificadas a la carpeta
+     * de autosave. Se ejecuta en FX thread para leer los CodeArea y escribe
+     * los snapshot en un hilo de fondo.
+     */
+    private void scheduleAutosave() {
+        autosaveScheduler.scheduleWithFixedDelay(() -> {
+            try {
+                Platform.runLater(this::autosaveDirtyTabs);
+            } catch (Throwable ignored) {
+            }
+        }, AUTOSAVE_INTERVAL_SECONDS, AUTOSAVE_INTERVAL_SECONDS, TimeUnit.SECONDS);
+    }
+
+    private void autosaveDirtyTabs() {
+        if (tabPane == null) return;
+        expandAllFoldsInTabs();
+        List<Map.Entry<File, String>> dirty = new ArrayList<>();
+        for (Tab tab : tabPane.getTabs()) {
+            File file = tabFileMap.get(tab);
+            if (file == null || !file.isFile()) continue;
+            CodeArea area = fxUtils.getCodeArea(tab);
+            if (area == null) continue;
+            String text = area.getText();
+            if (text == null) continue;
+            try {
+                String disk = Files.readString(file.toPath(), StandardCharsets.UTF_8);
+                if (!text.equals(disk)) {
+                    dirty.add(new java.util.AbstractMap.SimpleEntry<>(file, text));
+                }
+            } catch (IOException ignored) {
+            }
+        }
+        if (dirty.isEmpty()) return;
+        CompletableFuture.runAsync(() -> {
+            for (Map.Entry<File, String> entry : dirty) {
+                AutoSaveService.saveSnapshot(entry.getKey(), entry.getValue());
+            }
+        });
+    }
+
+    /**
+     * Expande todos los plegados activos de todas las pestañas de código antes de
+     * que cualquier flujo externo lea el buffer (guardar, autosave, formato,
+     * compilar, renombrar...), evitando persistir la forma plegada.
+     */
+    private void expandAllFoldsInTabs() {
+        if (tabPane == null) return;
+        for (Tab tab : tabPane.getTabs()) {
+            CodeArea area = fxUtils.getCodeArea(tab);
+            FoldingCodeArea.expandAllFolds(area);
+        }
+    }
+
+    /**
+     * Si hay snapshots de autosave pendientes de una sesión anterior, pregunta
+     * al usuario si quiere recuperarlos o descartarlos.
+     */
+    private void promptAutosaveRecovery() {
+        if (tabPane == null) return;
+        List<AutoSaveService.RecoverableFile> recoverable = AutoSaveService.listRecoverable();
+        if (recoverable.isEmpty()) return;
+
+        String title   = msg("autosave.recovery.title", "Recuperación de archivos");
+        String header  = msgFmt("autosave.recovery.header",
+                "Se han recuperado {0} archivos con cambios sin guardar de una sesión anterior.",
+                recoverable.size());
+        String restoreBtn   = msg("autosave.recovery.restore", "Recuperar");
+        String discardBtn   = msg("autosave.recovery.discard", "Descartar");
+
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(header);
+        StringBuilder content = new StringBuilder();
+        for (AutoSaveService.RecoverableFile r : recoverable) {
+            content.append("• ").append(r.getOriginalFile().getName()).append('\n');
+        }
+        alert.setContentText(content.toString().trim());
+        alert.initOwner(tabPane.getScene() != null ? tabPane.getScene().getWindow() : null);
+
+        ButtonType restoreType = new ButtonType(restoreBtn);
+        ButtonType discardType = new ButtonType(discardBtn);
+        alert.getButtonTypes().setAll(restoreType, discardType);
+
+        if (alert.showAndWait().orElse(discardType) == restoreType) {
+            for (AutoSaveService.RecoverableFile r : recoverable) {
+                restoreAutosavedFile(r);
+            }
+        }
+        AutoSaveService.clearAll();
+    }
+
+    private void restoreAutosavedFile(AutoSaveService.RecoverableFile recoverable) {
+        File original = recoverable.getOriginalFile();
+        String snapshot = AutoSaveService.loadSnapshotContent(recoverable.getSnapshotFile());
+        if (snapshot.isEmpty() && original == null) return;
+
+        Tab tab = findTabForFile(original);
+        if (tab == null && original != null && original.exists() && original.isFile()) {
+            try {
+                openFileInEditorTab(original, false);
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+            tab = findTabForFile(original);
+        }
+        if (tab == null) return;
+        CodeArea area = fxUtils.getCodeArea(tab);
+        if (area != null) {
+            area.replaceText(snapshot);
+        }
+    }
+
+    private Tab findTabForFile(File file) {
+        if (file == null || tabFileMap.isEmpty()) return null;
+        for (Map.Entry<Tab, File> entry : tabFileMap.entrySet()) {
+            if (sameFile(entry.getValue(), file)) {
+                return entry.getKey();
+            }
+        }
+        return null;
     }
 
     private void persistSessionState() {
@@ -1649,6 +1948,66 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             }
 
             updateCompileStatusUI();
+
+            for (Map.Entry<Tab, File> entry : tabFileMap.entrySet()) {
+                File mapped = entry.getValue();
+                if (mapped == null) continue;
+                if (toFileKey(mapped).equals(key)) {
+                    applyDiagnosticsForTab(entry.getKey());
+                }
+            }
+        });
+    }
+
+    /**
+     * Diagnóstico al guardar (item 14): tras guardar un archivo de código con GCC
+     * configurado, ejecuta {@code gcc -fsyntax-only} sobre ese único archivo en
+     * background y subraya los errores/warnings en la pestaña, sin abrir la consola.
+     */
+    private void runSaveTimeSyntaxCheck(File file) {
+        if (file == null || configModel == null || !configModel.isSyntaxCheckOnSave()) return;
+        String name = file.getName().toLowerCase(Locale.ROOT);
+        if (!name.endsWith(".c") && !name.endsWith(".h")) return;
+
+        String selectedCompiler = configModel.getConfigProperty("compilador_seleccionado", "");
+        if (!gccSyntaxCheckService.isApplicable(selectedCompiler)) return;
+        if (buildController != null && buildController.isCompilationRunning()) return;
+
+        Thread worker = new Thread(() -> {
+            List<String> command = gccSyntaxCheckService.buildSyntaxCheckCommand(
+                configModel.getConfigProperty("gcc_bin", ""),
+                configModel.getConfigProperty("gcc_opt_level", "none"),
+                configModel.getConfigProperty("gcc_defines", ""),
+                configModel.getConfigProperty("gcc_includes", ""),
+                configModel.getConfigProperty("gcc_extra_args", ""),
+                file
+            );
+            gccSyntaxCheckService.run(command, file.getParentFile(), line -> onSyntaxCheckOutputLine(file, line));
+        }, "gcc-syntax-check");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    /**
+     * Procesa una línea del parse de sintaxis al guardar: la inserta en
+     * {@code compileDiagnosticsByFile} y subraya la pestaña correspondiente,
+     * sin alterar el estado de compilación ni la consola.
+     */
+    private void onSyntaxCheckOutputLine(File sourceFile, String outputLine) {
+        if (outputLine == null || outputLine.isBlank()) return;
+
+        CompilationDiagnosticParserService.DiagnosticLocation location =
+            compilationDiagnosticParserService.parseCompilerDiagnosticLocation(sourceFile, outputLine, this::resolveConsoleFileReference);
+        if (location == null || location.getLine() <= 0) return;
+
+        Platform.runLater(() -> {
+            File key = toFileKey(location.getFile());
+            CompileLineDiagnostics diagnostics = compileDiagnosticsByFile.computeIfAbsent(key, k -> new CompileLineDiagnostics());
+            if (location.isWarning()) {
+                diagnostics.warnings.add(location.getLine());
+            } else {
+                diagnostics.errors.add(location.getLine());
+            }
 
             for (Map.Entry<Tab, File> entry : tabFileMap.entrySet()) {
                 File mapped = entry.getValue();
@@ -1768,7 +2127,46 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             alert.showAndWait();
             return;
         }
-        fxUtils.onNewTab(event, newFileCounter, tabPane, tabFileMap, syntaxHighlighter);
+
+        NewFileChoice choice = askNewFileChoice();
+        if (choice == null) return;
+
+        String baseName = "nuevo" + newFileCounter;
+        switch (choice) {
+            case TEXT -> fxUtils.addNewTabNamed(null, "", baseName + ".txt", tabFileMap, syntaxHighlighter, tabPane);
+            case C -> fxUtils.addNewTabNamed(null, "", baseName + ".c", tabFileMap, syntaxHighlighter, tabPane);
+            case SPRITE -> openTileEditorTab(null, baseName + ".tile");
+        }
+        newFileCounter++;
+    }
+
+    private enum NewFileChoice { TEXT, C, SPRITE }
+
+    /**
+     * Pregunta qué tipo de archivo crear: texto, C o sprite (.tile).
+     *
+     * @return la opción elegida, o {@code null} si se cancela.
+     */
+    private NewFileChoice askNewFileChoice() {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        Stage owner = getStage();
+        if (owner != null) alert.initOwner(owner);
+        alert.setTitle(msg("dialog.newFile.title", "Nuevo archivo"));
+        alert.setHeaderText(msg("dialog.newFile.header", "¿Qué tipo de archivo quieres crear?"));
+        alert.setContentText(null);
+
+        ButtonType text = new ButtonType(msg("dialog.newFile.text", "Archivo de texto (.txt)"), ButtonBar.ButtonData.OK_DONE);
+        ButtonType c = new ButtonType(msg("dialog.newFile.c", "Archivo C (.c)"), ButtonBar.ButtonData.OK_DONE);
+        ButtonType sprite = new ButtonType(msg("dialog.newFile.sprite", "Sprite (.tile)"), ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancel = new ButtonType(msg("dialog.template.cancel", "Cancelar"), ButtonBar.ButtonData.CANCEL_CLOSE);
+        alert.getButtonTypes().setAll(text, c, sprite, cancel);
+
+        Optional<ButtonType> result = alert.showAndWait();
+        if (result.isEmpty()) return null;
+        if (result.get() == text) return NewFileChoice.TEXT;
+        if (result.get() == c) return NewFileChoice.C;
+        if (result.get() == sprite) return NewFileChoice.SPRITE;
+        return null;
     }
 
     @FXML
@@ -1966,14 +2364,44 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private void onOpenFile(ActionEvent event) {
         File opened = fileOptionsController.onOpenFile(event, tabPane, tabFileMap, editorModel, syntaxHighlighter);
         if (opened != null) {
+            if (TileEditorController.isTileFile(opened)) {
+                rerouteOpenTileAsCodeToTool(opened);
+                return;
+            }
             rememberRecentFile(opened);
             persistSessionState();
         }
     }
 
+    /**
+     * Cuando un .tile se abrió como pestaña de código (p. ej. vía "Abrir..." de
+     * Ctrl+O), se descarta esa pestaña y se reabre en la herramienta de tiles.
+     */
+    private void rerouteOpenTileAsCodeToTool(File tileFile) {
+        for (Tab tab : new ArrayList<>(tabPane.getTabs())) {
+            if (tileFile.equals(tabFileMap.get(tab))) {
+                tabPane.getTabs().remove(tab);
+                break;
+            }
+        }
+        openTileEditorTab(tileFile);
+        rememberRecentFile(tileFile);
+        persistSessionState();
+    }
+
     @FXML
     private void onSaveFile(ActionEvent event) {
         Tab selectedTab = tabPane != null ? tabPane.getSelectionModel().getSelectedItem() : null;
+        if (selectedTab != null && isTileEditorTab(selectedTab)) {
+            TileEditorController tile = getTileEditorController(selectedTab);
+            if (tile != null && tile.saveCurrentProject()) {
+                if (projectExplorerController != null) {
+                    projectExplorerController.refreshTree();
+                }
+                persistSessionState();
+            }
+            return;
+        }
         if (selectedTab != null && translatorTabManager.isTranslatorTab(selectedTab)) {
             File smtFile = tabFileMap.get(selectedTab);
             if (smtFile != null) {
@@ -1991,6 +2419,13 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         boolean saved = fileOptionsController.onSaveFile(event, tabPane, tabFileMap, editorModel);
         if (saved && projectExplorerController != null) {
             projectExplorerController.refreshTree();
+        }
+        if (saved) {
+            File savedFile = tabFileMap.get(selectedTab);
+            if (savedFile != null) {
+                AutoSaveService.clearSnapshot(savedFile);
+                runSaveTimeSyntaxCheck(savedFile);
+            }
         }
     }
 
@@ -2071,6 +2506,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
      */
     private boolean persistEditorVersionToDisk(Tab tab, File file, CodeArea codeArea) {
         try {
+            FoldingCodeArea.expandAllFolds(codeArea);
             editorModel.saveFile(file, codeArea.getText());
             LocalHistoryService.recordSnapshot(file, codeArea.getText());
             fxUtils.markTabSaved(tab, fxUtils.getDefaultFileName(tab), codeArea.getText());
@@ -2093,14 +2529,24 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         try {
             List<Tab> tabsToSave = new ArrayList<>();
             for (Tab tab : tabPane.getTabs()) {
-                if (tabFileMap.containsKey(tab)) {
+                TileEditorController tile = getTileEditorController(tab);
+                if (tile != null) {
+                    if (tile.getCurrentFile() != null) {
+                        tabsToSave.add(tab);
+                    }
+                } else if (tabFileMap.containsKey(tab)) {
                     tabsToSave.add(tab);
                 }
             }
 
             for (Tab tab : tabsToSave) {
                 tabPane.getSelectionModel().select(tab);
-                if (translatorTabManager.isTranslatorTab(tab)) {
+                if (isTileEditorTab(tab)) {
+                    TileEditorController tile = getTileEditorController(tab);
+                    if (tile != null && tile.saveCurrentProject()) {
+                        savedAny = true;
+                    }
+                } else if (translatorTabManager.isTranslatorTab(tab)) {
                     File smtFile = tabFileMap.get(tab);
                     if (smtFile != null) {
                         translatorTabManager.saveTranslatorTab(tab, smtFile);
@@ -2110,6 +2556,10 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                     boolean saved = fileOptionsController.onSaveFile(event, tabPane, tabFileMap, editorModel);
                     if (!saved) {
                         break;
+                    }
+                    File savedFile = tabFileMap.get(tab);
+                    if (savedFile != null) {
+                        AutoSaveService.clearSnapshot(savedFile);
                     }
                     savedAny = true;
                 }
@@ -2152,6 +2602,16 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML
     private void onSaveAsFile(ActionEvent event) {
         Tab selectedTab = tabPane != null ? tabPane.getSelectionModel().getSelectedItem() : null;
+        if (selectedTab != null && isTileEditorTab(selectedTab)) {
+            TileEditorController tile = getTileEditorController(selectedTab);
+            if (tile != null && tile.saveProjectAs()) {
+                if (projectExplorerController != null) {
+                    projectExplorerController.refreshTree();
+                }
+                persistSessionState();
+            }
+            return;
+        }
         if (selectedTab != null && translatorTabManager.isTranslatorTab(selectedTab)) {
             javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
             fileChooser.setTitle("Guardar como");
@@ -2175,11 +2635,23 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             projectExplorerController.refreshTree();
             persistSessionState();
         }
+        if (saved) {
+            Tab savedTab = tabPane != null ? tabPane.getSelectionModel().getSelectedItem() : null;
+            File savedFile = savedTab != null ? tabFileMap.get(savedTab) : null;
+            if (savedFile != null) {
+                runSaveTimeSyntaxCheck(savedFile);
+            }
+        }
     }
 
     @FXML
     private void onCloseFile(ActionEvent event)  {
+        Tab tab = tabPane != null ? tabPane.getSelectionModel().getSelectedItem() : null;
+        File closing = tab != null ? tabFileMap.get(tab) : null;
         fileOptionsController.onCloseFile(event, tabPane, tabFileMap, editorModel);
+        if (closing != null) {
+            AutoSaveService.clearSnapshot(closing);
+        }
         persistSessionState();
     }
 
@@ -2209,8 +2681,309 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     @FXML
+    private void onRenameSymbol(ActionEvent event) {
+        CodeArea codeArea = fxUtils.getCurrentCodeArea(tabPane);
+        if (codeArea == null) return;
+        FoldingCodeArea.expandAllFolds(codeArea);
+        String text = codeArea.getText();
+        int caret = codeArea.getCaretPosition();
+        String symbol = editOptionsController.extractWordAtCaret(text, caret);
+        if (symbol == null || symbol.isBlank()) return;
+
+        TextInputDialog dialog = new TextInputDialog(symbol);
+        dialog.setTitle(msg("dialog.rename.title", "Renombrar símbolo"));
+        dialog.setHeaderText(msgFmt("dialog.rename.header", "Introduce el nuevo nombre de ''{0}'' en todo el proyecto.", symbol));
+        dialog.setContentText(msg("dialog.rename.label", "Nuevo nombre:"));
+        dialog.initOwner(tabPane.getScene() != null ? tabPane.getScene().getWindow() : null);
+        dialog.getDialogPane().getStylesheets().setAll(tabPane.getScene() != null
+                ? tabPane.getScene().getStylesheets()
+                : List.of());
+
+        Optional<String> newNameOpt = dialog.showAndWait();
+        if (newNameOpt.isEmpty()) return;
+        String newName = newNameOpt.get().trim();
+        if (newName.isEmpty() || newName.equals(symbol)) return;
+        if (!newName.matches("[A-Za-z_]\\w*")) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle(msg("dialog.rename.title", "Renombrar símbolo"));
+            alert.setHeaderText(null);
+            alert.setContentText(msg("dialog.rename.invalid", "El nombre debe ser un identificador válido (letras, números o guion bajo)."));
+            alert.showAndWait();
+            return;
+        }
+        if (currentProjectDir == null) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle(msg("dialog.rename.title", "Renombrar símbolo"));
+            alert.setHeaderText(null);
+            alert.setContentText(msg("alert.project.notOpen.content", "No hay ningún proyecto abierto."));
+            alert.showAndWait();
+            return;
+        }
+
+        File project = currentProjectDir;
+        RenameRefactoringService.OccurrencePreview preview =
+            renameRefactoringService.previewOccurrences(project, symbol);
+        if (preview.getOccurrences() == 0) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle(msg("dialog.rename.title", "Renombrar símbolo"));
+            alert.setHeaderText(null);
+            alert.setContentText(msgFmt("dialog.rename.none", "No se encontraron ocurrencias de ''{0}'' en el proyecto.", symbol));
+            alert.showAndWait();
+            return;
+        }
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle(msg("dialog.rename.title", "Renombrar símbolo"));
+        confirm.setHeaderText(msgFmt("dialog.rename.confirm",
+                "Se renombrarán {0} ocurrencias en {1} archivo(s). ¿Deseas continuar?",
+                preview.getOccurrences(), preview.getFiles()));
+        confirm.setContentText(msgFmt("dialog.rename.summary", "{0} → {1}", symbol, newName));
+        confirm.initOwner(tabPane.getScene() != null ? tabPane.getScene().getWindow() : null);
+        Optional<ButtonType> result = confirm.showAndWait();
+        if (result.isEmpty() || result.get() != ButtonType.OK) return;
+
+        final String oldSymbol = symbol;
+        CompletableFuture.runAsync(() -> {
+            RenameRefactoringService.RenameResult rename =
+                renameRefactoringService.renameSymbolInProject(project, oldSymbol, newName);
+            Platform.runLater(() -> {
+                if (projectExplorerController != null) {
+                    projectExplorerController.refreshTree();
+                }
+                reloadAffectedTabsAfterRename(project, oldSymbol);
+                String summary = msgFmt("dialog.rename.done",
+                        "Renombrado: {0} ocurrencias en {1} archivo(s).",
+                        rename.getTotalOccurrences(), rename.getFilesModified());
+                terminalController.appendConsoleOutput(summary, consoleOutputArea);
+            });
+        });
+    }
+
+    @FXML
+    private void onExtractConstant(ActionEvent event) {
+        CodeArea codeArea = fxUtils.getCurrentCodeArea(tabPane);
+        if (codeArea == null) return;
+        FoldingCodeArea.expandAllFolds(codeArea);
+        String text = codeArea.getText();
+        int lo = codeArea.getSelection().getStart();
+        int hi = codeArea.getSelection().getEnd();
+        if (lo >= hi) {
+            showRefactorInfoAlert("dialog.refactor.extractConstant.title", "Extraer constante",
+                "refactor.extract.selectionRequired", "Selecciona una expresión para extraerla como constante.");
+            return;
+        }
+
+        TextInputDialog dialog = new TextInputDialog();
+        dialog.setTitle(msg("dialog.refactor.extractConstant.title", "Extraer constante"));
+        dialog.setHeaderText(msg("dialog.refactor.extractConstant.header", "Introduce el nombre de la nueva constante."));
+        dialog.setContentText(msg("dialog.refactor.extractConstant.label", "Nombre de la constante:"));
+        Window owner = tabPane.getScene() != null ? tabPane.getScene().getWindow() : null;
+        dialog.initOwner(owner);
+        dialog.getDialogPane().getStylesheets().setAll(sceneStylesheets());
+
+        Optional<String> nameOpt = dialog.showAndWait();
+        if (nameOpt.isEmpty()) return;
+        String name = nameOpt.get().trim();
+        if (name.isEmpty()) return;
+
+        ExtractConstantService.Result result = extractConstantService.extract(text, name, lo, hi);
+        if (!result.diagnostic().isEmpty()) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle(msg("dialog.refactor.extractConstant.title", "Extraer constante"));
+            alert.setHeaderText(null);
+            alert.setContentText(result.diagnostic());
+            alert.initOwner(owner);
+            alert.showAndWait();
+            return;
+        }
+        applyRefactorText(codeArea, result.newText(), result.caretPosition());
+    }
+
+    @FXML
+    private void onExtractFunction(ActionEvent event) {
+        CodeArea codeArea = fxUtils.getCurrentCodeArea(tabPane);
+        if (codeArea == null) return;
+        FoldingCodeArea.expandAllFolds(codeArea);
+        String text = codeArea.getText();
+        int lo = codeArea.getSelection().getStart();
+        int hi = codeArea.getSelection().getEnd();
+        if (lo >= hi) {
+            showRefactorInfoAlert("dialog.refactor.extractFunction.title", "Extraer función",
+                "refactor.extract.selectionRequired", "Selecciona el código a extraer a una función.");
+            return;
+        }
+
+        Window owner = tabPane.getScene() != null ? tabPane.getScene().getWindow() : null;
+        Dialog<ExtractFunctionNames> dialog = new Dialog<>();
+        dialog.setTitle(msg("dialog.refactor.extractFunction.title", "Extraer función"));
+        dialog.setHeaderText(msg("dialog.refactor.extractFunction.header",
+            "Introduce el nombre y los parámetros de la nueva función."));
+        ButtonType okType = new ButtonType(msg("dialog.project.new.template.action.accept", "Aceptar"), ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(okType, ButtonType.CANCEL);
+
+        TextField txtName = new TextField();
+        txtName.setPromptText("mi_funcion");
+        TextField txtParams = new TextField();
+        txtParams.setPromptText(msg("dialog.refactor.extractFunction.paramsPlaceholder", "int x, int y (vacío = void)"));
+        VBox vbox = new VBox(8,
+            new Label(msg("dialog.refactor.extractFunction.nameLabel", "Nombre:")), txtName,
+            new Label(msg("dialog.refactor.extractFunction.paramsLabel", "Parámetros (vacío = void):")), txtParams);
+        vbox.setPadding(new Insets(12));
+        dialog.getDialogPane().setContent(vbox);
+        dialog.getDialogPane().getStylesheets().setAll(sceneStylesheets());
+        dialog.initOwner(owner);
+
+        Button okButton = (Button) dialog.getDialogPane().lookupButton(okType);
+        okButton.setDisable(true);
+        txtName.textProperty().addListener((obs, o, n) -> okButton.setDisable(n == null || n.isBlank()));
+
+        dialog.setResultConverter(bt -> bt == okType
+            ? new ExtractFunctionNames(txtName.getText().trim(), txtParams.getText().trim())
+            : null);
+        Optional<ExtractFunctionNames> picked = dialog.showAndWait();
+        if (picked.isEmpty()) return;
+        ExtractFunctionNames names = picked.get();
+
+        ExtractFunctionService.Result result =
+            extractFunctionService.extract(text, names.name(), names.params(), lo, hi);
+        if (!result.diagnostic().isEmpty()) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle(msg("dialog.refactor.extractFunction.title", "Extraer función"));
+            alert.setHeaderText(null);
+            alert.setContentText(result.diagnostic());
+            alert.initOwner(owner);
+            alert.showAndWait();
+            return;
+        }
+        applyRefactorText(codeArea, result.newText(), result.caretPosition());
+    }
+
+    private record ExtractFunctionNames(String name, String params) {}
+
+    private void showRefactorInfoAlert(String titleKey, String titleFallback, String contentKey, String contentFallback) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(msg(titleKey, titleFallback));
+        alert.setHeaderText(null);
+        alert.setContentText(msg(contentKey, contentFallback));
+        alert.initOwner(tabPane.getScene() != null ? tabPane.getScene().getWindow() : null);
+        alert.showAndWait();
+    }
+
+    private void applyRefactorText(CodeArea codeArea, String newText, int caret) {
+        codeArea.replaceText(0, codeArea.getLength(), newText);
+        codeArea.moveTo(Math.min(caret, codeArea.getLength()));
+        codeArea.requestFollowCaret();
+        fxUtils.updateCursorStatus(tabPane);
+    }
+
+    @FXML
+    private void onFoldBlock(ActionEvent event) {
+        Tab tab = fxUtils.getSelectedTab(tabPane);
+        CodeArea area = tab != null ? fxUtils.getCodeArea(tab) : null;
+        if (!(area instanceof FoldingCodeArea foldingArea)) return;
+        String text = area.getText();
+        if (text == null || text.isBlank()) return;
+        int caretLine = caretLineOf(area);
+        CodeFoldingService.FoldRange best = null;
+        for (CodeFoldingService.FoldRange r : new CodeFoldingService().detectFoldRanges(text)) {
+            if (r.getStartLine() <= caretLine && r.getEndLine() >= caretLine) {
+                boolean moreInner = best == null || r.getStartLine() > best.getStartLine()
+                        || (r.getStartLine() == best.getStartLine() && r.getEndLine() < best.getEndLine());
+                if (moreInner) best = r;
+            }
+        }
+        if (best == null) {
+            terminalController.appendConsoleOutput(msg("folding.none.underCaret", "No hay ningún bloque plegable bajo el cursor."), consoleOutputArea);
+            return;
+        }
+        if (foldingArea.foldRange(best.getStartLine(), best.getEndLine(), best.getTitle())) {
+            fxUtils.updateCursorStatus(tabPane);
+        }
+    }
+
+    @FXML
+    private void onUnfoldBlock(ActionEvent event) {
+        Tab tab = fxUtils.getSelectedTab(tabPane);
+        CodeArea area = tab != null ? fxUtils.getCodeArea(tab) : null;
+        if (area instanceof FoldingCodeArea foldingArea && foldingArea.unfoldAtCaret()) {
+            fxUtils.updateCursorStatus(tabPane);
+            return;
+        }
+        terminalController.appendConsoleOutput(msg("folding.none.folded", "No hay ningún bloque plegado bajo el cursor."), consoleOutputArea);
+    }
+
+    @FXML
+    private void onInsertSnippet(ActionEvent event) {
+        if (snippets.isEmpty()) {
+            snippets.addAll(snippetRepository.load());
+        }
+        Window owner = tabPane.getScene() != null ? tabPane.getScene().getWindow() : null;
+        Optional<SnippetService.NamedSnippet> chosen = SnippetEditorDialog.show(owner,
+            tabPane.getScene() != null ? tabPane.getScene().getStylesheets() : List.of(),
+            bundle, snippets, true);
+        chosen.ifPresent(snippet -> insertSnippetIntoActiveEditor(snippet));
+        snippetRepository.save(snippets);
+    }
+
+    @FXML
+    private void onManageSnippets(ActionEvent event) {
+        Window owner = tabPane.getScene() != null ? tabPane.getScene().getWindow() : null;
+        SnippetEditorDialog.show(owner,
+            tabPane.getScene() != null ? tabPane.getScene().getStylesheets() : List.of(),
+            bundle, snippets, false);
+        snippetRepository.save(snippets);
+    }
+
+    private void insertSnippetIntoActiveEditor(SnippetService.NamedSnippet snippet) {
+        Tab tab = fxUtils.getSelectedTab(tabPane);
+        CodeArea area = tab != null ? fxUtils.getCodeArea(tab) : null;
+        if (area == null) return;
+        SnippetTabStopNavigator.insert(area, snippetService, snippet.template());
+        fxUtils.updateCursorStatus(tabPane);
+    }
+
+    private int caretLineOf(CodeArea area) {
+        int caret = Math.max(0, Math.min(area.getCaretPosition(), area.getLength()));
+        String before = area.getText(0, caret);
+        int line = 1;
+        int idx = before.indexOf('\n');
+        while (idx >= 0) {
+            line++;
+            idx = before.indexOf('\n', idx + 1);
+        }
+        return line;
+    }
+
+    /** Recarga desde disco las pestañas abiertas que pertenezcan al proyecto renombrado. */
+    private void reloadAffectedTabsAfterRename(File project, String oldSymbol) {
+        List<Tab> toReload = new ArrayList<>();
+        for (Map.Entry<Tab, File> entry : tabFileMap.entrySet()) {
+            File file = entry.getValue();
+            if (file != null && file.getAbsolutePath().startsWith(project.getAbsolutePath())) {
+                toReload.add(entry.getKey());
+            }
+        }
+        for (Tab tab : toReload) {
+            try {
+                reloadTabFromDisk(tab, tabFileMap.get(tab), fxUtils.getCodeArea(tab));
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    @FXML
     private void onOpenTileEditor(ActionEvent event) {
-        String title = toolTitle("menu.tools.tileEditor", "Editor de Tiles (Game Boy)");
+        openTileEditorTab(null);
+    }
+
+    private void openTileEditorTab(File fileToOpen) {
+        openTileEditorTab(fileToOpen, null);
+    }
+
+    private void openTileEditorTab(File fileToOpen, String untitledName) {
+        String title = untitledName != null
+                ? untitledName
+                : toolTitle("menu.tools.tileEditor", "Editor de Tiles (Game Boy)");
         Consumer<File> onExported = exportedFile -> {
             if (projectExplorerController != null) {
                 projectExplorerController.refreshTree();
@@ -2218,8 +2991,59 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             openFileFromExplorer(exportedFile);
             persistSessionState();
         };
-        Node node = tileEditorController.createNode(currentProjectDir, bundle, onExported);
-        fxUtils.addToolTab(title, node, tabPane);
+        TileEditorController controller = new TileEditorController();
+        Node node = controller.createNode(currentProjectDir, bundle, onExported);
+        Tab tab = fxUtils.addToolTab(title, node, tabPane);
+        tab.getProperties().put(TAB_PROP_TILE_CONTROLLER, controller);
+        controller.setStateListener(() -> refreshTileTabTitle(tab));
+        tab.setOnClosed(e -> tab.getProperties().remove(TAB_PROP_TILE_CONTROLLER));
+        if (fileToOpen != null && controller.openProject(fileToOpen)) {
+            rememberRecentFile(fileToOpen);
+        }
+        persistSessionState();
+    }
+
+    private Tab findTileTabForFile(File file) {
+        if (file == null || tabPane == null) return null;
+        for (Tab tab : tabPane.getTabs()) {
+            TileEditorController tile = getTileEditorController(tab);
+            File current = tile != null ? tile.getCurrentFile() : null;
+            if (current != null && current.equals(file)) {
+                return tab;
+            }
+        }
+        return null;
+    }
+
+    private boolean isTileEditorTab(Tab tab) {
+        return getTileEditorController(tab) != null;
+    }
+
+    private TileEditorController getTileEditorController(Tab tab) {
+        if (tab == null) return null;
+        Object stored = tab.getProperties().get(TAB_PROP_TILE_CONTROLLER);
+        return stored instanceof TileEditorController controller ? controller : null;
+    }
+
+    /**
+     * El título de la pestaña del editor de tiles refleja el archivo que se está
+     * editando (con '*' si hay cambios sin guardar), igual que las pestañas de
+     * código.
+     */
+    private void refreshTileTabTitle(Tab tab) {
+        TileEditorController controller = getTileEditorController(tab);
+        if (controller == null) return;
+        String base;
+        File current = controller.getCurrentFile();
+        if (current != null) {
+            base = current.getName();
+        } else {
+            Object stored = tab.getProperties().get(FXUtils.TAB_PROP_BASE_TITLE);
+            base = stored instanceof String s && !s.isBlank()
+                    ? s
+                    : toolTitle("menu.tools.tileEditor", "Editor de Tiles (Game Boy)");
+        }
+        tab.setText(controller.hasUnsavedChanges() ? base + "*" : base);
     }
 
     @FXML
@@ -2304,7 +3128,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     @FXML
     private void onOpenGameBoyAudioEditor(ActionEvent event) {
-        String title = toolTitle("tool.gameBoyAudio.title", "Editor de Audio (Game Boy)");
+        String title = toolTitle("tool.gameBoyAudio.title", "Editor de Audio");
         Consumer<File> onExported = exportedFile -> {
             if (projectExplorerController != null) {
                 projectExplorerController.refreshTree();
@@ -2347,6 +3171,95 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML
     private void onOpenGitPanel(ActionEvent event) {
         openGitPanel();
+    }
+
+    @FXML
+    private void onViewActiveFileDiff(ActionEvent event) {
+        Tab selectedTab = fxUtils.getSelectedTab(tabPane);
+        File selectedFile = selectedTab != null ? tabFileMap.get(selectedTab) : null;
+        if (selectedTab == null || selectedFile == null) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.initOwner(getStage());
+            alert.setTitle(msg("git.diff.title", "Diff de archivo"));
+            alert.setHeaderText(null);
+            alert.setContentText(msg("git.diff.noFile", "Abre un archivo del proyecto para ver su diff."));
+            alert.getDialogPane().getStylesheets().setAll(sceneStylesheets());
+            alert.showAndWait();
+            return;
+        }
+        if (currentProjectDir == null || !gitService.isRepository(currentProjectDir.toPath())) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.initOwner(getStage());
+            alert.setTitle(msg("git.diff.title", "Diff de archivo"));
+            alert.setHeaderText(null);
+            alert.setContentText(msg("git.diff.noRepo", "No hay un repositorio git en el proyecto abierto."));
+            alert.getDialogPane().getStylesheets().setAll(sceneStylesheets());
+            alert.showAndWait();
+            return;
+        }
+        String relPath = toGitRelativePath(selectedFile);
+        if (relPath == null) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.initOwner(getStage());
+            alert.setTitle(msg("git.diff.title", "Diff de archivo"));
+            alert.setHeaderText(null);
+            alert.setContentText(msg("git.diff.outsideRepo", "El archivo activo está fuera del repositorio git."));
+            alert.getDialogPane().getStylesheets().setAll(sceneStylesheets());
+            alert.showAndWait();
+            return;
+        }
+
+        Path repoPath = currentProjectDir.toPath();
+        GitService svc = gitService;
+        CompletableFuture.runAsync(() -> {
+            try {
+                List<GitModels.GitDiffLine> lines = svc.diffVsHead(repoPath, relPath);
+                List<GitModels.GitDiffEntry> entries = GitService.parseDiffWithLineNumbers(
+                    lines.stream().map(GitModels.GitDiffLine::text).toList());
+                Platform.runLater(() -> showDiffDialog(selectedFile.getName(), relPath, entries));
+            } catch (Exception ex) {
+                Platform.runLater(() -> {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.initOwner(getStage());
+                    alert.setTitle(msg("git.diff.title", "Diff de archivo"));
+                    alert.setHeaderText(null);
+                    alert.setContentText(msg("git.diff.error", "Error cargando el diff: ") + ex.getMessage());
+                    alert.getDialogPane().getStylesheets().setAll(sceneStylesheets());
+                    alert.showAndWait();
+                });
+            }
+        });
+    }
+
+    private List<String> sceneStylesheets() {
+        return tabPane.getScene() != null ? tabPane.getScene().getStylesheets() : List.of();
+    }
+
+    private void showDiffDialog(String fileName, String relPath, List<GitModels.GitDiffEntry> entries) {
+        if (entries.isEmpty()) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.initOwner(getStage());
+            alert.setTitle(msg("git.diff.title", "Diff de archivo"));
+            alert.setHeaderText(null);
+            alert.setContentText(msg("git.diff.noChanges", "Sin cambios frente a HEAD."));
+            alert.getDialogPane().getStylesheets().setAll(sceneStylesheets());
+            alert.showAndWait();
+            return;
+        }
+        CodeArea codeArea = GitDiffViewer.create(entries, relPath);
+        codeArea.setPrefSize(760, 460);
+        VirtualizedScrollPane<CodeArea> scroll = new VirtualizedScrollPane<>(codeArea);
+        scroll.setPrefSize(780, 480);
+
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle(msgFmt("git.diff.file", "Diff de {0}", fileName));
+        dialog.initOwner(getStage());
+        dialog.getDialogPane().getStylesheets().setAll(sceneStylesheets());
+        dialog.getDialogPane().setContent(scroll);
+        dialog.getDialogPane().setPrefWidth(820);
+        dialog.getDialogPane().setPrefHeight(540);
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.showAndWait();
     }
 
     /** Abre o selecciona la pestaña del panel Git en el editor principal y fuerza un refresco. Invocable desde el explorador. */
@@ -2821,6 +3734,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     private void setGitDirtyMarker(Tab tab, boolean dirty) {
         Node marker = (Node) tab.getProperties().get(TAB_PROP_GIT_DIRTY);
+        HBox iconBox = fxUtils.getFileIconContainer(tab);
         if (dirty) {
             if (marker == null) {
                 Label dot = new Label("\u25CF");
@@ -2828,9 +3742,20 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 marker = dot;
                 tab.getProperties().put(TAB_PROP_GIT_DIRTY, marker);
             }
-            tab.setGraphic(marker);
+            if (iconBox != null) {
+                if (!iconBox.getChildren().contains(marker)) {
+                    iconBox.getChildren().add(marker);
+                }
+            } else {
+                tab.setGraphic(marker);
+            }
         } else if (marker != null) {
-            tab.setGraphic(null);
+            tab.getProperties().remove(TAB_PROP_GIT_DIRTY);
+            if (iconBox != null) {
+                iconBox.getChildren().remove(marker);
+            } else {
+                tab.setGraphic(null);
+            }
         }
     }
 
@@ -3099,10 +4024,14 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemCopiar      != null) menuItemCopiar.setText(bundle.getString("button.copy"));
         if (menuItemPegar       != null) menuItemPegar.setText(bundle.getString("button.paste"));
         if (menuItemRename      != null) menuItemRename.setText(bundle.getString("menu.rename"));
+        if (menuItemRenameSymbol != null) menuItemRenameSymbol.setText(bundle.getString("menu.rename.symbol"));
+        if (menuItemExtractConstant != null) menuItemExtractConstant.setText(bundle.getString("menu.refactor.extractConstant"));
+        if (menuItemExtractFunction != null) menuItemExtractFunction.setText(bundle.getString("menu.refactor.extractFunction"));
         if (menuItemTileEditor  != null) menuItemTileEditor.setText(bundle.getString("menu.tools.tileEditor"));
         if (menuItemRomTextTranslator != null) menuItemRomTextTranslator.setText(bundle.getString("menu.tools.romTextTranslator"));
         if (menuItemGitHubRepos != null) menuItemGitHubRepos.setText(bundle.getString("menu.tools.githubRepos"));
         if (menuItemGitPanel    != null) menuItemGitPanel.setText(bundle.getString("menu.git.panel"));
+        if (menuItemViewDiff    != null) menuItemViewDiff.setText(bundle.getString("menu.git.viewDiff"));
         if (menuItemShareToGithub != null) menuItemShareToGithub.setText(bundle.getString("menu.git.share"));
         if (menuItemPublishRelease != null) menuItemPublishRelease.setText(bundle.containsKey("menu.git.release") ? bundle.getString("menu.git.release") : "Publicar release...");
         if (menuItemIssues != null) menuItemIssues.setText(bundle.containsKey("menu.git.issues") ? bundle.getString("menu.git.issues") : "Issues...");
@@ -3110,6 +4039,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemGoToLine    != null) menuItemGoToLine.setText(bundle.getString("menu.goto.line"));
         if (menuItemFind        != null) menuItemFind.setText(bundle.getString("menu.find.file"));
         if (menuItemFindProject != null) menuItemFindProject.setText(bundle.getString("menu.find.project"));
+        if (menuSnippets          != null) menuSnippets.setText(bundle.getString("menu.edit.snippets"));
+        if (menuItemInsertSnippet != null) menuItemInsertSnippet.setText(bundle.getString("menu.edit.snippets.insert"));
+        if (menuItemManageSnippets != null) menuItemManageSnippets.setText(bundle.getString("menu.edit.snippets.manage"));
         if (menuItemManual      != null) menuItemManual.setText(bundle.getString("menu.help.manual"));
         if (menuItemGbdkDocs    != null) menuItemGbdkDocs.setText(bundle.getString("menu.help.gbdkDocs"));
         if (menuItemZ88dkDocs   != null) menuItemZ88dkDocs.setText(bundle.getString("menu.help.z88dkDocs"));
@@ -3777,8 +4709,138 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         }
     }
 
+    // ---------------------------------------------------------------------
+    // Paleta de comandos (Ctrl+Shift+P) y apertura rápida (Ctrl+P)
+    // ---------------------------------------------------------------------
+
+    private void showCommandPalette() {
+        Stage stage = getStage();
+        if (stage == null || tabPane == null) return;
+
+        List<CommandPalette.Entry> commands = new ArrayList<>();
+        String h = msg("palette.hint", null);
+
+        commands.add(new CommandPalette.Entry(msg("menu.file.newFromTemplate", "Nuevo archivo desde plantilla"), h, () -> onNuevoArchivoDesdePlantilla(null)));
+        commands.add(new CommandPalette.Entry(msg("button.new", "Nuevo"), h, () -> onNewTab(null)));
+        commands.add(new CommandPalette.Entry(msg("button.open", "Abrir"), h, () -> onOpenFile(null)));
+        commands.add(new CommandPalette.Entry(msg("button.save", "Guardar"), h, () -> onSaveFile(null)));
+        commands.add(new CommandPalette.Entry(msg("button.saveAll", "Guardar todo"), h, () -> onSaveAllFiles(null)));
+        commands.add(new CommandPalette.Entry(msg("button.saveAs", "Guardar como"), h, () -> onSaveAsFile(null)));
+        commands.add(new CommandPalette.Entry(msg("button.close", "Cerrar"), h, () -> onCloseFile(null)));
+        commands.add(new CommandPalette.Entry(msg("button.newProject", "Nuevo Proyecto"), h, () -> onNuevoProyecto(null)));
+        commands.add(new CommandPalette.Entry(msg("button.openProject", "Abrir Proyecto"), h, () -> onAbrirProyecto(null)));
+
+        commands.add(new CommandPalette.Entry(msg("button.undo", "Deshacer"), h, () -> onUndo(null)));
+        commands.add(new CommandPalette.Entry(msg("button.redo", "Rehacer"), h, () -> onRedo(null)));
+        commands.add(new CommandPalette.Entry(msg("button.cut", "Cortar"), h, () -> onCut(null)));
+        commands.add(new CommandPalette.Entry(msg("button.copy", "Copiar"), h, () -> onCopy(null)));
+        commands.add(new CommandPalette.Entry(msg("button.paste", "Pegar"), h, () -> onPaste(null)));
+        commands.add(new CommandPalette.Entry(msg("menu.goto.line", "Ir a la linea"), h, () -> onGoToLine(null)));
+        commands.add(new CommandPalette.Entry(msg("menu.find.file", "Buscar en archivo"), h, () -> onFindInFile(null)));
+        commands.add(new CommandPalette.Entry(msg("menu.find.project", "Buscar en proyecto"), h, () -> onFindInProject(null)));
+        commands.add(new CommandPalette.Entry(msg("menu.goto.definition", "Ir a definición"), h, () -> onGoToDefinition(null)));
+        commands.add(new CommandPalette.Entry(msg("button.compile", "Compilar"), h, () -> onCompilar(null)));
+        commands.add(new CommandPalette.Entry(msg("button.compileAndRun", "Compilar y ejecutar"), h, () -> onCompilarYEjecutar(null)));
+        commands.add(new CommandPalette.Entry(msg("button.run", "Ejecutar"), h, () -> onEjecutar(null)));
+        commands.add(new CommandPalette.Entry(msg("menu.tools.tileEditor", "Editor de Sprites"), h, () -> onOpenTileEditor(null)));
+        commands.add(new CommandPalette.Entry(msg("menu.tools.tilemapEditor", "Editor de Mapas de Tiles"), h, () -> onOpenTilemapEditor(null)));
+        commands.add(new CommandPalette.Entry(msg("menu.tools.romTextTranslator", "Traductor de texto Game Boy"), h, () -> onOpenRomTextTranslator(null)));
+        commands.add(new CommandPalette.Entry(msg("menu.tools.githubRepos", "Repositorios de GitHub"), h, () -> onOpenGitHubRepoBrowser(null)));
+        commands.add(new CommandPalette.Entry(msg("menu.recent.files", "Archivos recientes"), h, this::showRecentFilesInPalette));
+        commands.add(new CommandPalette.Entry(msg("menu.help.manual", "Manual"), h, () -> onOpenManual()));
+        commands.add(new CommandPalette.Entry(msg("menu.help.gbdkDocs", "Documentación GBDK"), h, () -> onOpenGbdkDocs()));
+        commands.add(new CommandPalette.Entry(msg("menu.help.z88dkDocs", "Documentación Z88DK"), h, () -> onOpenZ88dkDocs()));
+        commands.add(new CommandPalette.Entry(msg("menu.config", "Configuración"), h, () -> onOpenConfig(null)));
+
+        String prompt = msg("palette.commands.prompt", "Escriba un comando...");
+        CommandPalette.show(stage, activePaletteStylesheets(), prompt, commands);
+    }
+
+    private void showQuickOpen() {
+        Stage stage = getStage();
+        if (stage == null) return;
+
+        if (currentProjectDir == null || !currentProjectDir.isDirectory()) {
+            Alert alert = new Alert(Alert.AlertType.WARNING);
+            alert.setTitle(msg("palette.noProject.title", "Sin proyecto"));
+            alert.setHeaderText(null);
+            alert.setContentText(msg("palette.noProject.content", "Abre o crea un proyecto antes de usar la apertura rápida."));
+            alert.showAndWait();
+            return;
+        }
+
+        List<CommandPalette.Entry> files = new ArrayList<>();
+        try (java.util.stream.Stream<java.nio.file.Path> stream = java.nio.file.Files.walk(currentProjectDir.toPath())) {
+            stream.filter(java.nio.file.Files::isRegularFile)
+                .filter(p -> isQuickOpenCandidate(p))
+                .sorted()
+                .forEach(p -> {
+                    String rel = currentProjectDir.toPath().relativize(p).toString();
+                    File f = p.toFile();
+                    files.add(new CommandPalette.Entry(rel, null, () -> openFileFromExplorer(f)));
+                });
+        } catch (java.io.IOException ignored) {
+        }
+
+        String prompt = msg("palette.open.prompt", "Abrir archivo...");
+        CommandPalette.show(stage, activePaletteStylesheets(), prompt, files);
+    }
+
+    private void showRecentFilesInPalette() {
+        Stage stage = getStage();
+        if (stage == null) return;
+        String emptyLabel = msg("menu.recent.empty", "Vacío");
+        List<File> recents = loadRecentEntries(RECENT_FILES_PROPERTY, false);
+        List<CommandPalette.Entry> entries = new ArrayList<>();
+        if (recents == null || recents.isEmpty()) {
+            entries.add(new CommandPalette.Entry(emptyLabel, null, () -> { }));
+        } else {
+            for (File f : recents) {
+                File target = f;
+                entries.add(new CommandPalette.Entry(formatRecentEntryLabel(target), target.getParent(), () -> openRecentFile(target)));
+            }
+        }
+        String prompt = msg("palette.recent.prompt", "Archivos recientes");
+        CommandPalette.show(stage, activePaletteStylesheets(), prompt, entries);
+    }
+
+    private static boolean isQuickOpenCandidate(java.nio.file.Path p) {
+        String name = p.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (name.startsWith(".")) return false;
+        if (name.endsWith(".c") || name.endsWith(".h") || name.endsWith(".asm")
+            || name.endsWith(".s") || name.endsWith(".md") || name.endsWith(".markdown")
+            || name.endsWith(".txt") || name.equals("makefile") || name.endsWith(".mk")
+            || name.endsWith(".smt") || name.endsWith(".cfg")) {
+            return !name.equals("dependency-reduced-pom.xml");
+        }
+        return false;
+    }
+
+    private java.util.List<String> activePaletteStylesheets() {
+        java.util.List<String> sheets = new ArrayList<>();
+        Scene scene = tabPane != null ? tabPane.getScene() : null;
+        if (scene != null) {
+            for (String s : scene.getStylesheets()) {
+                if (s.endsWith("/app.css") || s.endsWith("/app-dark.css")) {
+                    sheets.add(s);
+                }
+            }
+        }
+        if (sheets.isEmpty()) {
+            String appearance = configModel != null ? configModel.getEditorAppearance() : null;
+            String path = ConfigModel.EDITOR_APPEARANCE_CLASSIC.equalsIgnoreCase(appearance)
+                ? APP_STYLESHEET_CLASSIC : APP_STYLESHEET_DARK;
+            String resolved = resolveStylesheet(path);
+            if (resolved != null) sheets.add(resolved);
+        }
+        return sheets;
+    }
+
     private void registerGlobalShortcuts(Scene scene) {
         if (scene == null) return;
+
+        scene.getAccelerators().put(ACCEL_COMMAND_PALETTE, this::showCommandPalette);
+        scene.getAccelerators().put(ACCEL_QUICK_OPEN, this::showQuickOpen);
 
         scene.getAccelerators().put(ACCEL_NEW, () -> onNewTab(null));
         scene.getAccelerators().put(ACCEL_OPEN, () -> onOpenFile(null));
@@ -3804,6 +4866,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         scene.getAccelerators().put(ACCEL_TOGGLE_COMMENT, () -> editOptionsController.toggleLineComments(tabPane));
         scene.getAccelerators().put(ACCEL_AUTO_COMPLETE, () -> editOptionsController.showAutoComplete(tabPane));
         scene.getAccelerators().put(ACCEL_FORMAT_CODE, () -> onFormatCode(null));
+        scene.getAccelerators().put(ACCEL_RENAME_SYMBOL, () -> onRenameSymbol(null));
+        scene.getAccelerators().put(ACCEL_FOLD, () -> onFoldBlock(null));
+        scene.getAccelerators().put(ACCEL_UNFOLD, () -> onUnfoldBlock(null));
 
         scene.getAccelerators().put(ACCEL_BUILD, () -> onCompilar(null));
         scene.getAccelerators().put(ACCEL_RUN, () -> onEjecutar(null));

@@ -79,6 +79,7 @@
                     <ComboBox fx:id="comboTerminalShell" prefWidth="260" />
                     <CheckBox fx:id="chkEnableLogs" text="Habilitar guardado de logs en archivo (samaruc.log)" />
                     <CheckBox fx:id="chkShowHomeOnStartup" text="Mostrar página de inicio al arrancar" />
+                    <CheckBox fx:id="chkSyntaxCheckOnSave" selected="true" text="Comprobar errores de sintaxis al guardar (GCC)" />
                     <HBox spacing="8" alignment="CENTER_LEFT">
                         <Button fx:id="btnGuardarAppearance" text="Guardar cambios" onAction="#onSaveEditorAppearance" prefWidth="170" />
                     </HBox>
@@ -209,7 +210,7 @@
                         </content>
                         </ScrollPane>
                     </Tab>
-                    <Tab fx:id="tabCompilerCc65" text="CC65 (Atari XE/XL)">
+                    <Tab fx:id="tabCompilerCc65" text="CC65 (Atari XE/XL / C64)">
                         <ScrollPane fitToWidth="true" fitToHeight="false" prefHeight="340" hbarPolicy="NEVER" vbarPolicy="ALWAYS">
                         <content>
                         <VBox spacing="12" alignment="CENTER_LEFT" style="-fx-padding: 8 0 0 0;">
@@ -222,6 +223,11 @@
                             <HBox spacing="6" alignment="CENTER_LEFT">
                                 <TextField fx:id="txtAltirraBin" prefWidth="220" promptText="/ruta/a/altirra64.exe" />
                                 <Button fx:id="btnSeleccionarAltirraBin" text="..." onAction="#onSeleccionarAltirraBin" />
+                            </HBox>
+                            <Label fx:id="lblViceBin" text="RUTA DEL EJECUTABLE DE VICE (C64):" />
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <TextField fx:id="txtViceBin" prefWidth="220" promptText="/ruta/a/x64sc.exe" />
+                                <Button fx:id="btnSeleccionarViceBin" text="..." onAction="#onSeleccionarViceBin" />
                             </HBox>
                             <Label fx:id="lblCc65Opts" text="Opciones de compilacion CC65:" />
                             <HBox spacing="6" alignment="CENTER_LEFT">

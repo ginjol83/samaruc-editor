@@ -97,6 +97,38 @@
 .code-area .diag-gutter-marker-error { -fx-background-color: #dc2626; }
 .code-area .diag-gutter-marker-warning { -fx-background-color: #d97706; }
 
+/* Vista de diff integrada (item 17): colores por tipo de línea */
+.code-area .paragraph-text.diff-add,
+.code-area .paragraph-box.diff-add {
+    -fx-background-color: rgba(34, 197, 94, 0.14);
+}
+.code-area .paragraph-text.diff-remove,
+.code-area .paragraph-box.diff-remove {
+    -fx-background-color: rgba(239, 68, 68, 0.14);
+}
+.code-area .paragraph-text.diff-hunk,
+.code-area .paragraph-box.diff-hunk {
+    -fx-fill: #1d4ed8;
+    -fx-font-weight: bold;
+}
+.code-area .paragraph-text.diff-header,
+.code-area .paragraph-box.diff-header {
+    -fx-fill: #64748b;
+}
+.code-area .paragraph-text.diff-context,
+.code-area .paragraph-box.diff-context {
+    -fx-fill: #334155;
+}
+.code-area .paragraph-text.diff-file-header,
+.code-area .paragraph-box.diff-file-header {
+    -fx-fill: #d97706;
+    -fx-font-weight: bold;
+}
+.code-area .diff-gutter-add { -fx-text-fill: #15803d; -fx-font-weight: bold; -fx-padding: 0 6 0 4; }
+.code-area .diff-gutter-remove { -fx-text-fill: #b91c1c; -fx-font-weight: bold; -fx-padding: 0 6 0 4; }
+.code-area .diff-gutter-context { -fx-text-fill: #475569; -fx-padding: 0 6 0 4; }
+.code-area .diff-gutter-plain { -fx-text-fill: transparent; -fx-padding: 0 6 0 4; }
+
 /* Resaltado extra: par de corchetes y ocurrencias de la palabra */
 .code-area .bracket-match {
     -fx-fill: #b45309;

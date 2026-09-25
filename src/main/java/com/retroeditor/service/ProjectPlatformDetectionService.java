@@ -18,8 +18,9 @@ public class ProjectPlatformDetectionService {
     public enum Platform {
         GAMEBOY,
         SPECTRUM,
-        MSDOS,
         SMS,
+        ATARI,
+        C64,
         UNKNOWN
     }
 
@@ -54,8 +55,9 @@ public class ProjectPlatformDetectionService {
 
         int gameBoyScore = 0;
         int spectrumScore = 0;
-        int msdosScore = 0;
         int smsScore = 0;
+        int atariScore = 0;
+        int c64Score = 0;
         List<String> evidence = new ArrayList<>();
 
         try (Stream<Path> paths = Files.walk(projectDir.toPath())) {
@@ -71,6 +73,23 @@ public class ProjectPlatformDetectionService {
                     content = Files.readString(file, StandardCharsets.UTF_8).toLowerCase(Locale.ROOT);
                 } catch (IOException ex) {
                     continue;
+                }
+
+                if (content.contains("\"samaruc.target\":\"gameboy\"") || content.contains("\"samaruc.target\": \"gameboy\"")) {
+                    gameBoyScore += 15;
+                    evidence.add("samaruc.target=gameboy");
+                }
+                if (content.contains("\"samaruc.target\":\"spectrum\"") || content.contains("\"samaruc.target\": \"spectrum\"")) {
+                    spectrumScore += 15;
+                    evidence.add("samaruc.target=spectrum");
+                }
+                if (content.contains("\"samaruc.target\":\"cc65\"") || content.contains("\"samaruc.target\": \"cc65\"")) {
+                    atariScore += 15;
+                    evidence.add("samaruc.target=cc65");
+                }
+                if (content.contains("\"samaruc.target\":\"c64\"") || content.contains("\"samaruc.target\": \"c64\"")) {
+                    c64Score += 15;
+                    evidence.add("samaruc.target=c64");
                 }
 
                 if (content.contains("#include <gb/gb.h>")) {
@@ -91,41 +110,77 @@ public class ProjectPlatformDetectionService {
                 }
 
                 if (content.contains("#include <conio.h>") && !content.contains("dos.h")) {
-                    spectrumScore += 6;
-                    evidence.add("conio.h");
+                    if (content.contains("c64.h") || content.contains("vic.h") || content.contains("sid.h")
+                            || content.contains("cia.h") || content.contains("cbm_kernal.h")
+                            || content.contains("-t c64") || content.contains("c64.cfg")) {
+                        c64Score += 6;
+                        evidence.add("conio.h (cc65 C64)");
+                    } else if (content.contains("atari.h")
+                        || content.contains("atarixl")
+                        || content.contains("cl65")
+                        || content.contains("-t atari")
+                        || content.contains("cgetc(")) {
+                        atariScore += 6;
+                        evidence.add("conio.h (cc65)");
+                    } else {
+                        spectrumScore += 6;
+                        evidence.add("conio.h");
+                    }
                 }
-                if (content.contains("bordercolor(")) {
-                    spectrumScore += 3;
-                    evidence.add("bordercolor()");
-                }
-                if (content.contains("cputs(")) {
-                    spectrumScore += 2;
-                    evidence.add("cputs()");
-                }
-                if (content.contains("kbhit(")) {
-                    spectrumScore += 2;
-                    evidence.add("kbhit()");
+                if (!content.contains("atari.h") && !content.contains("atarixl")
+                        && !content.contains("c64.h") && !content.contains("vic.h") && !content.contains("sid.h")) {
+                    if (content.contains("bordercolor(")) {
+                        spectrumScore += 3;
+                        evidence.add("bordercolor()");
+                    }
+                    if (content.contains("cputs(") && !content.contains("cl65")) {
+                        spectrumScore += 2;
+                        evidence.add("cputs()");
+                    }
+                    if (content.contains("kbhit(") && !content.contains("cl65")) {
+                        spectrumScore += 2;
+                        evidence.add("kbhit()");
+                    }
                 }
                 if (content.contains("z88dk") || content.contains("+zx")) {
                     spectrumScore += 2;
                     evidence.add("z88dk/+zx");
                 }
 
-                if (content.contains("#include <dos.h>")) {
-                    msdosScore += 6;
-                    evidence.add("dos.h");
+                if (content.contains("#include <atari.h>")) {
+                    atariScore += 6;
+                    evidence.add("atari.h");
                 }
-                if (content.contains("int 21h") || content.contains("int21")) {
-                    msdosScore += 4;
-                    evidence.add("int 21h");
+                if (content.contains("atarixl") || content.contains("atarixl.h") || content.contains("-t atarixl") || content.contains("atarixl-xex")) {
+                    atariScore += 5;
+                    evidence.add("atarixl");
                 }
-                if (content.contains("org 100h")) {
-                    msdosScore += 4;
-                    evidence.add("org 100h");
+                if (content.contains("cl65") && !content.contains("-t c64") || content.contains("-t atari") || content.contains("atari-xex") || content.contains("atari.cfg")) {
+                    atariScore += 4;
+                    evidence.add("cl65/-t atari");
                 }
-                if (content.contains("watcom") || content.contains("turboc")) {
-                    msdosScore += 2;
-                    evidence.add("watcom/turboc");
+                if (content.contains("cgetc(") || content.contains("#include <atari.h>") || content.contains("#include <atarixl.h>")) {
+                    atariScore += 2;
+                    evidence.add("cgetc()/atari");
+                }
+
+                if (content.contains("#include <c64.h>")) {
+                    c64Score += 6;
+                    evidence.add("c64.h");
+                }
+                if (content.contains("#include <sid.h>") || content.contains("#include <vic.h>")
+                        || content.contains("#include <cia.h>") || content.contains("#include <cbm_kernal.h>")) {
+                    c64Score += 5;
+                    evidence.add("c64 SID/VIC/CIA");
+                }
+                if (content.contains("-t c64") || content.contains("c64.cfg") || content.contains("c64-x") || content.contains("c64.h")) {
+                    c64Score += 4;
+                    evidence.add("-t c64");
+                }
+                if (content.contains("vicii") || content.contains("0xd021") || content.contains("0xd015")
+                        || content.contains("#define vic")) {
+                    c64Score += 2;
+                    evidence.add("VIC-II");
                 }
 
                 if (content.contains("#include <sms/sms.h>") || content.contains("#include <gg/gg.h>")) {
@@ -145,21 +200,23 @@ public class ProjectPlatformDetectionService {
             return new DetectionResult(Platform.UNKNOWN, 0, "");
         }
 
-        int total = gameBoyScore + spectrumScore + msdosScore + smsScore;
+        int total = gameBoyScore + spectrumScore + smsScore + atariScore + c64Score;
         if (total == 0) {
             return new DetectionResult(Platform.UNKNOWN, 0, "");
         }
 
-        int maxScore = Math.max(gameBoyScore, Math.max(spectrumScore, Math.max(msdosScore, smsScore)));
+        int maxScore = Math.max(gameBoyScore, Math.max(spectrumScore, Math.max(smsScore, Math.max(atariScore, c64Score))));
         Platform platform = Platform.UNKNOWN;
-        if (maxScore == gameBoyScore && gameBoyScore > spectrumScore && gameBoyScore > msdosScore && gameBoyScore > smsScore) {
+        if (maxScore == gameBoyScore && gameBoyScore > spectrumScore && gameBoyScore > smsScore && gameBoyScore > atariScore && gameBoyScore > c64Score) {
             platform = Platform.GAMEBOY;
-        } else if (maxScore == spectrumScore && spectrumScore > gameBoyScore && spectrumScore > msdosScore && spectrumScore > smsScore) {
+        } else if (maxScore == spectrumScore && spectrumScore > gameBoyScore && spectrumScore > smsScore && spectrumScore > atariScore && spectrumScore > c64Score) {
             platform = Platform.SPECTRUM;
-        } else if (maxScore == msdosScore && msdosScore > gameBoyScore && msdosScore > spectrumScore && msdosScore > smsScore) {
-            platform = Platform.MSDOS;
-        } else if (maxScore == smsScore && smsScore > gameBoyScore && smsScore > spectrumScore && smsScore > msdosScore) {
+        } else if (maxScore == smsScore && smsScore > gameBoyScore && smsScore > spectrumScore && smsScore > atariScore && smsScore > c64Score) {
             platform = Platform.SMS;
+        } else if (maxScore == atariScore && atariScore > gameBoyScore && atariScore > spectrumScore && atariScore > smsScore && atariScore > c64Score) {
+            platform = Platform.ATARI;
+        } else if (maxScore == c64Score && c64Score > gameBoyScore && c64Score > spectrumScore && c64Score > smsScore && c64Score > atariScore) {
+            platform = Platform.C64;
         }
 
         int confidence = (int) Math.round((maxScore * 100.0) / total);
@@ -178,6 +235,7 @@ public class ProjectPlatformDetectionService {
             || name.endsWith(".s")
             || name.equals("makefile")
             || name.endsWith(".mk")
+            || name.equals("settings.json")
             || name.endsWith(".txt");
     }
 

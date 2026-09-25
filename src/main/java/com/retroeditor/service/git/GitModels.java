@@ -76,6 +76,14 @@ public final class GitModels {
         }
     }
 
+    /**
+     * Una línea de diff con sus números de línea old/new estimados a partir de
+     * las cabeceras {@code @@}: sirve de gutter (marcadores +/-) en la vista.
+     * Para líneas ADD no hay número de línea anterior; para REMOVE no lo hay nuevo.
+     */
+    public record GitDiffEntry(int oldLine, int newLine, GitDiffLine line) {
+    }
+
     /** Un diff de un archivo concreto (todas sus líneas clasificadas). */
     public record GitDiffFile(String path, List<GitDiffLine> lines) {
     }

@@ -8,6 +8,7 @@ import java.util.Optional;
 
 import com.retroeditor.controller.MainController;
 import com.retroeditor.model.ProjectExplorerModel;
+import com.retroeditor.util.FileTypeIcons;
 
 import javafx.fxml.FXML;
 import javafx.scene.control.Alert;
@@ -364,15 +365,15 @@ public class ProjectExplorerController {
 
                     if (file == null && treeItem != null && treeItem.getParent() == null) file = rootDirectory;
 
-                    javafx.scene.control.Label iconLabel;
+                    javafx.scene.Node iconNode;
 
                     if (file != null && file.isDirectory()) {
-                        iconLabel = new javafx.scene.control.Label("\uD83D\uDCC1"); 
+                        iconNode = FileTypeIcons.iconForDirectory();
                     } else {
-                        iconLabel = new javafx.scene.control.Label("\uD83D\uDCC4");
+                        iconNode = FileTypeIcons.iconForFile(file);
                     }
                     
-                    javafx.scene.layout.HBox hbox = new javafx.scene.layout.HBox(5, iconLabel, new javafx.scene.control.Label(item));
+                    javafx.scene.layout.HBox hbox = new javafx.scene.layout.HBox(5, iconNode, new javafx.scene.control.Label(item));
                     setGraphic(hbox);
                     setText(null);
                     boolean canRunRom = file != null

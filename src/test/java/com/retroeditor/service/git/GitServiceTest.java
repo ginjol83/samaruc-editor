@@ -1,6 +1,7 @@
 package com.retroeditor.service.git;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import com.retroeditor.service.git.GitModels.DiffLineType;
 import com.retroeditor.service.git.GitModels.GitCommitInfo;
+import com.retroeditor.service.git.GitModels.GitDiffEntry;
 import com.retroeditor.service.git.GitModels.GitDiffLine;
 import com.retroeditor.service.git.GitModels.GitStatusEntry;
 
@@ -97,6 +99,104 @@ class GitServiceTest {
         boolean hasRemove = unstaged.stream().anyMatch(l -> l.type() == DiffLineType.REMOVE);
         boolean hasHunk = unstaged.stream().anyMatch(l -> l.type() == DiffLineType.HUNK);
         assertTrue(hasAdd && hasRemove && hasHunk, "el diff debe contener añadidos, eliminados y un hunk");
+    }
+
+    @Test
+    void diffVsHeadIncludesStagedAndUnstagedChanges() throws Exception {
+        assumeTrue(GitService.isGitAvailable(), "git no está instalado en este equipo, se omite el test");
+
+        Path dir = tempDir.resolve("proyecto");
+        Files.createDirectory(dir);
+        service.init(dir);
+        GitCli cli = new GitCli();
+        cli.execute(dir, "config", "user.email", "test@samaruc.local");
+        cli.execute(dir, "config", "user.name", "Samaruc Test");
+
+        Files.write(dir.resolve("src.c"), "int main(void) {\n    return 0;\n}\n".getBytes());
+        service.addAll(dir);
+        service.commit(dir, "Primer commit");
+
+        // staged (solo index) y unstaged (working tree frente al indice)
+        Files.write(dir.resolve("src.c"), "int main(void) {\n    int x = 1;\n    return x;\n}\n".getBytes());
+        service.addAll(dir);
+        Files.write(dir.resolve("src.c"), "int main(void) {\n    int y = 2;\n    return y;\n}\n".getBytes());
+
+        List<GitDiffLine> vsHead = service.diffVsHead(dir, "src.c");
+        assertTrue(vsHead.stream().anyMatch(l -> l.type() == DiffLineType.ADD),
+            "diffVsHead debe incluir los añadidos (staged o unstaged)");
+        assertTrue(vsHead.stream().anyMatch(l -> l.type() == DiffLineType.REMOVE),
+            "diffVsHead debe incluir las eliminaciones");
+        assertTrue(vsHead.stream().anyMatch(l -> l.type() == DiffLineType.HUNK),
+            "diffVsHead debe incluir hunks");
+        assertTrue(vsHead.stream().anyMatch(l -> l.text().contains("y = 2")),
+            "diffVsHead frente a HEAD debe reflejar el contenido final del working tree");
+    }
+
+    @Test
+    void diffVsHeadEmptyForTrackedFileWithoutChanges() throws Exception {
+        assumeTrue(GitService.isGitAvailable(), "git no está instalado en este equipo, se omite el test");
+
+        Path dir = tempDir.resolve("proyecto");
+        Files.createDirectory(dir);
+        service.init(dir);
+        GitCli cli = new GitCli();
+        cli.execute(dir, "config", "user.email", "test@samaruc.local");
+        cli.execute(dir, "config", "user.name", "Samaruc Test");
+
+        Files.write(dir.resolve("src.c"), "int main(void) {\n    return 0;\n}\n".getBytes());
+        service.addAll(dir);
+        service.commit(dir, "Primer commit");
+
+        assertTrue(service.diffVsHead(dir, "src.c").isEmpty(), "sin cambios el diff frente a HEAD debe estar vacío");
+    }
+
+    @Test
+    void parseDiffWithLineNumbersTracksContextAndChanges() {
+        List<GitDiffEntry> parsed = GitService.parseDiffWithLineNumbers(List.of(
+            "diff --git a/src.c b/src.c",
+            "@@ -3,4 +3,5 @@",
+            " a",
+            " b",
+            "-old",
+            "+new",
+            " c"
+        ));
+
+        assertTrue(parsed.get(0).oldLine() == 0 && parsed.get(0).newLine() == 0,
+            "las cabeceras no aportan números de línea");
+
+        GitDiffEntry hunk = parsed.get(1);
+        assertEquals(3, hunk.oldLine(), "el hunk debe comenzar la numeración old en 3");
+        assertEquals(3, hunk.newLine(), "el hunk debe comenzar la numeración new en 3");
+
+        GitDiffEntry contextA = parsed.get(2);
+        assertEquals(3, contextA.oldLine());
+        assertEquals(3, contextA.newLine());
+
+        GitDiffEntry contextB = parsed.get(3);
+        assertEquals(4, contextB.oldLine());
+        assertEquals(4, contextB.newLine());
+
+        GitDiffEntry removed = parsed.get(4);
+        assertEquals(5, removed.oldLine(), "la línea eliminada ocupa el número old 5");
+        assertEquals(0, removed.newLine(), "una eliminación no tiene número new");
+
+        GitDiffEntry added = parsed.get(5);
+        assertEquals(0, added.oldLine(), "una adición no tiene número old");
+        assertEquals(5, added.newLine(), "la línea añadida ocupa el número new 5");
+
+        GitDiffEntry contextC = parsed.get(6);
+        assertEquals(6, contextC.oldLine(), "el contexto tras -/+ sigue en la numeración");
+        assertEquals(6, contextC.newLine());
+    }
+
+    @Test
+    void parseHunkHeaderExtractsStarts() {
+        assertArrayEquals(new int[] { 10, 4 }, GitService.parseHunkHeader("@@ -10,3 +4,5 @@"));
+        assertArrayEquals(new int[] { 1, 1 }, GitService.parseHunkHeader("@@ -1 +1 @@"));
+        assertArrayEquals(new int[] { 2, 9 }, GitService.parseHunkHeader("@@ -2,7 +9,11 @@"));
+        assertEquals(null, GitService.parseHunkHeader("@@ -x +y @@"));
+        assertEquals(null, GitService.parseHunkHeader("contexto"));
     }
 
     @Test

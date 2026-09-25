@@ -32,6 +32,13 @@ public class SyntaxHighlighter {
         "set_bkg_submap", "set_win_submap", "waitpad", "waitpadup"
     };
 
+    private static final String[] ATARI_FUNCTIONS = new String[] {
+        "clrscr", "cgetc", "cputs", "cprintf", "gotoxy", "kbhit", "putch",
+        "textcolor", "textbackground", "wherex", "wherey",
+        "savemouse", "restoremouse", "mouse_move", "mouse_get",
+        "ANTIC", "GTIA", "POKEY", "PMBASE", "PCOLR0", "PCOLR1", "PCOLR2", "PCOLR3"
+    };
+
     private static final String[] ASM_INSTRUCTIONS = new String[] {
         "adc", "add", "and", "bit", "call", "ccf", "cp", "cpl", "daa", "dec",
         "di", "ei", "ex", "exx", "halt", "inc", "in", "jp", "jr", "ld", "ldd",
@@ -53,6 +60,7 @@ public class SyntaxHighlighter {
     private static final String  KEYWORD_PATTERN      = "\\b(" + String.join("|", KEYWORDS) + ")\\b";
     private static final String  ZX_FUNCTION_PATTERN  = "\\b(" + String.join("|", ZX_FUNCTIONS) + ")\\b(?=\\s*\\()";
     private static final String  GBDK_FUNCTION_PATTERN = "\\b(" + String.join("|", GBDK_FUNCTIONS) + ")\\b(?=\\s*\\()";
+    private static final String  ATARI_FUNCTION_PATTERN = "\\b(" + String.join("|", ATARI_FUNCTIONS) + ")\\b(?=\\s*\\()";
     private static final String  ASM_INSTRUCTION_PATTERN = "\\b(" + String.join("|", ASM_INSTRUCTIONS) + ")\\b";
     private static final String  ASM_DIRECTIVE_PATTERN   = "\\b(" + String.join("|", ASM_DIRECTIVES) + ")\\b";
     private static final String  ASM_REGISTER_PATTERN    = "\\b(" + String.join("|", ASM_REGISTERS) + ")\\b";
@@ -90,9 +98,10 @@ public class SyntaxHighlighter {
                                                          + "|(?<STRING>" + STRING_PATTERN + ")"
                                                          + "|(?<CHARACTER>" + CHARACTER_PATTERN + ")"
                                                          + "|(?<OPERATOR>" + OPERATOR_PATTERN + ")"
-                                                         + "|(?<ZXFUNCTION>" + ZX_FUNCTION_PATTERN + ")"
-                                                         + "|(?<GBDKFUNCTION>" + GBDK_FUNCTION_PATTERN + ")"
-                                                         + "|(?<KEYWORD>" + KEYWORD_PATTERN + ")",
++ "|(?<ZXFUNCTION>" + ZX_FUNCTION_PATTERN + ")"
+                                                          + "|(?<GBDKFUNCTION>" + GBDK_FUNCTION_PATTERN + ")"
+                                                          + "|(?<ATARIFUNCTION>" + ATARI_FUNCTION_PATTERN + ")"
+                                                          + "|(?<KEYWORD>" + KEYWORD_PATTERN + ")",
                                                      Pattern.MULTILINE
                                                      );
 
@@ -177,6 +186,7 @@ public class SyntaxHighlighter {
                     matcher.group("OPERATOR")      != null ? "operator"     :
                     matcher.group("ZXFUNCTION")    != null ? "zx-function"  :
                     matcher.group("GBDKFUNCTION")  != null ? "gbdk-function":
+                    matcher.group("ATARIFUNCTION") != null ? "atari-function":
                     matcher.group("KEYWORD")       != null ? "keyword"      :
                     null;
 

@@ -44,4 +44,27 @@ class RenameRefactoringServiceTest {
         RenameRefactoringService.RenameResult result = service.renameSymbolInProject(tempDir.toFile(), "123invalid", "new");
         assertEquals(0, result.getFilesModified());
     }
+
+    @Test
+    void testPreviewOccurrences(@TempDir Path tempDir) throws Exception {
+        Path srcDir = tempDir.resolve("src");
+        Files.createDirectories(srcDir);
+        Files.writeString(srcDir.resolve("main.c"), "void foo() {\n    foo();\n}\n");
+        Files.writeString(srcDir.resolve("other.c"), "int val = 5;\n");
+
+        RenameRefactoringService service = new RenameRefactoringService();
+        RenameRefactoringService.OccurrencePreview preview = service.previewOccurrences(tempDir.toFile(), "foo");
+
+        assertEquals(1, preview.getFiles());
+        assertEquals(2, preview.getOccurrences());
+    }
+
+    @Test
+    void testPreviewUnknownSymbol(@TempDir Path tempDir) throws Exception {
+        Files.writeString(tempDir.resolve("main.c"), "void foo() {}\n");
+        RenameRefactoringService service = new RenameRefactoringService();
+        RenameRefactoringService.OccurrencePreview preview = service.previewOccurrences(tempDir.toFile(), "bar");
+        assertEquals(0, preview.getFiles());
+        assertEquals(0, preview.getOccurrences());
+    }
 }

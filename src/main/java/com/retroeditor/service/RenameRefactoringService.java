@@ -29,6 +29,56 @@ public class RenameRefactoringService {
         public int getTotalOccurrences() { return totalOccurrences; }
     }
 
+    /** Resultado de inspección: cuántas ocurrencias hay de un símbolo y en cuántos archivos. */
+    public static final class OccurrencePreview {
+        private final int files;
+        private final int occurrences;
+
+        public OccurrencePreview(int files, int occurrences) {
+            this.files = files;
+            this.occurrences = occurrences;
+        }
+
+        public int getFiles() { return files; }
+        public int getOccurrences() { return occurrences; }
+    }
+
+    /** Cuenta las ocurrencias de un símbolo en el proyecto sin modificar nada. */
+    public OccurrencePreview previewOccurrences(File projectRoot, String symbol) {
+        if (projectRoot == null || !projectRoot.isDirectory() || symbol == null || !symbol.matches("[A-Za-z_]\\w*")) {
+            return new OccurrencePreview(0, 0);
+        }
+
+        Pattern symbolPattern = Pattern.compile("\\b" + Pattern.quote(symbol) + "\\b");
+        int files = 0;
+        int occurrences = 0;
+
+        try (Stream<Path> paths = Files.walk(projectRoot.toPath())) {
+            List<Path> filesList = paths.filter(Files::isRegularFile)
+                    .filter(this::isCandidateTextFile)
+                    .collect(Collectors.toList());
+
+            for (Path p : filesList) {
+                try {
+                    String content = Files.readString(p);
+                    Matcher matcher = symbolPattern.matcher(content);
+                    int fileOccurrences = 0;
+                    while (matcher.find()) {
+                        fileOccurrences++;
+                    }
+                    if (fileOccurrences > 0) {
+                        files++;
+                        occurrences += fileOccurrences;
+                    }
+                } catch (IOException ignored) {
+                }
+            }
+        } catch (IOException ignored) {
+        }
+
+        return new OccurrencePreview(files, occurrences);
+    }
+
     public RenameResult renameSymbolInProject(File projectRoot, String oldName, String newName) {
         if (projectRoot == null || !projectRoot.isDirectory() || oldName == null || oldName.isBlank() || newName == null || newName.isBlank()) {
             return new RenameResult(0, 0);

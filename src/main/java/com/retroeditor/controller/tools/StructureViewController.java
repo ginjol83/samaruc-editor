@@ -18,6 +18,7 @@ public class StructureViewController {
     private final StructureViewService structureViewService = new StructureViewService();
     private Consumer<Integer> onSymbolSelectedCallback;
     private CodeArea activeCodeArea;
+    private javafx.beans.value.ChangeListener<String> textListener;
 
     @FXML
     public void initialize() {
@@ -82,10 +83,16 @@ public class StructureViewController {
     }
 
     public void setActiveCodeArea(CodeArea codeArea) {
+        if (activeCodeArea != null && textListener != null) {
+            activeCodeArea.textProperty().removeListener(textListener);
+        }
         this.activeCodeArea = codeArea;
         if (codeArea != null) {
+            textListener = (obs, oldV, newV) -> updateStructure(codeArea.getText());
+            codeArea.textProperty().addListener(textListener);
             updateStructure(codeArea.getText());
         } else {
+            textListener = null;
             updateStructure("");
         }
     }

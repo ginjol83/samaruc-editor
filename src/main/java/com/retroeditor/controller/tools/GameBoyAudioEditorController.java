@@ -11,8 +11,8 @@ import java.util.function.Consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.retroeditor.service.gameboy.GameBoyAudioPlayer;
-import com.retroeditor.service.gameboy.GameBoySoundCodeGenerator;
 import com.retroeditor.service.gameboy.ModVgmImportService;
+import com.retroeditor.service.sound.SoundCodeGenerator;
 
 import javafx.animation.AnimationTimer;
 import javafx.application.Platform;
@@ -36,15 +36,26 @@ import javafx.scene.Node;
 import javafx.stage.Window;
 
 /**
- * Editor de audio / efectos de sonido y compositor visual con Timeline, Silencios e Importador Tracker (.mod/.vgm) para Game Boy.
+ * Editor de audio / efectos de sonido y compositor visual con Timeline, Silencios e
+ * Importador Tracker (.mod/.vgm) multiplataforma: Game Boy (APU/GBDK), Atari 8-bit
+ * (POKEY/cc65), Sega Master System / Game Gear (PSG SN76489/SDCC),
+ * Amstrad CPC (AY-3-8912/z88dk), ZX Spectrum 128 (AY-3-8912/z88dk) y
+ * Commodore 64 (SID 6581/cc65).
  */
 public class GameBoyAudioEditorController {
 
     private static File lastUsedDirectory = null;
 
     private final GameBoyAudioPlayer audioPlayer = new GameBoyAudioPlayer();
-    private final GameBoySoundCodeGenerator codeGenerator = new GameBoySoundCodeGenerator();
+    private final SoundCodeGenerator codeGenerator = new SoundCodeGenerator();
     private final ModVgmImportService modVgmImportService = new ModVgmImportService();
+
+    private static final String PLATFORM_GB = "Game Boy";
+    private static final String PLATFORM_ATARI = "Atari (POKEY)";
+    private static final String PLATFORM_SMS_GG = "SMS / Game Gear (PSG)";
+    private static final String PLATFORM_CPC = "Amstrad CPC (AY-3-8912)";
+    private static final String PLATFORM_ZX = "ZX Spectrum 128 (AY)";
+    private static final String PLATFORM_C64 = "Commodore 64 (SID 6581)";
 
     private static final Map<String, Integer> NOTE_FREQS = new LinkedHashMap<>();
     static {
@@ -65,6 +76,11 @@ public class GameBoyAudioEditorController {
     }
 
     private static final String[] CHANNELS = {"Square 1", "Square 2", "Wave Channel", "Noise Channel"};
+    private static final String[] GB_SFX_CHANNELS = {"Square 1 (Sweep)", "Square 2", "Wave Channel", "Noise Channel"};
+    private static final String[] ATARI_CHANNELS = {"Canal 1", "Canal 2", "Canal 3", "Canal 4"};
+    private static final String[] ATARI_SFX_CHANNELS = {"Canal 1 (Tono)", "Canal 2 (Tono)", "Canal 3 (Tono)", "Canal 4 (Tono)"};
+    private static final String[] SMS_GG_CHANNELS = {"Tono 1", "Tono 2", "Tono 3", "Ruido"};
+    private static final String[] PSG_CHANNELS = SMS_GG_CHANNELS;
 
     private static final double TRACKER_LABEL_WIDTH = 90.0;
     private static final double TRACKER_BASE_SCALE = (680.0 - TRACKER_LABEL_WIDTH) / 4000.0;
@@ -72,6 +88,12 @@ public class GameBoyAudioEditorController {
 
     private Node rootNode;
     private AnimationTimer playheadTimer;
+    private String[] activeChannels = CHANNELS;
+    private boolean atariMode = false;
+    private boolean smsMode = false;
+    private boolean cpcMode = false;
+    private boolean zxMode = false;
+    private boolean c64Mode = false;
 
     /**
      * Crea la UI de la herramienta para mostrarla como pestaña del editor.
@@ -86,6 +108,45 @@ public class GameBoyAudioEditorController {
         }
     }
 
+    private SoundCodeGenerator.Platform selectedPlatform() {
+        if (atariMode) {
+            return SoundCodeGenerator.Platform.ATARI;
+        }
+        if (smsMode) {
+            return SoundCodeGenerator.Platform.SMS_GAME_GEAR;
+        }
+        if (cpcMode) {
+            return SoundCodeGenerator.Platform.CPC;
+        }
+        if (zxMode) {
+            return SoundCodeGenerator.Platform.ZX_SPECTRUM;
+        }
+        if (c64Mode) {
+            return SoundCodeGenerator.Platform.C64;
+        }
+        return SoundCodeGenerator.Platform.GAMEBOY;
+    }
+
+    /**
+     * Motor del preview según la plataforma: CPC y ZX Spectrum usan el AY-3-8912; Atari el POKEY;
+     * SMS/Game Gear el SN76489; C64 el SID 6581; el resto, la APU de Game Boy.
+     */
+    private GameBoyAudioPlayer.SoundEngine previewEngine() {
+        switch (selectedPlatform()) {
+            case CPC:
+            case ZX_SPECTRUM:
+                return GameBoyAudioPlayer.SoundEngine.AY_3_8912;
+            case ATARI:
+                return GameBoyAudioPlayer.SoundEngine.POKEY;
+            case SMS_GAME_GEAR:
+                return GameBoyAudioPlayer.SoundEngine.SN76489;
+            case C64:
+                return GameBoyAudioPlayer.SoundEngine.SID6581;
+            default:
+                return GameBoyAudioPlayer.SoundEngine.GAMEBOY;
+        }
+    }
+
     /**
      * Detiene la reproducción en curso cuando se cierra la herramienta.
      */
@@ -97,11 +158,16 @@ public class GameBoyAudioEditorController {
         TabPane tabPane = new TabPane();
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
 
+        ComboBox<String> comboPlatform = new ComboBox<>();
+        comboPlatform.getItems().addAll(PLATFORM_GB, PLATFORM_ATARI, PLATFORM_SMS_GG, PLATFORM_CPC, PLATFORM_ZX, PLATFORM_C64);
+        comboPlatform.setValue(PLATFORM_GB);
+        comboPlatform.setPrefWidth(180);
+
         // ================= TAB 1: EFECTO DE SONIDO (SFX) =================
         Tab tabSfx = new Tab("Efecto de Sonido (SFX)");
         
         ComboBox<String> comboChannel = new ComboBox<>();
-        comboChannel.getItems().addAll("Square 1 (Sweep)", "Square 2", "Wave Channel", "Noise Channel");
+        comboChannel.getItems().addAll(GB_SFX_CHANNELS);
         comboChannel.setValue("Square 1 (Sweep)");
         comboChannel.setPrefWidth(220);
 
@@ -137,7 +203,8 @@ public class GameBoyAudioEditorController {
         outputAreaSfx.setPrefRowCount(12);
 
         Runnable updateSfxAction = () -> {
-            String code = codeGenerator.generateSoundCode(
+            String code = codeGenerator.generateSfx(
+                selectedPlatform(),
                 comboChannel.getValue(),
                 (int) sliderFreq.getValue(),
                 (int) sliderVol.getValue(),
@@ -157,11 +224,12 @@ public class GameBoyAudioEditorController {
 
         Button btnPlaySfx = new Button("Probar sonido (Preview)");
         btnPlaySfx.setOnAction(e -> {
+            GameBoyAudioPlayer.SoundEngine engine = previewEngine();
             String ch = comboChannel.getValue();
-            if (ch != null && ch.contains("Noise")) {
-                audioPlayer.playNoise(spinDuration.getValue(), (int) sliderVol.getValue());
+            if (ch != null && (ch.contains("Noise") || ch.contains("Ruido"))) {
+                audioPlayer.playNoise(spinDuration.getValue(), (int) sliderVol.getValue(), engine);
             } else {
-                audioPlayer.playTone((int) sliderFreq.getValue(), spinDuration.getValue(), (int) sliderVol.getValue(), comboDuty.getValue());
+                audioPlayer.playTone((int) sliderFreq.getValue(), spinDuration.getValue(), (int) sliderVol.getValue(), comboDuty.getValue(), engine);
             }
         });
 
@@ -242,13 +310,13 @@ public class GameBoyAudioEditorController {
             renderedBlocks.clear();
             double w = trackerCanvas.getWidth();
             double h = trackerCanvas.getHeight();
-            double trackH = h / CHANNELS.length;
+            double trackH = h / activeChannels.length;
             double pxPerMs = trackPxPerMs[0];
 
             gc.setFill(Color.web("#0f1721"));
             gc.fillRect(0, 0, w, h);
 
-            for (int t = 0; t < CHANNELS.length; t++) {
+            for (int t = 0; t < activeChannels.length; t++) {
                 double y = t * trackH;
                 gc.setFill(t % 2 == 0 ? Color.web("#151f2e") : Color.web("#0f1721"));
                 gc.fillRect(0, y, w, trackH);
@@ -256,7 +324,7 @@ public class GameBoyAudioEditorController {
                 gc.strokeRect(0, y, w, trackH);
 
                 gc.setFill(Color.web("#94a3b8"));
-                gc.fillText(CHANNELS[t], 8, y + 20);
+                gc.fillText(activeChannels[t], 8, y + 20);
             }
 
             gc.setStroke(Color.web("#1e293b"));
@@ -275,8 +343,8 @@ public class GameBoyAudioEditorController {
                 GameBoyAudioPlayer.NoteStep step = melodyNotesList.get(idx);
                 String ch = step.getChannel() != null ? step.getChannel() : "Square 1";
                 int trackIdx = 0;
-                for (int i = 0; i < CHANNELS.length; i++) {
-                    if (CHANNELS[i].equalsIgnoreCase(ch) || CHANNELS[i].contains(ch)) {
+                for (int i = 0; i < activeChannels.length; i++) {
+                    if (activeChannels[i].equalsIgnoreCase(ch) || activeChannels[i].contains(ch)) {
                         trackIdx = i;
                         break;
                     }
@@ -377,10 +445,10 @@ public class GameBoyAudioEditorController {
                     drawTrackerGrid.run();
                 }
             } else if (isDragging[0]) {
-                double trackH = trackerCanvas.getHeight() / CHANNELS.length;
+                double trackH = trackerCanvas.getHeight() / activeChannels.length;
                 int targetTrack = (int) (e.getY() / trackH);
-                if (targetTrack >= 0 && targetTrack < CHANNELS.length) {
-                    String newChannel = CHANNELS[targetTrack];
+                if (targetTrack >= 0 && targetTrack < activeChannels.length) {
+                    String newChannel = activeChannels[targetTrack];
                     double newX = e.getX() - dragOffsetX[0];
                     int newStartMs = (int) Math.max(0, (newX - TRACKER_LABEL_WIDTH) / pxPerMs);
                     newStartMs = ((newStartMs + 25) / 50) * 50;
@@ -527,7 +595,9 @@ public class GameBoyAudioEditorController {
         outputAreaMelody.setPrefRowCount(8);
 
         Runnable updateMelodyCode = () -> {
-            String code = codeGenerator.generateMelodyCode(txtMelodySymbol.getText(), melodyNotesList, chkMelodyConst.isSelected());
+            String code = codeGenerator.generateMelody(
+                selectedPlatform(),
+                txtMelodySymbol.getText(), melodyNotesList, chkMelodyConst.isSelected());
             outputAreaMelody.setText(code);
         };
 
@@ -537,7 +607,7 @@ public class GameBoyAudioEditorController {
 
         Button btnPlayMelody = new Button("▶ Reproducir Tracker (Timeline)");
         btnPlayMelody.setOnAction(e -> {
-            audioPlayer.playMelody(melodyNotesList);
+            audioPlayer.playMelody(melodyNotesList, previewEngine());
             startTime[0] = System.nanoTime();
             isPlaying[0] = true;
             playheadTimer.start();
@@ -570,7 +640,37 @@ public class GameBoyAudioEditorController {
 
         tabPane.getTabs().addAll(tabSfx, tabMelody);
 
+        Runnable applyPlatform = () -> {
+            atariMode = PLATFORM_ATARI.equals(comboPlatform.getValue());
+            smsMode = PLATFORM_SMS_GG.equals(comboPlatform.getValue());
+            cpcMode = PLATFORM_CPC.equals(comboPlatform.getValue());
+            zxMode = PLATFORM_ZX.equals(comboPlatform.getValue());
+            c64Mode = PLATFORM_C64.equals(comboPlatform.getValue());
+            if (atariMode) {
+                activeChannels = ATARI_CHANNELS;
+            } else if (smsMode || cpcMode || zxMode || c64Mode) {
+                activeChannels = PSG_CHANNELS;
+            } else {
+                activeChannels = CHANNELS;
+            }
+            comboChannel.setItems(FXCollections.observableArrayList(
+                    atariMode ? ATARI_SFX_CHANNELS : (smsMode || cpcMode || zxMode || c64Mode ? PSG_CHANNELS : GB_SFX_CHANNELS)));
+            comboChannel.setValue(comboChannel.getItems().get(0));
+            comboMelodyChannel.setItems(FXCollections.observableArrayList(activeChannels));
+            comboMelodyChannel.setValue(activeChannels[0]);
+            comboDuty.setValue("50%");
+            comboDuty.setDisable(!(PLATFORM_GB.equals(comboPlatform.getValue()) || PLATFORM_C64.equals(comboPlatform.getValue())));
+            updateSfxAction.run();
+            updateMelodyCode.run();
+            updateTrackerSize.run();
+        };
+        comboPlatform.setOnAction(e -> applyPlatform.run());
+
+        HBox platformBar = new HBox(10, new Label("Plataforma:"), comboPlatform);
+        platformBar.setPadding(new Insets(12, 12, 0, 12));
+
         BorderPane root = new BorderPane(tabPane);
+        root.setTop(platformBar);
         rootNode = root;
 
         return root;

@@ -7,21 +7,21 @@
   - [x] "Go to definition" básico para funciones C y prototipos.
 - [x] **Edición y Productividad (Estilo IDE Profesional)**:
   - [x] Plegado de bloques (`{ }` y regiones ASM) (`CodeFoldingService`).
-  - [x] Autocompletado inteligente (`Ctrl+Space`) con Intellisense Contextual por SDK (GBDK, Conio, MS-DOS, C estándar).
+  - [x] Autocompletado inteligente (`Ctrl+Space`) con Intellisense Contextual por SDK (GBDK, Conio, C estándar).
   - [x] Minimapa interactivo (Minimap) lateral con navegación rápida por clic y arrastre.
   - [x] Historial Local (Local History) automático por archivo con snapshots temporales y visor/restaurador de versiones (`LocalHistoryService`).
   - [x] Atajo de comentar/descomentar (`Ctrl+/`) adaptado por lenguaje (`//` para C, `;` para ASM).
   - [x] Multi-cursor y Selección de Columnas (`MultiCursorManager`) para edición simultánea en bloque (`Ctrl+Alt+Up/Down`).
   - [x] Formateador Automático de Código (`CodeFormatterService`) para indentación y embellecimiento (`Ctrl+Alt+L`).
   - [x] Estructura de Archivo / Outline View (`StructureViewService`) para análisis jerárquico de funciones, variables, macros y estructuras.
-  - [x] Plantillas de código y proyectos nuevos (`FileTemplateService` para Game Boy, ZX Spectrum, Amstrad CPC, Atari, MS-DOS, Sega Master System, C genérico y ASM).
+  - [x] Plantillas de código y proyectos nuevos (`FileTemplateService` para Game Boy, ZX Spectrum, Amstrad CPC, Atari, Commodore 64, Sega Master System, C genérico y ASM).
   - [x] Vista dividida para comparar archivos (Split View).
   - [x] Búsqueda y reemplazo avanzado en archivos y proyectos enteros.
 - [x] **Plataformas y Emulación Retro**:
   - [x] Game Boy (GBDK-2020): editores de tiles, sprites multi-tamaño, generador de audio SFX, reproductor y tracker musical (`GameBoyAudioEditorController`, `GameBoyAudioPlayer`, `ModVgmImportService`).
   - [x] ZX Spectrum y Amstrad CPC (Z88DK), convertidores gráficos PNG a bitmap.
   - [x] Atari XE/XL (CC65).
-  - [x] MS-DOS: plantillas, detección de plataforma y ejecución integrada con DOSBox.
+  - [x] Commodore 64 (CC65 / VICE): plantillas, detección de plataforma, compilación y ejecución integrada con VICE.
   - [x] Sega Master System / Game Gear: plantillas, detección y emulación integrada con Emulicious.
   - [x] Opción independiente "Compilar y ejecutar" (Build & Run).
 - [x] **Editores Gráficos y de Assets**:
@@ -39,7 +39,7 @@
 ## 🎯 Próximos Pasos y Nuevas Funcionalidades Propuestas
 
 ### 1. Experiencia de Edición Avanzada (Estilo IntelliJ / VS Code)
-- [ ] **Paleta de Comandos (`Ctrl+Shift+P`)**: Buscador flotante rápido para ejecutar cualquier comando, configuración, SDK o herramienta del IDE sin usar el menú superior.
+- [x] **Paleta de Comandos (`Ctrl+Shift+P`)**: Buscador flotante rápido para ejecutar cualquier comando, configuración, SDK o herramienta del IDE sin usar el menú superior. Incluye apertura rápida de archivos del proyecto (`Ctrl+P`).
 - [ ] **Acciones Rápidas y Quick Fixes (Bombilla / Bulb Actions)**: Correcciones automáticas y sugerencias contextuales ante errores de compilación (ej. añadir includes faltantes, declarar prototipos).
 
 ### 2. Refactorización Avanzada
@@ -63,7 +63,6 @@
 
 ### 6. Nuevas Plataformas y SDKs Retro
 - [ ] **MSX y MSX2 (SDCC / C-BIOS)**: Soporte completo de plantillas, compilación y emulación (openMSX).
-- [ ] **Commodore 64 (CC65 / VICE)**: Soporte de desarrollo en C/ASM con emulador VICE integrado.
 - [ ] **NES / Famicom (CC65 / Mesen)**: Plantillas y compilación para desarrollo de juegos de 8 bits en NES.
 
 ### 7. Ecosistema, Plugins e Inteligencia Artificial

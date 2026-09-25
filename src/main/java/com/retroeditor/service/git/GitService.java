@@ -3,6 +3,7 @@ package com.retroeditor.service.git;
 import static com.retroeditor.service.git.GitModels.DiffLineType;
 import static com.retroeditor.service.git.GitModels.GitBranchInfo;
 import static com.retroeditor.service.git.GitModels.GitCommitInfo;
+import static com.retroeditor.service.git.GitModels.GitDiffEntry;
 import static com.retroeditor.service.git.GitModels.GitDiffLine;
 import static com.retroeditor.service.git.GitModels.GitStatusEntry;
 
@@ -130,6 +131,26 @@ public class GitService {
         return parseDiff(result.output());
     }
 
+    /**
+     * Diff de un archivo del workspace contra HEAD ({@code git diff HEAD -- <path>}),
+     * que incluye tanto los cambios en el índice (staged) como los del working tree.
+     * Los archivos sin seguimiento (untracked) no tienen diff en git.
+     */
+    public List<GitDiffLine> diffVsHead(Path dir, String path) throws GitOperationsException {
+        if (path == null || path.isBlank()) {
+            throw new GitOperationsException("La ruta del archivo no puede estar vacía");
+        }
+        List<String> args = new ArrayList<>();
+        args.add("diff");
+        args.add("--color=never");
+        args.add("HEAD");
+        args.add("--");
+        args.add(path.trim());
+        GitCli.GitResult result = cli.execute(dir, args.toArray(new String[0]));
+        requireSuccess(result, "git diff HEAD");
+        return parseDiff(result.output());
+    }
+
     /** Clasifica la salida de {@code git diff} en cabeceras, hunks, líneas añadidas/eliminadas y contexto. */
     static List<GitDiffLine> parseDiff(List<String> lines) {
         List<GitDiffLine> parsed = new ArrayList<>();
@@ -169,6 +190,70 @@ public class GitService {
 
     private static boolean startsWith(String line, String prefix) {
         return line.length() >= prefix.length() && line.startsWith(prefix);
+    }
+
+    /**
+     * Misma clasificación que {@link #parseDiff} pero además estima los números de
+     * línea old/new a partir de las cabeceras {@code @@ -a[,b] +c[,d] @@}, para
+     * mostrar un gutter con marcadores +/-. Líneas ADD no tienen oldLine (0) y
+     * las REMOVE no tienen newLine (0); los hunks marcan el cambio de numeración.
+     */
+    public static List<GitDiffEntry> parseDiffWithLineNumbers(List<String> lines) {
+        List<GitDiffEntry> parsed = new ArrayList<>();
+        int oldLine = 0;
+        int newLine = 0;
+        for (String line : lines) {
+            if (line == null) {
+                continue;
+            }
+            if (isHeaderLine(line)) {
+                parsed.add(new GitDiffEntry(0, 0, GitDiffLine.header(line)));
+            } else if (startsWith(line, "@@")) {
+                int[] counts = parseHunkHeader(line);
+                if (counts != null) {
+                    oldLine = counts[0];
+                    newLine = counts[1];
+                }
+                parsed.add(new GitDiffEntry(oldLine, newLine, GitDiffLine.hunk(line)));
+            } else if (startsWith(line, "+")) {
+                parsed.add(new GitDiffEntry(0, newLine, GitDiffLine.add(line)));
+                newLine += 1;
+            } else if (startsWith(line, "-")) {
+                parsed.add(new GitDiffEntry(oldLine, 0, GitDiffLine.remove(line)));
+                oldLine += 1;
+            } else {
+                parsed.add(new GitDiffEntry(oldLine, newLine, GitDiffLine.context(line)));
+                oldLine += 1;
+                newLine += 1;
+            }
+        }
+        return parsed;
+    }
+
+    /** Extrae {@code {oldStart, newStart}} de una cabecera {@code @@}, p.ej. {@code @@ -10,3 +4,5 @@}. */
+    static int[] parseHunkHeader(String line) {
+        if (line == null || !line.startsWith("@@")) {
+            return null;
+        }
+        int firstMinus = line.indexOf('-', 2);
+        int firstPlus = line.indexOf('+', firstMinus > 0 ? firstMinus : 2);
+        if (firstMinus < 0 || firstPlus < 0) {
+            return null;
+        }
+        int oldComma = line.indexOf(',', firstMinus + 1);
+        int oldEnd = oldComma > 0 && oldComma < firstPlus ? oldComma : firstPlus;
+        int newComma = line.indexOf(',', firstPlus + 1);
+        int newEnd = newComma > 0 ? newComma : line.indexOf(' ', firstPlus);
+        if (newEnd < 0) {
+            newEnd = line.length();
+        }
+        try {
+            int oldStart = Integer.parseInt(line.substring(firstMinus + 1, oldEnd).trim());
+            int newStart = Integer.parseInt(line.substring(firstPlus + 1, newEnd).trim());
+            return new int[] { oldStart, newStart };
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     // === Operaciones remotas (Fase 2: push/pull/clone con credencial efímera) ===
