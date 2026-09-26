@@ -14,14 +14,14 @@ import java.util.TreeMap;
 public final class FileTypeIcons {
 
     public enum Kind {
-        C, HEADER, ASM, MARKDOWN, TEXT, JSON, TILE, SMT, IMAGE, ROM, AUDIO,
+        C, HEADER, ASM, MARKDOWN, TEXT, JSON, TILE, TILEMAP, SMT, IMAGE, ROM, AUDIO,
         MAKE, DIRECTORY, GENERIC
     }
 
     private enum Css {
         C("file-icon-c"), HEADER("file-icon-header"), ASM("file-icon-asm"),
         MARKDOWN("file-icon-md"), TEXT("file-icon-text"), JSON("file-icon-json"),
-        TILE("file-icon-tile"), SMT("file-icon-smt"), IMAGE("file-icon-image"),
+        TILE("file-icon-tile"), TILEMAP("file-icon-tile"), SMT("file-icon-smt"), IMAGE("file-icon-image"),
         ROM("file-icon-rom"), AUDIO("file-icon-audio"), MAKE("file-icon-make"),
         DIRECTORY("file-icon-dir"), GENERIC("file-icon-generic");
 
@@ -47,6 +47,7 @@ public final class FileTypeIcons {
         KIND_GLYPH.put(Kind.TEXT, "fas-file-alt");
         KIND_GLYPH.put(Kind.JSON, "fas-cog");
         KIND_GLYPH.put(Kind.TILE, "fas-th-large");
+        KIND_GLYPH.put(Kind.TILEMAP, "fas-th-large");
         KIND_GLYPH.put(Kind.SMT, "fas-language");
         KIND_GLYPH.put(Kind.IMAGE, "fas-file-image");
         KIND_GLYPH.put(Kind.ROM, "fas-gamepad");
@@ -62,6 +63,7 @@ public final class FileTypeIcons {
         for (String ext : new String[]{"txt", "log", "lst"}) EXT_KIND.put(ext, Kind.TEXT);
         for (String ext : new String[]{"json", "cfg", "properties", "ini", "toml"}) EXT_KIND.put(ext, Kind.JSON);
         EXT_KIND.put("tile", Kind.TILE);
+        EXT_KIND.put("tilemap", Kind.TILEMAP);
         EXT_KIND.put("smt", Kind.SMT);
         for (String ext : new String[]{"png", "jpg", "jpeg", "gif", "bmp", "svg", "ico", "tga"}) EXT_KIND.put(ext, Kind.IMAGE);
         for (String ext : new String[]{"gb", "gbc", "rom", "bin", "tap", "tzx", "sna", "crt", "dsk", "edsk", "cdt", "hex"}) EXT_KIND.put(ext, Kind.ROM);

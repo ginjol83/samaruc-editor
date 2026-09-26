@@ -1,10 +1,19 @@
 package com.retroeditor.service.tilemap;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+import com.retroeditor.model.tilemap.TilemapDocument;
+import com.retroeditor.model.tilemap.TilemapTileData;
+
 public final class TilemapCodeGenerator {
     public String generate(TilemapPlatform platform, int[][] tilemap, boolean[][] collisions) {
+        return generate(platform, tilemap, collisions, List.of());
+    }
+
+    public String generate(TilemapPlatform platform, int[][] tilemap, boolean[][] collisions,
+                           List<TilemapTileData> tiles) {
         Objects.requireNonNull(platform, "platform");
         validate(tilemap, collisions, platform);
 
@@ -22,8 +31,17 @@ public final class TilemapCodeGenerator {
             case GAMEBOY -> appendGameBoyData(output);
         }
 
+        appendNativeData(output, platform, tiles);
         appendCollisionMatrix(output, collisions);
         return output.toString();
+    }
+
+    public String generate(TilemapDocument document) {
+        Objects.requireNonNull(document, "document");
+        TilemapPlatform platform = TilemapPlatform.valueOf(document.getPlatform());
+        int[][] tilemap = toIntMatrix(document.getMap(), document.getMapWidth(), document.getMapHeight());
+        boolean[][] collisions = toBooleanMatrix(document.getCollisions(), document.getMapWidth(), document.getMapHeight());
+        return generate(platform, tilemap, collisions, document.getTiles());
     }
 
     private void appendCommonDefinitions(StringBuilder output, TilemapPlatform platform, int width, int height) {
@@ -130,6 +148,74 @@ public final class TilemapCodeGenerator {
             output.append('\n');
         }
         output.append("};\n");
+    }
+
+    private void appendNativeData(StringBuilder output, TilemapPlatform platform, List<TilemapTileData> tiles) {
+        if (tiles == null || tiles.isEmpty()) return;
+        TilemapTileData first = tiles.get(0);
+        if (first == null) {
+            throw new IllegalArgumentException("La lista de tiles contiene un valor nulo.");
+        }
+        for (TilemapTileData tile : tiles) {
+            if (tile == null || tile.getWidth() != first.getWidth() || tile.getHeight() != first.getHeight()) {
+                throw new IllegalArgumentException("Todos los tiles deben tener las mismas dimensiones.");
+            }
+        }
+        int bytesPerTile = TilemapNativeDataCodec.expectedByteCount(platform, first.getWidth(), first.getHeight());
+        output.append("#define NATIVE_TILE_BYTES ").append(bytesPerTile).append('\n');
+        output.append("#define NATIVE_TILE_COUNT ").append(tiles.size()).append("\n\n");
+        output.append("const unsigned char native_tiles[NATIVE_TILE_COUNT][NATIVE_TILE_BYTES] = {\n");
+        for (int tileIndex = 0; tileIndex < tiles.size(); tileIndex++) {
+            TilemapTileData tile = tiles.get(tileIndex);
+            byte[] encoded = TilemapNativeDataCodec.encode(platform, tile.getWidth(), tile.getHeight(), tile.getPixels());
+            output.append("    { ");
+            for (int byteIndex = 0; byteIndex < encoded.length; byteIndex++) {
+                output.append(String.format(Locale.ROOT, "0x%02X", encoded[byteIndex] & 0xFF));
+                if (byteIndex < encoded.length - 1) {
+                    output.append(", ");
+                }
+            }
+            output.append(" }");
+            if (tileIndex < tiles.size() - 1) {
+                output.append(',');
+            }
+            output.append('\n');
+        }
+        output.append("};\n\n");
+    }
+
+    private int[][] toIntMatrix(List<Integer> values, int width, int height) {
+        if (values == null || values.size() != width * height) {
+            throw new IllegalArgumentException("Los datos del tilemap no tienen las dimensiones declaradas.");
+        }
+        int[][] matrix = new int[height][width];
+        for (int row = 0; row < height; row++) {
+            for (int column = 0; column < width; column++) {
+                Integer value = values.get(row * width + column);
+                if (value == null) {
+                    throw new IllegalArgumentException("El tilemap contiene un valor nulo.");
+                }
+                matrix[row][column] = value;
+            }
+        }
+        return matrix;
+    }
+
+    private boolean[][] toBooleanMatrix(List<Boolean> values, int width, int height) {
+        if (values == null || values.size() != width * height) {
+            throw new IllegalArgumentException("Las colisiones no tienen las dimensiones declaradas.");
+        }
+        boolean[][] matrix = new boolean[height][width];
+        for (int row = 0; row < height; row++) {
+            for (int column = 0; column < width; column++) {
+                Boolean value = values.get(row * width + column);
+                if (value == null) {
+                    throw new IllegalArgumentException("Las colisiones contienen un valor nulo.");
+                }
+                matrix[row][column] = value;
+            }
+        }
+        return matrix;
     }
 
     private void validate(int[][] tilemap, boolean[][] collisions, TilemapPlatform platform) {

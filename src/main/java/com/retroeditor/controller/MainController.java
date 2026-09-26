@@ -74,6 +74,7 @@ import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.service.ConfigRepository;
 import com.retroeditor.service.WorkspaceService;
 import com.retroeditor.service.TranslatorPersistenceService;
+import com.retroeditor.service.tilemap.TilemapPersistenceService;
 import com.retroeditor.service.CodeFormatterService;
 import com.retroeditor.service.RenameRefactoringService;
 import com.retroeditor.service.ExtractConstantService;
@@ -397,6 +398,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private static final String HOME_LINK_HOOKED        = "home-link-hooked";
     private static final String TAB_PROP_GIT_DIRTY       = "git.dirtyDot";
     private static final String TAB_PROP_TILE_CONTROLLER = "tileEditor.controller";
+    private static final String TAB_PROP_TILEMAP_CONTROLLER = "tilemapEditor.controller";
     private volatile boolean lastCompilationHasErrors   = false;
     private volatile boolean lastCompilationHasWarnings = false;
 
@@ -1381,6 +1383,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             openTileEditorTab(file);
             return;
         }
+        if (TilemapPersistenceService.isTilemapFile(file)) {
+            Tab existing = findTilemapTabForFile(file);
+            if (existing != null) {
+                tabPane.getSelectionModel().select(existing);
+                return;
+            }
+            openTilemapEditorTab(file);
+            return;
+        }
         for (Map.Entry<Tab, File> entry : tabFileMap.entrySet()) {
             if (file.equals(entry.getValue())) { 
                 UserActionMonitor.fileOpenedFromSearch(file.getName());
@@ -1484,6 +1495,11 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
         if (TileEditorController.isTileFile(file)) {
             openTileEditorTab(file);
+            return;
+        }
+
+        if (TilemapPersistenceService.isTilemapFile(file)) {
+            openTilemapEditorTab(file);
             return;
         }
 
@@ -1665,6 +1681,11 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             }
 
             tabFileMap.put(tab, updatedFile);
+            TilemapEditorController tilemap = getTilemapEditorController(tab);
+            if (tilemap != null) {
+                tilemap.updateCurrentFile(updatedFile);
+                refreshTilemapTabTitle(tab);
+            }
             if (editorModel != null) {
                 editorModel.renameOpenFile(mappedFile, updatedFile);
             }
@@ -2153,11 +2174,12 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             case TEXT -> fxUtils.addNewTabNamed(null, "", baseName + ".txt", tabFileMap, syntaxHighlighter, tabPane);
             case C -> fxUtils.addNewTabNamed(null, "", baseName + ".c", tabFileMap, syntaxHighlighter, tabPane);
             case SPRITE -> openTileEditorTab(null, baseName + ".tile");
+            case TILEMAP -> openTilemapEditorTab(null, baseName + ".tilemap");
         }
         newFileCounter++;
     }
 
-    private enum NewFileChoice { TEXT, C, SPRITE }
+    private enum NewFileChoice { TEXT, C, SPRITE, TILEMAP }
 
     /**
      * Pregunta qué tipo de archivo crear: texto, C o sprite (.tile).
@@ -2175,14 +2197,16 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         ButtonType text = new ButtonType(msg("dialog.newFile.text", "Archivo de texto (.txt)"), ButtonBar.ButtonData.OK_DONE);
         ButtonType c = new ButtonType(msg("dialog.newFile.c", "Archivo C (.c)"), ButtonBar.ButtonData.OK_DONE);
         ButtonType sprite = new ButtonType(msg("dialog.newFile.sprite", "Sprite (.tile)"), ButtonBar.ButtonData.OK_DONE);
+        ButtonType tilemap = new ButtonType(msg("dialog.newFile.tilemap", "Tilemap (.tilemap)"), ButtonBar.ButtonData.OK_DONE);
         ButtonType cancel = new ButtonType(msg("dialog.template.cancel", "Cancelar"), ButtonBar.ButtonData.CANCEL_CLOSE);
-        alert.getButtonTypes().setAll(text, c, sprite, cancel);
+        alert.getButtonTypes().setAll(text, c, sprite, tilemap, cancel);
 
         Optional<ButtonType> result = alert.showAndWait();
         if (result.isEmpty()) return null;
         if (result.get() == text) return NewFileChoice.TEXT;
         if (result.get() == c) return NewFileChoice.C;
         if (result.get() == sprite) return NewFileChoice.SPRITE;
+        if (result.get() == tilemap) return NewFileChoice.TILEMAP;
         return null;
     }
 
@@ -2385,6 +2409,10 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 rerouteOpenTileAsCodeToTool(opened);
                 return;
             }
+            if (TilemapPersistenceService.isTilemapFile(opened)) {
+                rerouteOpenTilemapAsCodeToTool(opened);
+                return;
+            }
             rememberRecentFile(opened);
             persistSessionState();
         }
@@ -2406,9 +2434,30 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         persistSessionState();
     }
 
+    private void rerouteOpenTilemapAsCodeToTool(File tilemapFile) {
+        for (Tab tab : new ArrayList<>(tabPane.getTabs())) {
+            if (tilemapFile.equals(tabFileMap.get(tab))) {
+                tabPane.getTabs().remove(tab);
+                break;
+            }
+        }
+        openTilemapEditorTab(tilemapFile);
+        rememberRecentFile(tilemapFile);
+        persistSessionState();
+    }
+
     @FXML
     private void onSaveFile(ActionEvent event) {
         Tab selectedTab = tabPane != null ? tabPane.getSelectionModel().getSelectedItem() : null;
+        if (selectedTab != null && isTilemapEditorTab(selectedTab)) {
+            TilemapEditorController tilemap = getTilemapEditorController(selectedTab);
+            if (tilemap != null && tilemap.saveCurrentProject()) {
+                tabFileMap.put(selectedTab, tilemap.getCurrentFile());
+                if (projectExplorerController != null) projectExplorerController.refreshTree();
+                persistSessionState();
+            }
+            return;
+        }
         if (selectedTab != null && isTileEditorTab(selectedTab)) {
             TileEditorController tile = getTileEditorController(selectedTab);
             if (tile != null && tile.saveCurrentProject()) {
@@ -2546,19 +2595,32 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         try {
             List<Tab> tabsToSave = new ArrayList<>();
             for (Tab tab : tabPane.getTabs()) {
-                TileEditorController tile = getTileEditorController(tab);
-                if (tile != null) {
-                    if (tile.getCurrentFile() != null) {
+                TilemapEditorController tilemap = getTilemapEditorController(tab);
+                if (tilemap != null) {
+                    if (tilemap.getCurrentFile() != null) {
                         tabsToSave.add(tab);
                     }
-                } else if (tabFileMap.containsKey(tab)) {
-                    tabsToSave.add(tab);
+                } else {
+                    TileEditorController tile = getTileEditorController(tab);
+                    if (tile != null) {
+                        if (tile.getCurrentFile() != null) {
+                            tabsToSave.add(tab);
+                        }
+                    } else if (tabFileMap.containsKey(tab)) {
+                        tabsToSave.add(tab);
+                    }
                 }
             }
 
             for (Tab tab : tabsToSave) {
                 tabPane.getSelectionModel().select(tab);
-                if (isTileEditorTab(tab)) {
+                if (isTilemapEditorTab(tab)) {
+                    TilemapEditorController tilemap = getTilemapEditorController(tab);
+                    if (tilemap != null && tilemap.saveCurrentProject()) {
+                        tabFileMap.put(tab, tilemap.getCurrentFile());
+                        savedAny = true;
+                    }
+                } else if (isTileEditorTab(tab)) {
                     TileEditorController tile = getTileEditorController(tab);
                     if (tile != null && tile.saveCurrentProject()) {
                         savedAny = true;
@@ -2619,6 +2681,16 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML
     private void onSaveAsFile(ActionEvent event) {
         Tab selectedTab = tabPane != null ? tabPane.getSelectionModel().getSelectedItem() : null;
+        if (selectedTab != null && isTilemapEditorTab(selectedTab)) {
+            TilemapEditorController tilemap = getTilemapEditorController(selectedTab);
+            if (tilemap != null && tilemap.saveProjectAs()) {
+                tabFileMap.put(selectedTab, tilemap.getCurrentFile());
+                refreshTilemapTabTitle(selectedTab);
+                if (projectExplorerController != null) projectExplorerController.refreshTree();
+                persistSessionState();
+            }
+            return;
+        }
         if (selectedTab != null && isTileEditorTab(selectedTab)) {
             TileEditorController tile = getTileEditorController(selectedTab);
             if (tile != null && tile.saveProjectAs()) {
@@ -2664,6 +2736,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML
     private void onCloseFile(ActionEvent event)  {
         Tab tab = tabPane != null ? tabPane.getSelectionModel().getSelectedItem() : null;
+        if (isTilemapEditorTab(tab) && !confirmCloseTilemapTab(tab)) {
+            return;
+        }
         File closing = tab != null ? tabFileMap.get(tab) : null;
         fileOptionsController.onCloseFile(event, tabPane, tabFileMap, editorModel);
         if (closing != null) {
@@ -3065,7 +3140,17 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     @FXML
     private void onOpenTilemapEditor(ActionEvent event) {
-        String title = toolTitle("menu.tools.tilemapEditor", "Editor de Mapas de Tiles");
+        openTilemapEditorTab(null, null);
+    }
+
+    private void openTilemapEditorTab(File fileToOpen) {
+        openTilemapEditorTab(fileToOpen, null);
+    }
+
+    private void openTilemapEditorTab(File fileToOpen, String untitledName) {
+        String title = untitledName != null
+                ? untitledName
+                : toolTitle("menu.tools.tilemapEditor", "Editor de Mapas de Tiles");
         Consumer<File> onExported = exportedFile -> {
             if (projectExplorerController != null) {
                 projectExplorerController.refreshTree();
@@ -3073,8 +3158,86 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             openFileFromExplorer(exportedFile);
             persistSessionState();
         };
-        Node node = new TilemapEditorController().createNode(currentProjectDir, bundle, onExported);
-        fxUtils.addToolTab(title, node, tabPane);
+        TilemapEditorController controller = new TilemapEditorController();
+        Node node = controller.createNode(currentProjectDir, bundle, onExported);
+        Tab tab = fxUtils.addToolTab(title, node, tabPane);
+        tab.getProperties().put(TAB_PROP_TILEMAP_CONTROLLER, controller);
+        controller.setStateListener(() -> refreshTilemapTabTitle(tab));
+        tab.setOnCloseRequest(e -> {
+            if (!confirmCloseTilemapTab(tab)) e.consume();
+        });
+        tab.setOnClosed(e -> {
+            tabFileMap.remove(tab);
+            tab.getProperties().remove(TAB_PROP_TILEMAP_CONTROLLER);
+        });
+        if (fileToOpen != null) {
+            if (controller.openProject(fileToOpen)) {
+                tabFileMap.put(tab, controller.getCurrentFile());
+                rememberRecentFile(fileToOpen);
+                refreshTilemapTabTitle(tab);
+            } else {
+                tabPane.getTabs().remove(tab);
+                return;
+            }
+        } else if (untitledName != null) {
+            File target = currentProjectDir != null
+                    ? new File(currentProjectDir, untitledName)
+                    : new File(untitledName);
+            controller.prepareNewProject(target);
+            refreshTilemapTabTitle(tab);
+        }
+        persistSessionState();
+    }
+
+    private Tab findTilemapTabForFile(File file) {
+        if (file == null || tabPane == null) return null;
+        for (Tab tab : tabPane.getTabs()) {
+            TilemapEditorController controller = getTilemapEditorController(tab);
+            File current = controller != null ? controller.getCurrentFile() : null;
+            if (current != null && current.equals(file)) return tab;
+        }
+        return null;
+    }
+
+    private boolean isTilemapEditorTab(Tab tab) {
+        return getTilemapEditorController(tab) != null;
+    }
+
+    private TilemapEditorController getTilemapEditorController(Tab tab) {
+        if (tab == null) return null;
+        Object stored = tab.getProperties().get(TAB_PROP_TILEMAP_CONTROLLER);
+        return stored instanceof TilemapEditorController controller ? controller : null;
+    }
+
+    private void refreshTilemapTabTitle(Tab tab) {
+        TilemapEditorController controller = getTilemapEditorController(tab);
+        if (controller == null) return;
+        File current = controller.getCurrentFile();
+        String base = current != null ? current.getName() : toolTitle("menu.tools.tilemapEditor", "Editor de Mapas de Tiles");
+        tab.setText(controller.hasUnsavedChanges() ? base + "*" : base);
+    }
+
+    private boolean confirmCloseTilemapTab(Tab tab) {
+        TilemapEditorController controller = getTilemapEditorController(tab);
+        if (controller == null || !controller.hasUnsavedChanges()) return true;
+
+        ButtonType save = new ButtonType("Guardar", ButtonBar.ButtonData.OK_DONE);
+        ButtonType discard = new ButtonType("Descartar", ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancel = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Cerrar tilemap");
+        alert.setHeaderText("Hay cambios sin guardar");
+        alert.setContentText("¿Qué quieres hacer con los cambios del tilemap?");
+        alert.getButtonTypes().setAll(save, discard, cancel);
+        Optional<ButtonType> result = alert.showAndWait();
+        if (result.isEmpty() || result.get() == cancel) return false;
+        if (result.get() == discard) return true;
+        boolean saved = controller.saveCurrentProject();
+        if (saved && controller.getCurrentFile() != null) {
+            tabFileMap.put(tab, controller.getCurrentFile());
+            refreshTilemapTabTitle(tab);
+        }
+        return saved;
     }
 
     private String toolTitle(String key, String fallback) {

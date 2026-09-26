@@ -33,6 +33,7 @@ class FileTypeIconsTest {
     void classifiesRetroAssets() {
         assertEquals(Kind.SMT, FileTypeIcons.kindForFileName("dialog.smt"));
         assertEquals(Kind.TILE, FileTypeIcons.kindForFileName("sprites.tile"));
+        assertEquals(Kind.TILEMAP, FileTypeIcons.kindForFileName("level.tilemap"));
         assertEquals(Kind.ROM, FileTypeIcons.kindForFileName("game.gb"));
         assertEquals(Kind.ROM, FileTypeIcons.kindForFileName("game.gbc"));
         assertEquals(Kind.IMAGE, FileTypeIcons.kindForFileName("sprite.png"));

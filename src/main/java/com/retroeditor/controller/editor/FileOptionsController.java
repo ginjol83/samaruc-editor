@@ -58,6 +58,7 @@ public class FileOptionsController {
         FileChooser fileChooser = new FileChooser();
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("C / Assembly / Markdown", "*.c", "*.h", "*.asm", "*.s", "*.md", "*.markdown"));
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Sprite Project (*.tile)", "*.tile"));
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Tilemap Project (*.tilemap)", "*.tilemap"));
         if (defaultOpenDirectory != null && defaultOpenDirectory.exists() && defaultOpenDirectory.isDirectory()) {
             try {
                 fileChooser.setInitialDirectory(defaultOpenDirectory);
