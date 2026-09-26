@@ -16,6 +16,7 @@ import com.retroeditor.service.converter.RetroImageConversion;
 import com.retroeditor.service.converter.RetroImageMode;
 import com.retroeditor.service.converter.RetroImagePacker;
 
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -39,6 +40,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.stage.FileChooser;
 import javafx.stage.Window;
+import javafx.util.Duration;
 
 /**
  * Controlador de la herramienta que convierte un PNG en codigo C con el
@@ -54,6 +56,7 @@ public class PngToRetroConverterController {
     private static final double PREVIEW_HEIGHT = 170;
     private static final int MIN_DIMENSION = 8;
     private static final int MAX_DIMENSION = 1024;
+    private static final long RECONVERT_DELAY_MS = 250;
 
     /** Modo de video con su etiqueta ya traducida. */
     private record ModeOption(RetroImageMode mode, String label) {
@@ -68,10 +71,13 @@ public class PngToRetroConverterController {
 
     private File selectedPng;
     private String generatedCode = "";
+    private int conversionGeneration;
 
     private ResourceBundle bundle;
     private Node rootNode;
     private Runnable closeHandler;
+    private final PauseTransition reconvertDelay =
+            new PauseTransition(Duration.millis(RECONVERT_DELAY_MS));
 
     /**
      * Crea la UI de la herramienta para mostrarla como pestana del editor.
@@ -181,17 +187,19 @@ public class PngToRetroConverterController {
             }
         });
 
-        Runnable reconvert = () -> reconvert(modeBox, arrayName, width, height,
+        Runnable reconvertNow = () -> reconvert(modeBox, arrayName, width, height,
                 includeConst, includeDefines, infoLabel, preview, output);
+        reconvertDelay.setOnFinished(e -> reconvertNow.run());
+        Runnable reconvertSoon = reconvertDelay::playFromStart;
         modeBox.valueProperty().addListener((obs, oldV, newV) -> {
             applyModeDefaults(modeBox, width, height);
-            reconvert.run();
+            reconvertSoon.run();
         });
-        arrayName.textProperty().addListener((obs, oldV, newV) -> reconvert.run());
-        width.valueProperty().addListener((obs, oldV, newV) -> reconvert.run());
-        height.valueProperty().addListener((obs, oldV, newV) -> reconvert.run());
-        includeConst.selectedProperty().addListener((obs, oldV, newV) -> reconvert.run());
-        includeDefines.selectedProperty().addListener((obs, oldV, newV) -> reconvert.run());
+        arrayName.textProperty().addListener((obs, oldV, newV) -> reconvertSoon.run());
+        width.valueProperty().addListener((obs, oldV, newV) -> reconvertSoon.run());
+        height.valueProperty().addListener((obs, oldV, newV) -> reconvertSoon.run());
+        includeConst.selectedProperty().addListener((obs, oldV, newV) -> reconvertSoon.run());
+        includeDefines.selectedProperty().addListener((obs, oldV, newV) -> reconvertSoon.run());
 
         exportButton.setOnAction(e -> exportToProject(currentProjectDir, output, onExported));
         clipboardButton.setOnAction(e -> copyToClipboard());
@@ -256,6 +264,7 @@ public class PngToRetroConverterController {
         int targetHeight = height.getValue();
         RetroExportOptions options = new RetroExportOptions(arrayName.getText(),
                 includeConst.isSelected(), includeDefines.isSelected(), true, "Generado por Samaruc");
+        int generation = ++conversionGeneration;
 
         output.setText(msg("tool.pngToRetro.converting", "Convirtiendo..."));
         Thread worker = new Thread(() -> {
@@ -263,16 +272,22 @@ public class PngToRetroConverterController {
                 RetroImageConversion result = converter.convert(png, mode, targetWidth, targetHeight);
                 String code = codeGenerator.generate(result, options);
                 Platform.runLater(() -> {
+                    if (generation != conversionGeneration) {
+                        return;
+                    }
                     generatedCode = code;
                     output.setText(code);
-                    infoLabel.setText(describe(result));
+                    infoLabel.setText(describe(result, option.label()));
                     drawPreview(preview, result);
                 });
             } catch (IOException | RuntimeException ex) {
                 String message = ex.getMessage() == null ? ex.toString() : ex.getMessage();
                 Platform.runLater(() -> {
+                    if (generation != conversionGeneration) {
+                        return;
+                    }
                     generatedCode = "";
-                    output.setText("ERROR: " + message);
+                    output.setText(msg("tool.pngToRetro.error", "ERROR") + ": " + message);
                     infoLabel.setText(option.label());
                     drawMessage(preview, message);
                 });
@@ -282,8 +297,8 @@ public class PngToRetroConverterController {
         worker.start();
     }
 
-    private String describe(RetroImageConversion result) {
-        StringBuilder text = new StringBuilder(result.mode().getDisplayName())
+    private String describe(RetroImageConversion result, String modeLabel) {
+        StringBuilder text = new StringBuilder(modeLabel)
                 .append(": ").append(result.totalBytes()).append(" bytes");
         if (result.layers().size() > 1) {
             List<String> names = RetroImagePacker.layerNames(result.mode(), "datos");
