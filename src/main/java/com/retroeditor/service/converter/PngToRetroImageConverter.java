@@ -95,7 +95,11 @@ public class PngToRetroImageConverter {
         Arrays.sort(usedIndices);
 
         int[] effectivePalette = RetroQuantizer.selectColors(hardwarePalette, usedIndices);
-        int[] indices = RetroQuantizer.remap(quantized, usedIndices);
+        // Si la imagen trae transparencia, la posicion 0 de la paleta efectiva es
+        // el color transparente: los pixeles opacos que no usan un color
+        // conservado tienen que ir al mas cercano de los demas, no a esa posicion.
+        int firstOpaque = mode.hasTransparentFirstColor() && RetroQuantizer.hasTransparentPixels(argbPixels) ? 1 : 0;
+        int[] indices = RetroQuantizer.remapToNearest(quantized, usedIndices, hardwarePalette, firstOpaque);
         List<RetroImageLayer> layers =
                 RetroImagePacker.pack(mode, indices, effectivePalette, usedIndices, width, height);
         return new RetroImageConversion(mode, width, height, layers, effectivePalette, usedIndices,

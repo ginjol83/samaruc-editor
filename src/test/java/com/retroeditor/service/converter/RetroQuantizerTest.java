@@ -1,5 +1,6 @@
 package com.retroeditor.service.converter;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -62,6 +63,40 @@ class RetroQuantizerTest {
         assertEquals(0, remapped[2], "Los indices fuera del subconjunto caen en el primero");
         assertEquals(1, remapped[3]);
         assertEquals(0, remapped[4]);
+    }
+
+    @Test
+    void remapToNearest_SendsDiscardedColoursToTheClosestKeptOne() {
+        int[] palette = { 0xFF000000, 0xFFFF0000, 0xFF00FF00, 0xFF0000FF, 0xFF101010, 0xFF102030, 0xFF000080 };
+        int[] selected = { 1, 4 };
+        int[] quantized = { 0, 1, 5, 6 };
+
+        int[] remapped = RetroQuantizer.remapToNearest(quantized, selected, palette, 0);
+
+        assertArrayEquals(new int[] { 1, 0, 1, 1 }, remapped,
+                "El negro, el azul oscuro y el azul marino seffin del gris, no del rojo");
+    }
+
+    @Test
+    void remapToNearest_WithFirstCandidateOne_NeverUsesTheTransparentPosition() {
+        int[] palette = RetroHardwarePalette.masterSystem();
+        int[] selected = { 0, 7 };
+        int[] quantized = { 1, 7 };
+
+        int[] remapped = RetroQuantizer.remapToNearest(quantized, selected, palette, 1);
+
+        assertArrayEquals(new int[] { 1, 1 }, remapped,
+                "El negro opaco no puede caer en la posicion 0, que es el transparente del sprite");
+    }
+
+    @Test
+    void remapToNearest_WithFirstCandidateOutOfRange_FallsBackToTheFirstPosition() {
+        int[] palette = RetroHardwarePalette.masterSystem();
+        int[] selected = { 0 };
+
+        assertArrayEquals(new int[] { 0, 0 },
+                RetroQuantizer.remapToNearest(new int[] { 0, 5 }, selected, palette, 1),
+                "Si solo queda un color, ese es el que hay que usar");
     }
 
     @Test

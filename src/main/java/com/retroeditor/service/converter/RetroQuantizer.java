@@ -31,24 +31,24 @@ public final class RetroQuantizer {
         if (palette.length == 0) {
             throw new IllegalArgumentException("La paleta no puede estar vacia.");
         }
-        int r = (argb >> 16) & 0xFF;
-        int g = (argb >> 8) & 0xFF;
-        int b = argb & 0xFF;
-
         int best = 0;
         double bestDistance = Double.MAX_VALUE;
         for (int i = 0; i < palette.length; i++) {
-            int candidate = palette[i];
-            double dr = r - ((candidate >> 16) & 0xFF);
-            double dg = g - ((candidate >> 8) & 0xFF);
-            double db = b - (candidate & 0xFF);
-            double distance = WEIGHTS[0] * dr * dr + WEIGHTS[1] * dg * dg + WEIGHTS[2] * db * db;
+            double distance = colorDistance(argb, palette[i]);
             if (distance < bestDistance) {
                 bestDistance = distance;
                 best = i;
             }
         }
         return best;
+    }
+
+    /** Distancia ponderada de un color a otro (pesos de luminancia). */
+    private static double colorDistance(int one, int other) {
+        double dr = ((one >> 16) & 0xFF) - ((other >> 16) & 0xFF);
+        double dg = ((one >> 8) & 0xFF) - ((other >> 8) & 0xFF);
+        double db = (one & 0xFF) - (other & 0xFF);
+        return WEIGHTS[0] * dr * dr + WEIGHTS[1] * dg * dg + WEIGHTS[2] * db * db;
     }
 
     /**
@@ -70,7 +70,12 @@ public final class RetroQuantizer {
         return nearestIndex(argb, Arrays.copyOfRange(palette, 1, palette.length)) + 1;
     }
 
-    private static boolean containsTransparentPixel(int[] argbPixels) {
+    /**
+     * Si la imagen tiene pixeles con alfa menor de 128, que es lo que decide si
+     * el color 0 de los sprites se usa como transparente.
+     */
+    public static boolean hasTransparentPixels(int[] argbPixels) {
+        Objects.requireNonNull(argbPixels, "argbPixels");
         for (int argb : argbPixels) {
             if (((argb >>> 24) & 0xFF) < ALPHA_TRANSPARENT) {
                 return true;
@@ -96,14 +101,14 @@ public final class RetroQuantizer {
      */
     public static int[] quantize(int[] argbPixels, int[] palette, boolean transparentFirstColor) {
         Objects.requireNonNull(argbPixels, "argbPixels");
-        boolean hasTransparentPixels = transparentFirstColor && containsTransparentPixel(argbPixels);
+        boolean transparentInImage = transparentFirstColor && hasTransparentPixels(argbPixels);
         int[] result = new int[argbPixels.length];
         for (int i = 0; i < argbPixels.length; i++) {
             int argb = argbPixels[i];
             if (transparentFirstColor && ((argb >>> 24) & 0xFF) < ALPHA_TRANSPARENT) {
                 result[i] = 0;
             } else {
-                result[i] = hasTransparentPixels ? nearestIndexExceptFirst(argb, palette) : nearestIndex(argb, palette);
+                result[i] = transparentInImage ? nearestIndexExceptFirst(argb, palette) : nearestIndex(argb, palette);
             }
         }
         return result;
@@ -236,6 +241,67 @@ public final class RetroQuantizer {
             result[i] = mapped < 0 ? 0 : mapped;
         }
         return result;
+    }
+
+    /**
+     * Renumera los indices a las posiciones de {@code selected} como
+     * {@link #remap(int[], int[])}, pero en vez de mandar todos los colores
+     * descartados al indice 0 los lleva al color seleccionado mas cercano.
+     *
+     * Sin esto, una imagen con mas tonos de los que caben en el modo (por
+     * ejemplo 12 grises en un modo de 4 colores) perdia todos los tonos menos
+     * usados, que acababan todos en el color de la posicion 0: el mas frecuente,
+     * pero no necesariamente parecido a esos tonos.
+     *
+     * @param quantizedIndices indices ya cuantizados a la paleta completa
+     * @param selected indices conservados, en orden creciente
+     * @param palette paleta completa del modo
+     * @param firstCandidate primera posicion de {@code selected} que se puede
+     *        usar para un pixel opaco. Vale 1 en los modos de tiles con
+     *        transparencia (SMS/GG), donde la posicion 0 es el color transparente
+     *        y usarla volveria invisible el pixel
+     * @return array con la misma longitud que la entrada
+     */
+    public static int[] remapToNearest(int[] quantizedIndices, int[] selected, int[] palette,
+                                       int firstCandidate) {
+        Objects.requireNonNull(quantizedIndices, "quantizedIndices");
+        Objects.requireNonNull(selected, "selected");
+        Objects.requireNonNull(palette, "palette");
+        if (selected.length == 0) {
+            throw new IllegalArgumentException("Hay que conservar al menos un color.");
+        }
+        int[] lookup = new int[Math.max(selected[selected.length - 1] + 1, 1)];
+        Arrays.fill(lookup, -1);
+        for (int position = 0; position < selected.length; position++) {
+            if (selected[position] < lookup.length) {
+                lookup[selected[position]] = position;
+            }
+        }
+        int start = firstCandidate > 0 && firstCandidate < selected.length ? firstCandidate : 0;
+        int[] result = new int[quantizedIndices.length];
+        for (int i = 0; i < quantizedIndices.length; i++) {
+            int index = quantizedIndices[i];
+            int mapped = index >= 0 && index < lookup.length ? lookup[index] : -1;
+            if (mapped < 0) {
+                mapped = nearestSelected(index >= 0 && index < palette.length ? palette[index] : 0, selected, palette, start);
+            }
+            result[i] = mapped;
+        }
+        return result;
+    }
+
+    /** Posicion de {@code selected} cuyo color esta mas cerca de {@code argb}. */
+    private static int nearestSelected(int argb, int[] selected, int[] palette, int start) {
+        int best = start;
+        double bestDistance = Double.MAX_VALUE;
+        for (int position = start; position < selected.length; position++) {
+            double distance = colorDistance(argb, palette[selected[position]]);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = position;
+            }
+        }
+        return best;
     }
 
     /** Extrae los colores de la paleta selected, en el mismo orden. */

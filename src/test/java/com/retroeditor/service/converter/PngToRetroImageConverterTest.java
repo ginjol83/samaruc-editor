@@ -123,6 +123,53 @@ class PngToRetroImageConverterTest {
     }
 
     @Test
+    void convertPixels_WithMoreTonesThanColours_KeepsThemCloseToTheOriginal() {
+        // Degradado de 16 tonos de gris: mas de los 2 colores del modo 0 del CPC.
+        int width = 16;
+        int height = 8;
+        int[] pixels = new int[width * height];
+        for (int i = 0; i < pixels.length; i++) {
+            int grey = 16 + i * 14;
+            pixels[i] = 0xFF000000 | grey << 16 | grey << 8 | grey;
+        }
+
+        RetroImageConversion conversion =
+                converter.convertPixels(pixels, RetroImageMode.CPC_MODE_0, width, height);
+
+        double error = meanSquaredError(pixels, conversion);
+        double naive = meanSquaredErrorToConstant(pixels, conversion.palette()[0]);
+        assertTrue(error < naive / 2,
+                "Los tonos descartados tienen que ir al color conservado mas cercano, no todos al primero: "
+                        + error + " frente a " + naive);
+    }
+
+    /** Error cuadratico medio entre los pixeles originales y los ya cuantizados. */
+    private static double meanSquaredError(int[] pixels, RetroImageConversion conversion) {
+        double total = 0;
+        for (int i = 0; i < pixels.length; i++) {
+            int index = conversion.indexAt(i % conversion.width(), i / conversion.width());
+            total += squaredDistance(pixels[i], conversion.palette()[index]);
+        }
+        return total / pixels.length;
+    }
+
+    /** El mismo error si todos los pixeles acabaran en un unico color. */
+    private static double meanSquaredErrorToConstant(int[] pixels, int color) {
+        double total = 0;
+        for (int pixel : pixels) {
+            total += squaredDistance(pixel, color);
+        }
+        return total / pixels.length;
+    }
+
+    private static double squaredDistance(int one, int other) {
+        double dr = ((one >> 16) & 0xFF) - ((other >> 16) & 0xFF);
+        double dg = ((one >> 8) & 0xFF) - ((other >> 8) & 0xFF);
+        double db = (one & 0xFF) - (other & 0xFF);
+        return dr * dr + dg * dg + db * db;
+    }
+
+    @Test
     void convertPixels_WithWrongPixelCount_Throws() {
         assertThrows(IllegalArgumentException.class,
                 () -> converter.convertPixels(new int[4], RetroImageMode.CPC_MODE_0, 8, 1));
