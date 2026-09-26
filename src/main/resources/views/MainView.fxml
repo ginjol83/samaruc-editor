@@ -76,6 +76,7 @@
                         <MenuItem fx:id="menuItemGameBoyAudioEditor" text="Editor de audio (Game Boy)" onAction="#onOpenGameBoyAudioEditor" />
                         <MenuItem fx:id="menuItemPngToGameBoy" text="Convertir PNG a C (Game Boy)" onAction="#onOpenPngToGameBoyConverter" />
                         <MenuItem fx:id="menuItemPngToZx" text="Convertir PNG a C (ZX Spectrum)" onAction="#onOpenPngToZxConverter" />
+                        <MenuItem fx:id="menuItemPngToRetro" text="Convertir PNG a C (CPC, C64, Master System, Game Gear, Atari)" onAction="#onOpenPngToRetroConverter" />
                         <MenuItem fx:id="menuItemRomTextTranslator" text="Traductor de texto Game Boy" onAction="#onOpenRomTextTranslator" />
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemGitHubRepos" text="Repositorios de GitHub" onAction="#onOpenGitHubRepoBrowser" />

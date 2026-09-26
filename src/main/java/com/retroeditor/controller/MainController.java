@@ -42,6 +42,7 @@ import com.retroeditor.controller.tools.StructureViewController;
 import com.retroeditor.controller.tools.TodoViewController;
 import com.retroeditor.controller.tools.PngToZxConverterController;
 import com.retroeditor.controller.tools.PngToGameBoyConverterController;
+import com.retroeditor.controller.tools.PngToRetroConverterController;
 import com.retroeditor.controller.tools.GameBoyAudioEditorController;
 import com.retroeditor.controller.tools.TranslatorTabManager;
 import com.retroeditor.controller.tools.GitHubRepoBrowserController;
@@ -183,6 +184,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private final FileOptionsController   fileOptionsController   = new FileOptionsController();
     private final PngToZxConverterController pngToZxConverterController = new PngToZxConverterController();
     private final PngToGameBoyConverterController pngToGameBoyConverterController = new PngToGameBoyConverterController();
+    private final PngToRetroConverterController pngToRetroConverterController = new PngToRetroConverterController();
     private final GameBoyAudioEditorController    gameBoyAudioEditorController    = new GameBoyAudioEditorController();
     private final TranslatorTabManager            translatorTabManager            = new TranslatorTabManager();
     private final GitHubRepoBrowserController     gitHubRepoBrowserController     = new GitHubRepoBrowserController();
@@ -3304,6 +3306,22 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         Node node = pngToGameBoyConverterController.createNode(currentProjectDir, bundle, onExported);
         Tab toolTab = fxUtils.addToolTab(title, node, tabPane);
         pngToGameBoyConverterController.setOnCloseRequest(() -> tabPane.getTabs().remove(toolTab));
+    }
+
+    @FXML
+    private void onOpenPngToRetroConverter(ActionEvent event) {
+        String title = toolTitle("tool.pngToRetro.title",
+                "Convertir PNG a C (CPC, C64, Master System, Game Gear, Atari)");
+        Consumer<File> onExported = exportedFile -> {
+            if (projectExplorerController != null) {
+                projectExplorerController.refreshTree();
+            }
+            openFileFromExplorer(exportedFile);
+            persistSessionState();
+        };
+        Node node = pngToRetroConverterController.createNode(currentProjectDir, bundle, onExported);
+        Tab toolTab = fxUtils.addToolTab(title, node, tabPane);
+        pngToRetroConverterController.setOnCloseRequest(() -> tabPane.getTabs().remove(toolTab));
     }
 
     @FXML
