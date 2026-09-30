@@ -1,5 +1,7 @@
 package com.retroeditor.controller.config;
 
+import static org.junit.jupiter.api.Assertions.fail;
+
 import java.io.File;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
@@ -9,8 +11,12 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,14 +48,39 @@ class ConfigControllerFullFxmlThemeTest {
 
     private static final List<String> platformErrors = new ArrayList<>();
 
+    private static final long FX_TIMEOUT_SECONDS = 30;
+
     @BeforeAll
-    static void initJfx() {
+    static void initJfx() throws InterruptedException {
         try {
             Platform.startup(() -> {
             });
-        } catch (IllegalStateException ignored) {
+        } catch (IllegalStateException alreadyStarted) {
         }
+        disableImplicitExit();
         Thread.setDefaultUncaughtExceptionHandler((t, e) -> platformErrors.add(t + " -> " + e));
+    }
+
+    /**
+     * Por defecto, al cerrarse la ultima ventana JavaFX termina el hilo de la
+     * aplicacion y las tareas posteriores en runLater se descartan en silencio. Estas
+     * pruebas abren y cierran escenarios y dialogos, por lo que el toolkit debe
+     * sobrevivir de un caso de prueba al siguiente.
+     *
+     * <p>No basta con llamar a {@code setImplicitExit} dentro del arranque: si otra
+     * clase de prueba ya inicializo JavaFX, {@code Platform.startup} no llega a
+     * ejecutarse y la opcion se quedaria activa, que es exactamente lo que hacia
+     * que esta clase colgara al cerrarse el dialogo de duplicar.
+     */
+    private static void disableImplicitExit() throws InterruptedException {
+        CountDownLatch applied = new CountDownLatch(1);
+        Platform.runLater(() -> {
+            Platform.setImplicitExit(false);
+            applied.countDown();
+        });
+        if (!applied.await(FX_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            fail("el hilo de JavaFX no atendio para desactivar la salida implicita");
+        }
     }
 
     @AfterAll
@@ -63,8 +94,34 @@ class ConfigControllerFullFxmlThemeTest {
         platformErrors.clear();
     }
 
+    /**
+     * Los errores del hilo de JavaFX se recogian en una lista que solo se imprimia al
+     * terminar la clase, de modo que un fallo real no suspendia ninguna prueba: el
+     * AssertionError se guardaba y se mostraba dentro del caso de prueba
+     * siguiente. Aqui se comprueba siempre, y de paso se cierra cualquier dialogo
+     * que una prueba dejara abierto (un showAndWait sin cerrar bloquea el hilo de
+     * JavaFX y arrastra a las pruebas siguientes).
+     */
+    @AfterEach
+    void assertNoPendingFxThreadErrors() throws InterruptedException {
+        try {
+            runOnFxThread(ConfigControllerFullFxmlThemeTest::closeOpenInputDialogPanes);
+        } finally {
+            if (!platformErrors.isEmpty()) {
+                List<String> captured = new ArrayList<>(platformErrors);
+                platformErrors.clear();
+                throw new AssertionError("errores en el hilo de JavaFX: " + captured);
+            }
+        }
+    }
+
     @Test
     void duplicateButtonCreatesEditableCustomThemeInRealFxml() throws Exception {
+        CountDownLatch taskFinished = new CountDownLatch(1);
+
+        // Esta tarea se queda bloqueada dentro del TextInputDialog.showAndWait() de
+        // onDuplicateTheme hasta que el dialogo se cierre, asi que no se espera aqui:
+        // el hilo de prueba conduce el dialogo y luego.await(taskFinished).
         Platform.runLater(() -> {
             try {
                 File tmp = Files.createTempFile("retroeditor-themes", ".json").toFile();
@@ -110,28 +167,8 @@ class ConfigControllerFullFxmlThemeTest {
                 Button duplicate = findButton(appearance, "Duplicar");
                 assertTrue(duplicate != null, "Duplicar button must exist");
 
-                Platform.runLater(duplicate::fire);
-                Platform.runLater(() -> {
-                    DialogPane pane = findOpenInputDialogPane();
-                    if (pane == null) {
-                        platformErrors.add("duplicate dialog never opened");
-                        return;
-                    }
-                    Object content = pane.getContent();
-                    if (content instanceof TextField input) {
-                        input.setText("Mi Modo");
-                    }
-                    Button ok = (Button) pane.lookupButton(javafx.scene.control.ButtonType.OK);
-                    if (ok != null) {
-                        ok.fire();
-                    } else {
-                        platformErrors.add("OK button not found in dialog");
-                    }
-                });
-                Platform.runLater(() -> closeOpenInputDialogPanes());
-
-                waitForFxThreadSettle();
-                waitForFxThreadSettle();
+        // onDuplicateTheme abra el dialogo. Este fire() no vuelve hasta que el dialogo se cierra.
+        duplicate.fire();
 
                 List<EditorTheme> customs = themeService.getCustomThemes();
                 assertTrue(customs.size() == 1,
@@ -147,9 +184,28 @@ class ConfigControllerFullFxmlThemeTest {
                 assertTrue(nameField.isEditable(), "name field must be editable after duplicate");
             } catch (Throwable t) {
                 platformErrors.add(t + " -> " + t.getCause());
-                t.printStackTrace();
+            } finally {
+                taskFinished.countDown();
             }
         });
+
+        // El .dialog-pane solo existe tras el pulso de CSS, asi que se espera a que
+        // aparezca en vez de asumirlo en la siguiente tarea.
+        waitForFxCondition(() -> findOpenInputDialogPane() != null, "que aparezca el dialogo de duplicar");
+
+        DialogPane pane = findOpenInputDialogPane();
+        runOnFxThread(() -> {
+            TextField input = findInputField(pane);
+            assertTrue(input != null, "input field not found in dialog");
+            input.setText("Mi Modo");
+            Button ok = (Button) pane.lookupButton(javafx.scene.control.ButtonType.OK);
+            assertTrue(ok != null, "OK button not found in dialog");
+            ok.fire();
+        });
+
+        if (!taskFinished.await(FX_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            throw new AssertionError("la tarea de JavaFX no termino en " + FX_TIMEOUT_SECONDS + "s");
+        }
         waitForFxThreadSettle();
         assertTrue(platformErrors.isEmpty(), "no exceptions on FX thread, got: " + platformErrors);
     }
@@ -369,14 +425,33 @@ class ConfigControllerFullFxmlThemeTest {
         return null;
     }
 
+    /**
+     * Localiza el {@code TextInputDialog} que abre "Duplicar". El dialogo se busca por
+     * su campo de texto, no por el tipo de contenido: desde JavaFX 19 el contenido de
+     * {@code TextInputDialog} es un {@code VBox} que envuelve al {@code TextField}, y
+     * exigir {@code content instanceof TextField} hacia que el dialogo nunca se
+     * encontrara (y por tanto la prueba nunca duplicara nada).
+     */
     private static DialogPane findOpenInputDialogPane() {
         for (Window w : Window.getWindows()) {
             if (!(w instanceof Stage stage) || !stage.isShowing()) continue;
             for (Object node : stage.getScene().getRoot().lookupAll(".dialog-pane")) {
                 DialogPane pane = (DialogPane) node;
-                if (pane.getContent() instanceof TextField) {
+                if (findInputField(pane) != null) {
                     return pane;
                 }
+            }
+        }
+        return null;
+    }
+
+    private static TextField findInputField(DialogPane pane) {
+        if (pane.getContent() instanceof TextField direct) {
+            return direct;
+        }
+        for (Object child : pane.lookupAll("TextField")) {
+            if (child instanceof TextField field) {
+                return field;
             }
         }
         return null;
@@ -387,7 +462,7 @@ class ConfigControllerFullFxmlThemeTest {
             if (!(w instanceof Stage stage) || !stage.isShowing()) continue;
             for (Object node : stage.getScene().getRoot().lookupAll(".dialog-pane")) {
                 DialogPane pane = (DialogPane) node;
-                if (pane.getContent() instanceof TextField) {
+                if (findInputField(pane) != null) {
                     stage.close();
                 }
             }
@@ -407,9 +482,74 @@ class ConfigControllerFullFxmlThemeTest {
     }
 
     private static void waitForFxThreadSettle() throws InterruptedException {
+        if (Platform.isFxApplicationThread()) return;
         CountDownLatch latch = new CountDownLatch(1);
         Platform.runLater(latch::countDown);
-        latch.await(10, TimeUnit.SECONDS);
+        if (!latch.await(FX_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            throw new AssertionError("el hilo de JavaFX no se estabilizo en " + FX_TIMEOUT_SECONDS + "s");
+        }
+    }
+
+    /**
+     * Ejecuta una accion en el hilo de JavaFX y espera a que termine. Si el hilo no
+     * atiende en el plazo la prueba falla, en vez de continuar sobre un estado sin
+     * verificar: antes el tiempo de espera se ignoraba en silencio y los errores
+     * acababan apareciendo en la prueba siguiente, que seguia en verde.
+     */
+    private static void runOnFxThread(Runnable action) throws InterruptedException {
+        if (Platform.isFxApplicationThread()) {
+            action.run();
+            return;
+        }
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Platform.runLater(() -> {
+            try {
+                action.run();
+            } catch (Throwable t) {
+                failure.set(t);
+            } finally {
+                latch.countDown();
+            }
+        });
+        if (!latch.await(FX_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            throw new AssertionError("el hilo de JavaFX no atendio en " + FX_TIMEOUT_SECONDS + "s");
+        }
+        Throwable t = failure.get();
+        if (t != null) throw new AssertionError("fallo en el hilo de JavaFX: " + t, t);
+    }
+
+    /**
+     * Sondea una condicion desde el hilo de JavaFX hasta que se cumpla. El sondeo se
+     * hace desde este hilo y no desde JavaFX a proposito: cuando hay un
+     * {@code showAndWait()} abierto, el hilo de JavaFX esta dentro de un bucle de
+     * eventos anidado y dormir ahi impediria el pulso de CSS que crea el
+     * {@code .dialog-pane} que se esta buscando.
+     */
+    private static void waitForFxCondition(BooleanSupplier condition, String description) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(FX_TIMEOUT_SECONDS);
+        while (System.nanoTime() < deadline) {
+            if (evaluateOnFxThread(condition)) return;
+            Thread.sleep(20);
+        }
+        throw new AssertionError("se agoto el plazo esperando: " + description);
+    }
+
+    private static boolean evaluateOnFxThread(BooleanSupplier condition) throws InterruptedException {
+        if (Platform.isFxApplicationThread()) return condition.getAsBoolean();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicBoolean result = new AtomicBoolean();
+        Platform.runLater(() -> {
+            try {
+                result.set(condition.getAsBoolean());
+            } finally {
+                latch.countDown();
+            }
+        });
+        if (!latch.await(FX_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+            throw new AssertionError("el hilo de JavaFX no atendio en " + FX_TIMEOUT_SECONDS + "s");
+        }
+        return result.get();
     }
 
     private static void assertTrue(boolean condition, String message) {

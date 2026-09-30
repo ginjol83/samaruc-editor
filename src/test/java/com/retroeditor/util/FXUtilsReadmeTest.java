@@ -31,6 +31,18 @@ class FXUtilsReadmeTest {
     }
 
     @Test
+    void readmeIsPlatformSpecificForCpcTemplate() throws Exception {
+        String readme = invokeReadme("CPC", "cpc-proj");
+
+        Assertions.assertTrue(readme.contains("Amstrad CPC project"));
+        Assertions.assertTrue(readme.contains("z88dk"));
+        Assertions.assertTrue(readme.contains("Caprice32"));
+        Assertions.assertTrue(readme.contains("src/main.c"));
+        Assertions.assertFalse(readme.contains("Game Boy project"));
+        Assertions.assertFalse(readme.contains("ZX Spectrum project"));
+    }
+
+    @Test
     void readmeIsGenericForEmptyTemplate() throws Exception {
         String readme = invokeReadme("EMPTY", "generic-proj");
 

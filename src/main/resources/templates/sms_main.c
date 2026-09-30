@@ -1,4 +1,4 @@
-#include <sms/sms.h>
+#include <sms.h>
 
 void main(void) {
     SMS_displayOff();

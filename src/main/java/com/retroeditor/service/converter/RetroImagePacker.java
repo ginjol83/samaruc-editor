@@ -1,5 +1,6 @@
 package com.retroeditor.service.converter;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -52,6 +53,7 @@ public final class RetroImagePacker {
             case GTIA_MODE_7 -> List.of(new RetroImageLayer("", "datos de la imagen (PRIOR 3)", packGti7(indices, width, height)));
             case TILE_PLANAR -> List.of(new RetroImageLayer("", "tiles de " + (width / 8) + "x" + (height / 8),
                     packTilePlanar(indices, width, height)));
+            case NES_2BPP -> packNES(indices, palette, hardwareIndices, width, height);
             case C64_CHARSET -> packC64Charset(indices, hardwareIndices, width, height);
             case C64_BITMAP -> packC64Bitmap(indices, hardwareIndices, width, height);
         };
@@ -125,6 +127,260 @@ public final class RetroImagePacker {
             }
         }
         return data;
+    }
+
+    /**
+     * NES: tiles 8x8 de 2bpp en tres capas.
+     *
+     * Cada tile ocupa 16 bytes: los 8 primeros el plano 0 (bit 0 de cada
+     * pixel) y los 8 siguientes el plano 1 (bit 1), de la fila 0 a la 7. El
+     * pixel vale de 0 a 3 y es el indice dentro de la subpaleta de la celda.
+     *
+     * El PPU elige los colores por celda de 16x16: cada una escoge hasta 4
+     * colores de la paleta de 64 entradas y los guarda en una de las 4
+     * subpaletas. Si ninguna subpaleta libre cabe con los colores de la celda,
+     * se busca la que deje un error de color minimo y los pixeles se llevan a
+     * sus tonos mas cercanos.
+     *
+     * @return capas {@code tiles}, {@code attributes} (2 bits por cuadrante de
+     *         8x8 con el numero de subpaleta) y {@code palette} (los 16 bytes
+     *         de paleta RAM del PPU, {@code 0xFF} para los huecos sin usar)
+     */
+    public static List<RetroImageLayer> packNES(int[] indices, int[] palette, int[] hardwareIndices,
+                                                int width, int height) {
+        int tileSize = RetroImageMode.TILE_SIZE;
+        int tilesX = width / tileSize;
+        int tilesY = height / tileSize;
+        int cellsX = (width + 15) / 16;
+        int cellsY = (height + 15) / 16;
+        int paletteSize = hardwareIndices.length;
+
+        byte[] patterns = new byte[tilesX * tilesY * tileSize * 2];
+        byte[] attributes = new byte[cellsX * cellsY];
+        byte[] paletteRam = new byte[16];
+        Arrays.fill(paletteRam, (byte) 0xFF);
+        int[][] subpalettes = new int[4][4];
+        for (int[] subpalette : subpalettes) {
+            Arrays.fill(subpalette, -1);
+        }
+        int[] fill = new int[4];
+        // Color ARGB de cada entrada (0-63) de la paleta del PPU.
+        int[] ppuArgb = new int[64];
+        for (int i = 0; i < hardwareIndices.length; i++) {
+            if (hardwareIndices[i] >= 0 && hardwareIndices[i] < ppuArgb.length) {
+                ppuArgb[hardwareIndices[i]] = palette[i];
+            }
+        }
+
+        for (int cellY = 0; cellY < cellsY; cellY++) {
+            for (int cellX = 0; cellX < cellsX; cellX++) {
+                int originX = cellX * 16;
+                int originY = cellY * 16;
+                int availWidth = Math.min(16, width - originX);
+                int availHeight = Math.min(16, height - originY);
+                int[] cellPositions = extractCell(indices, width, originX, originY, availWidth, availHeight);
+                int[] chosen = RetroQuantizer.mostUsedOrdered(cellPositions, paletteSize, 4);
+                int[] chosenPpu = new int[chosen.length];
+                for (int i = 0; i < chosen.length; i++) {
+                    chosenPpu[i] = hardwareIndices[chosen[i]];
+                }
+
+                int[] resolved = resolveNesSubpalette(chosenPpu, subpalettes, fill, paletteRam, ppuArgb);
+                int subpalette = resolved[0];
+                int[] stored = subpalettes[subpalette];
+                boolean placed = resolved[1] == 1;
+
+                // Slot de cada posicion de la paleta efectiva dentro de la subpaleta.
+                int[] slotOfPpu = new int[64];
+                Arrays.fill(slotOfPpu, -1);
+                for (int i = 0; i < chosenPpu.length; i++) {
+                    slotOfPpu[chosenPpu[i]] = placed ? storedSlotFor(stored, chosenPpu[i], ppuArgb) : i;
+                }
+                for (int position = 0; position < paletteSize; position++) {
+                    int ppu = hardwareIndices[position];
+                    if (slotOfPpu[ppu] < 0 && appearsIn(cellPositions, position)) {
+                        slotOfPpu[ppu] = storedSlotFor(stored, ppu, ppuArgb);
+                    }
+                }
+
+                for (int subY = 0; subY < 2; subY++) {
+                    for (int subX = 0; subX < 2; subX++) {
+                        int tileX = cellX * 2 + subX;
+                        int tileY = cellY * 2 + subY;
+                        if (tileX >= tilesX || tileY >= tilesY) {
+                            continue;
+                        }
+                        byte[] tile = packNesTile(indices, hardwareIndices, slotOfPpu, width,
+                                tileX * tileSize, tileY * tileSize);
+                        System.arraycopy(tile, 0, patterns, (tileY * tilesX + tileX) * tileSize * 2, tile.length);
+                    }
+                }
+                int quadrant = subpalette | (subpalette << 2) | (subpalette << 4) | (subpalette << 6);
+                attributes[cellY * cellsX + cellX] = (byte) quadrant;
+            }
+        }
+        return List.of(
+                new RetroImageLayer("tiles", "tiles 2bpp: plano 0 en los 8 primeros bytes y plano 1 en los 8 siguientes", patterns),
+                new RetroImageLayer("attributes", "atributos: 2 bits por cuadrante de 8x8 con el numero de subpaleta", attributes),
+                new RetroImageLayer("palette", "paleta PPU para $3F00: 4 subpaletas de 4 colores (0xFF = sin usar)", paletteRam));
+    }
+
+    /**
+     * Busca una subpaleta para los colores de una celda de 16x16.
+     *
+     * @return array de 2 elementos: el numero de subpaleta y 1 si los colores
+     *         se han escrito en ella (0 si la celda se ha llevado a los tonos
+     *         mas cercanos porque ninguna subpaleta cabia)
+     */
+    private static int[] resolveNesSubpalette(int[] chosenPpu, int[][] subpalettes, int[] fill,
+                                              byte[] paletteRam, int[] ppuArgb) {
+        // Reutilizar una subpaleta que ya tenga exactamente esos colores.
+        for (int subpalette = 0; subpalette < 4; subpalette++) {
+            int[] stored = subpalettes[subpalette];
+            boolean reusable = true;
+            for (int i = 0; i < chosenPpu.length; i++) {
+                if (stored[i] != chosenPpu[i]) {
+                    reusable = false;
+                    break;
+                }
+            }
+            if (reusable) {
+                return new int[] { subpalette, 1 };
+            }
+        }
+
+        // Si no, la subpaleta mas compacta donde quepan sin conflictos.
+        int bestPlace = -1;
+        int bestFill = Integer.MAX_VALUE;
+        for (int subpalette = 0; subpalette < 4; subpalette++) {
+            int[] stored = subpalettes[subpalette];
+            boolean placeable = true;
+            int newSlots = 0;
+            for (int i = 0; i < chosenPpu.length; i++) {
+                if (stored[i] != -1 && stored[i] != chosenPpu[i]) {
+                    placeable = false;
+                    break;
+                }
+                if (stored[i] == -1) {
+                    newSlots++;
+                }
+            }
+            if (placeable && fill[subpalette] + newSlots <= 4) {
+                int used = subpalettes[subpalette].length - freeSlots(subpalettes[subpalette]);
+                if (used < bestFill) {
+                    bestFill = used;
+                    bestPlace = subpalette;
+                }
+            }
+        }
+        if (bestPlace >= 0) {
+            int[] stored = subpalettes[bestPlace];
+            for (int i = 0; i < chosenPpu.length; i++) {
+                if (stored[i] == -1) {
+                    stored[i] = chosenPpu[i];
+                    paletteRam[bestPlace * 4 + i] = (byte) chosenPpu[i];
+                    fill[bestPlace]++;
+                }
+            }
+            return new int[] { bestPlace, 1 };
+        }
+
+        // Ninguna subpaleta libre: usar la que pierda menos color de media.
+        int bestSubpalette = 0;
+        double bestError = Double.MAX_VALUE;
+        for (int subpalette = 0; subpalette < 4; subpalette++) {
+            int[] stored = subpalettes[subpalette];
+            int filled = 4 - freeSlots(stored);
+            if (filled == 0) {
+                continue;
+            }
+            double error = 0;
+            for (int ppu : chosenPpu) {
+                error += colorDistance(ppuArgb[ppu], ppuArgb[nearestStoredPpu(stored, ppu, ppuArgb)]);
+            }
+            if (error < bestError) {
+                bestError = error;
+                bestSubpalette = subpalette;
+            }
+        }
+        return new int[] { bestSubpalette, 0 };
+    }
+
+    /** Slot de {@code stored} cuyo color esta mas cerca de {@code ppu}. */
+    private static int storedSlotFor(int[] stored, int ppu, int[] ppuArgb) {
+        int best = 0;
+        double bestDistance = Double.MAX_VALUE;
+        for (int slot = 0; slot < stored.length; slot++) {
+            if (stored[slot] < 0) {
+                continue;
+            }
+            double distance = colorDistance(ppuArgb[ppu], ppuArgb[stored[slot]]);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = slot;
+            }
+        }
+        return stored[best] >= 0 ? best : 0;
+    }
+
+    /** Entrada de {@code stored} mas cercana a {@code ppu}. */
+    private static int nearestStoredPpu(int[] stored, int ppu, int[] ppuArgb) {
+        int slot = storedSlotFor(stored, ppu, ppuArgb);
+        return stored[slot] >= 0 ? stored[slot] : 0;
+    }
+
+    private static int freeSlots(int[] stored) {
+        int free = 0;
+        for (int entry : stored) {
+            if (entry < 0) {
+                free++;
+            }
+        }
+        return free;
+    }
+
+    /** Empaqueta un tile 8x8 de 2bpp: 16 bytes, plano 0 abajo y plano 1 arriba. */
+    private static byte[] packNesTile(int[] indices, int[] hardwareIndices, int[] slotOfPpu,
+                                      int width, int originX, int originY) {
+        byte[] data = new byte[16];
+        for (int row = 0; row < RetroImageMode.TILE_SIZE; row++) {
+            int lowPlane = 0;
+            int highPlane = 0;
+            for (int column = 0; column < RetroImageMode.TILE_SIZE; column++) {
+                int position = indices[(originY + row) * width + originX + column];
+                int slot = slotOfPpu[hardwareIndices[position]];
+                if (slot < 0) {
+                    slot = 0;
+                }
+                int bit = 1 << (7 - column);
+                if ((slot & 0x01) != 0) {
+                    lowPlane |= bit;
+                }
+                if ((slot & 0x02) != 0) {
+                    highPlane |= bit;
+                }
+            }
+            data[row] = (byte) lowPlane;
+            data[8 + row] = (byte) highPlane;
+        }
+        return data;
+    }
+
+    /** Distancia de color igual que {@code RetroQuantizer} (pesos de luminancia). */
+    private static double colorDistance(int one, int other) {
+        double dr = ((one >> 16) & 0xFF) - ((other >> 16) & 0xFF);
+        double dg = ((one >> 8) & 0xFF) - ((other >> 8) & 0xFF);
+        double db = (one & 0xFF) - (other & 0xFF);
+        return 0.299 * dr * dr + 0.587 * dg * dg + 0.114 * db * db;
+    }
+
+    private static boolean appearsIn(int[] cellPositions, int position) {
+        for (int candidate : cellPositions) {
+            if (candidate == position) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -237,9 +493,15 @@ public final class RetroImagePacker {
      * por fila.
      */
     private static int[] extractCell(int[] indices, int width, int originX, int originY, int size) {
-        int[] cell = new int[size * size];
-        for (int row = 0; row < size; row++) {
-            System.arraycopy(indices, (originY + row) * width + originX, cell, row * size, size);
+        return extractCell(indices, width, originX, originY, size, size);
+    }
+
+    /** Igual pero con el ancho y el alto efectivos (para las celdas del borde). */
+    private static int[] extractCell(int[] indices, int width, int originX, int originY, int availWidth,
+                                     int availHeight) {
+        int[] cell = new int[availWidth * availHeight];
+        for (int row = 0; row < availHeight; row++) {
+            System.arraycopy(indices, (originY + row) * width + originX, cell, row * availWidth, availWidth);
         }
         return cell;
     }
@@ -274,6 +536,7 @@ public final class RetroImagePacker {
         return switch (mode.getLayout()) {
             case C64_CHARSET -> List.of(baseName + "_chars", baseName + "_colors");
             case C64_BITMAP -> List.of(baseName + "_bitmap", baseName + "_screen", baseName + "_colors");
+            case NES_2BPP -> List.of(baseName, baseName + "_attributes", baseName + "_palette");
             default -> List.of(baseName);
         };
     }

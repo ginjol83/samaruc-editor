@@ -90,4 +90,29 @@ class FileTemplateServiceTest {
         assertEquals("C normal (gcc)", main.name());
         assertTrue(main.description().contains("GCC"));
     }
+
+    @Test
+    void exposesGameGearMsxAndNesTemplates() {
+        List<FileTemplateService.FileTemplate> templates = service.getTemplates();
+
+        FileTemplateService.FileTemplate gg = templates.stream()
+            .filter(t -> "gg-c".equals(t.id()))
+            .findFirst()
+            .orElseThrow();
+        FileTemplateService.FileTemplate msx = templates.stream()
+            .filter(t -> "msx-c".equals(t.id()))
+            .findFirst()
+            .orElseThrow();
+        FileTemplateService.FileTemplate nes = templates.stream()
+            .filter(t -> "nes-c".equals(t.id()))
+            .findFirst()
+            .orElseThrow();
+
+        assertEquals("gg_main.c", gg.fileName());
+        assertEquals("msx_main.c", msx.fileName());
+        assertEquals("nes_main.c", nes.fileName());
+        assertTrue(gg.content().contains("sms.h"), "Game Gear template uses SMSlib via <sms.h>");
+        assertTrue(msx.content().contains("msx.h"));
+        assertTrue(nes.content().contains("nes.h"));
+    }
 }

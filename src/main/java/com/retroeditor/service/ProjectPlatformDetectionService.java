@@ -19,9 +19,12 @@ public class ProjectPlatformDetectionService {
         GAMEBOY,
         SPECTRUM,
         CPC,
+        MSX,
         SMS,
+        GAME_GEAR,
         ATARI,
         C64,
+        NES,
         UNKNOWN
     }
 
@@ -57,9 +60,12 @@ public class ProjectPlatformDetectionService {
         int gameBoyScore = 0;
         int spectrumScore = 0;
         int cpcScore = 0;
+        int msxScore = 0;
         int smsScore = 0;
+        int gameGearScore = 0;
         int atariScore = 0;
         int c64Score = 0;
+        int nesScore = 0;
         List<String> evidence = new ArrayList<>();
 
         try (Stream<Path> paths = Files.walk(projectDir.toPath())) {
@@ -89,6 +95,18 @@ public class ProjectPlatformDetectionService {
                     cpcScore += 15;
                     evidence.add("samaruc.target=cpc");
                 }
+                if (content.contains("\"samaruc.target\":\"msx\"") || content.contains("\"samaruc.target\": \"msx\"")) {
+                    msxScore += 15;
+                    evidence.add("samaruc.target=msx");
+                }
+                if (content.contains("\"samaruc.target\":\"sms\"") || content.contains("\"samaruc.target\": \"sms\"")) {
+                    smsScore += 15;
+                    evidence.add("samaruc.target=sms");
+                }
+                if (content.contains("\"samaruc.target\":\"gamegear\"") || content.contains("\"samaruc.target\": \"gamegear\"")) {
+                    gameGearScore += 15;
+                    evidence.add("samaruc.target=gamegear");
+                }
                 if (content.contains("\"samaruc.target\":\"cc65\"") || content.contains("\"samaruc.target\": \"cc65\"")) {
                     atariScore += 15;
                     evidence.add("samaruc.target=cc65");
@@ -96,6 +114,10 @@ public class ProjectPlatformDetectionService {
                 if (content.contains("\"samaruc.target\":\"c64\"") || content.contains("\"samaruc.target\": \"c64\"")) {
                     c64Score += 15;
                     evidence.add("samaruc.target=c64");
+                }
+                if (content.contains("\"samaruc.target\":\"nes\"") || content.contains("\"samaruc.target\": \"nes\"")) {
+                    nesScore += 15;
+                    evidence.add("samaruc.target=nes");
                 }
 
                 if (content.contains("#include <gb/gb.h>")) {
@@ -183,7 +205,8 @@ public class ProjectPlatformDetectionService {
                     atariScore += 5;
                     evidence.add("atarixl");
                 }
-                if (content.contains("cl65") && !content.contains("-t c64") || content.contains("-t atari") || content.contains("atari-xex") || content.contains("atari.cfg")) {
+                if (content.contains("cl65") && !content.contains("-t c64") && !content.contains("-t nes")
+                        || content.contains("-t atari") || content.contains("atari-xex") || content.contains("atari.cfg")) {
                     atariScore += 4;
                     evidence.add("cl65/-t atari");
                 }
@@ -211,42 +234,140 @@ public class ProjectPlatformDetectionService {
                     evidence.add("VIC-II");
                 }
 
-                if (content.contains("#include <sms/sms.h>") || content.contains("#include <gg/gg.h>")) {
-                    smsScore += 6;
-                    evidence.add("sms/gg.h");
+                boolean ggTarget = content.contains("+gg") || content.contains("-t gg");
+                boolean smsTarget = content.contains("+sms") || content.contains("-subtype=sms");
+                if (content.contains("#include <sms/sms.h>") || content.contains("#include <sms.h>")) {
+                    if (ggTarget) {
+                        gameGearScore += 6;
+                        evidence.add("sms.h (+gg)");
+                    } else {
+                        smsScore += 6;
+                        evidence.add("sms/sms.h");
+                    }
+                }
+                if (content.contains("#include <gg/gg.h>")) {
+                    gameGearScore += 6;
+                    evidence.add("gg/gg.h");
                 }
                 if (content.contains("sms_displayon") || content.contains("sms_waitforvblank")) {
-                    smsScore += 4;
-                    evidence.add("sms_vdp");
+                    if (ggTarget) {
+                        gameGearScore += 4;
+                        evidence.add("sms_vdp (+gg)");
+                    } else {
+                        smsScore += 4;
+                        evidence.add("sms_vdp");
+                    }
+                }
+                if (smsTarget) {
+                    smsScore += 5;
+                    evidence.add("+sms");
+                }
+                if (ggTarget) {
+                    gameGearScore += 5;
+                    evidence.add("+gg");
                 }
                 if (content.contains("rgb15(")) {
-                    smsScore += 2;
-                    evidence.add("rgb15");
+                    if (ggTarget) {
+                        gameGearScore += 2;
+                        evidence.add("rgb15 (+gg)");
+                    } else {
+                        smsScore += 2;
+                        evidence.add("rgb15");
+                    }
+                }
+
+                if (content.contains("#include <msx.h>") || content.contains("#include <msx/msx.h>")) {
+                    msxScore += 6;
+                    evidence.add("msx.h");
+                }
+                if (content.contains("+msx")) {
+                    msxScore += 5;
+                    evidence.add("+msx");
+                }
+                if (content.contains("msx_")) {
+                    msxScore += 3;
+                    evidence.add("msx_*");
+                }
+                if (content.contains("-subtype=rom") && !content.contains("+sms") && !content.contains("+gg")) {
+                    msxScore += 2;
+                    evidence.add("-subtype=rom");
+                }
+
+                boolean nesSpecific = content.contains("-t nes")
+                    || content.contains("nes.cfg")
+                    || content.contains("nes.h")
+                    || content.contains("ppu_");
+                if (content.contains("#include <nes.h>") || content.contains("#include <nes/nes.h>")) {
+                    nesScore += 6;
+                    evidence.add("nes.h");
+                }
+                if (content.contains("-t nes")) {
+                    nesScore += 4;
+                    evidence.add("-t nes");
+                }
+                if (content.contains("nes.cfg")) {
+                    nesScore += 4;
+                    evidence.add("nes.cfg");
+                }
+                if (content.contains("ppu_")) {
+                    nesScore += 3;
+                    evidence.add("ppu_*");
+                }
+                if (nesSpecific && !content.contains("atarixl") && !content.contains("-t atari")
+                        && !content.contains("atari.h")) {
+                    nesScore += 2;
+                    evidence.add("nes");
                 }
             }
         } catch (IOException ex) {
             return new DetectionResult(Platform.UNKNOWN, 0, "");
         }
 
-        int total = gameBoyScore + spectrumScore + cpcScore + smsScore + atariScore + c64Score;
+        int total = gameBoyScore + spectrumScore + cpcScore + msxScore + smsScore + gameGearScore + atariScore + c64Score + nesScore;
         if (total == 0) {
             return new DetectionResult(Platform.UNKNOWN, 0, "");
         }
 
-        int maxScore = Math.max(gameBoyScore, Math.max(spectrumScore, Math.max(cpcScore, Math.max(smsScore, Math.max(atariScore, c64Score)))));
+        int maxScore = Math.max(gameBoyScore, Math.max(spectrumScore,
+                Math.max(cpcScore, Math.max(msxScore, Math.max(smsScore,
+                        Math.max(gameGearScore, Math.max(atariScore, Math.max(c64Score, nesScore))))))));
         Platform platform = Platform.UNKNOWN;
-        if (maxScore == gameBoyScore && gameBoyScore > spectrumScore && gameBoyScore > cpcScore && gameBoyScore > smsScore && gameBoyScore > atariScore && gameBoyScore > c64Score) {
+        if (maxScore == gameBoyScore && gameBoyScore > spectrumScore && gameBoyScore > cpcScore
+                && gameBoyScore > msxScore && gameBoyScore > smsScore && gameBoyScore > gameGearScore
+                && gameBoyScore > atariScore && gameBoyScore > c64Score && gameBoyScore > nesScore) {
             platform = Platform.GAMEBOY;
-        } else if (maxScore == spectrumScore && spectrumScore > gameBoyScore && spectrumScore > cpcScore && spectrumScore > smsScore && spectrumScore > atariScore && spectrumScore > c64Score) {
+        } else if (maxScore == spectrumScore && spectrumScore > gameBoyScore && spectrumScore > cpcScore
+                && spectrumScore > msxScore && spectrumScore > smsScore && spectrumScore > gameGearScore
+                && spectrumScore > atariScore && spectrumScore > c64Score && spectrumScore > nesScore) {
             platform = Platform.SPECTRUM;
-        } else if (maxScore == cpcScore && cpcScore > gameBoyScore && cpcScore > spectrumScore && cpcScore > smsScore && cpcScore > atariScore && cpcScore > c64Score) {
+        } else if (maxScore == cpcScore && cpcScore > gameBoyScore && cpcScore > spectrumScore
+                && cpcScore > msxScore && cpcScore > smsScore && cpcScore > gameGearScore
+                && cpcScore > atariScore && cpcScore > c64Score && cpcScore > nesScore) {
             platform = Platform.CPC;
-        } else if (maxScore == smsScore && smsScore > gameBoyScore && smsScore > spectrumScore && smsScore > cpcScore && smsScore > atariScore && smsScore > c64Score) {
+        } else if (maxScore == msxScore && msxScore > gameBoyScore && msxScore > spectrumScore
+                && msxScore > cpcScore && msxScore > smsScore && msxScore > gameGearScore
+                && msxScore > atariScore && msxScore > c64Score && msxScore > nesScore) {
+            platform = Platform.MSX;
+        } else if (maxScore == smsScore && smsScore > gameBoyScore && smsScore > spectrumScore
+                && smsScore > cpcScore && smsScore > msxScore && smsScore > gameGearScore
+                && smsScore > atariScore && smsScore > c64Score && smsScore > nesScore) {
             platform = Platform.SMS;
-        } else if (maxScore == atariScore && atariScore > gameBoyScore && atariScore > spectrumScore && atariScore > cpcScore && atariScore > smsScore && atariScore > c64Score) {
+        } else if (maxScore == gameGearScore && gameGearScore > gameBoyScore && gameGearScore > spectrumScore
+                && gameGearScore > cpcScore && gameGearScore > msxScore && gameGearScore > smsScore
+                && gameGearScore > atariScore && gameGearScore > c64Score && gameGearScore > nesScore) {
+            platform = Platform.GAME_GEAR;
+        } else if (maxScore == atariScore && atariScore > gameBoyScore && atariScore > spectrumScore
+                && atariScore > cpcScore && atariScore > msxScore && atariScore > smsScore
+                && atariScore > gameGearScore && atariScore > c64Score && atariScore > nesScore) {
             platform = Platform.ATARI;
-        } else if (maxScore == c64Score && c64Score > gameBoyScore && c64Score > spectrumScore && c64Score > cpcScore && c64Score > smsScore && c64Score > atariScore) {
+        } else if (maxScore == c64Score && c64Score > gameBoyScore && c64Score > spectrumScore
+                && c64Score > cpcScore && c64Score > msxScore && c64Score > smsScore
+                && c64Score > gameGearScore && c64Score > atariScore && c64Score > nesScore) {
             platform = Platform.C64;
+        } else if (maxScore == nesScore && nesScore > gameBoyScore && nesScore > spectrumScore
+                && nesScore > cpcScore && nesScore > msxScore && nesScore > smsScore
+                && nesScore > gameGearScore && nesScore > atariScore && nesScore > c64Score) {
+            platform = Platform.NES;
         }
 
         int confidence = (int) Math.round((maxScore * 100.0) / total);

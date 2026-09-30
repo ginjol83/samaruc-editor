@@ -112,7 +112,31 @@ public class FileTemplateService {
             "template.sms-asm.name",
             "template.sms-asm.description",
             "sms_main.asm",
-            "/templates/sms_main.asm")
+            "/templates/sms_main.asm"),
+        new TemplateDefinition(
+            "gg-c",
+            "Game Gear (C / Z88DK)",
+            "Plantilla basica de juego para Sega Game Gear con Z88DK.",
+            "template.gg-c.name",
+            "template.gg-c.description",
+            "gg_main.c",
+            "/templates/gg_main.c"),
+        new TemplateDefinition(
+            "msx-c",
+            "MSX (C / Z88DK)",
+            "Plantilla basica para MSX con Z88DK.",
+            "template.msx-c.name",
+            "template.msx-c.description",
+            "msx_main.c",
+            "/templates/msx_main.c"),
+        new TemplateDefinition(
+            "nes-c",
+            "NES (C / CC65)",
+            "Plantilla basica para NES con CC65.",
+            "template.nes-c.name",
+            "template.nes-c.description",
+            "nes_main.c",
+            "/templates/nes_main.c")
     );
 
     /**

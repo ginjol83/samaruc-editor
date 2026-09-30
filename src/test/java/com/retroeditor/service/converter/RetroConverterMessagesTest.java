@@ -46,7 +46,7 @@ class RetroConverterMessagesTest {
     @DisplayName("Cada modo de video tiene su etiqueta en todos los idiomas")
     void everyModeHasItsOwnLabel() throws IOException {
         List<String> modeKeys = List.of("cpc0", "cpc1", "cpc2", "atariPlayfield", "atariMode7",
-                "c64Charset", "c64Bitmap", "masterSystem", "gameGear");
+                "c64Charset", "c64Bitmap", "masterSystem", "gameGear", "msx", "nes");
         assertEquals(RetroImageMode.values().length, modeKeys.size(),
                 "Hay que traducir tambien los modos nuevos");
         for (String language : LANGUAGES) {

@@ -237,6 +237,8 @@ public class PngToRetroConverterController {
             case C64_BITMAP -> "c64Bitmap";
             case MASTER_SYSTEM_TILES -> "masterSystem";
             case GAME_GEAR_TILES -> "gameGear";
+            case MSX_TILES -> "msx";
+            case NES_TILES -> "nes";
         };
     }
 

@@ -131,5 +131,69 @@ class ProjectPlatformDetectionServiceTest {
 
         Assertions.assertEquals(ProjectPlatformDetectionService.Platform.ATARI, result.getPlatform());
     }
+
+    @Test
+    void detectSmsBySmsHeader() throws IOException {
+        Files.writeString(tempDir.resolve("main.c"), "#include <sms.h>\nvoid main(void){ SMS_displayOn(); SMS_waitForVBlank(); }");
+
+        ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
+
+        Assertions.assertEquals(ProjectPlatformDetectionService.Platform.SMS, result.getPlatform());
+        Assertions.assertTrue(result.getConfidence() > 0);
+    }
+
+    @Test
+    void detectGameGearByWorkspaceTarget() throws IOException {
+        Files.writeString(tempDir.resolve("settings.json"), "{\"samaruc.target\": \"gamegear\"}");
+
+        ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
+
+        Assertions.assertEquals(ProjectPlatformDetectionService.Platform.GAME_GEAR, result.getPlatform());
+    }
+
+    @Test
+    void detectGameGearByHeaderWhenTargetAbsent() throws IOException {
+        Files.writeString(tempDir.resolve("main.c"), "#include <sms.h>\n// zcc +gg\nvoid main(void){ SMS_displayOn(); }");
+
+        ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
+
+        Assertions.assertEquals(ProjectPlatformDetectionService.Platform.GAME_GEAR, result.getPlatform());
+    }
+
+    @Test
+    void detectMsxByMsxHeaderAndApi() throws IOException {
+        Files.writeString(tempDir.resolve("main.c"), "#include <msx.h>\nvoid main(void){ msx_set_mode(0); msx_fill(0x1800, 32, 960); }");
+
+        ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
+
+        Assertions.assertEquals(ProjectPlatformDetectionService.Platform.MSX, result.getPlatform());
+    }
+
+    @Test
+    void detectMsxByWorkspaceTarget() throws IOException {
+        Files.writeString(tempDir.resolve("settings.json"), "{\"samaruc.target\": \"msx\"}");
+
+        ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
+
+        Assertions.assertEquals(ProjectPlatformDetectionService.Platform.MSX, result.getPlatform());
+    }
+
+    @Test
+    void detectNesByNesHeaderAndApi() throws IOException {
+        Files.writeString(tempDir.resolve("main.c"), "#include <nes.h>\nvoid main(void){ ppu_waitNmi(); ppu_off(); }");
+
+        ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
+
+        Assertions.assertEquals(ProjectPlatformDetectionService.Platform.NES, result.getPlatform());
+    }
+
+    @Test
+    void detectNesByWorkspaceTargetAndCl65() throws IOException {
+        Files.writeString(tempDir.resolve("settings.json"), "{\"samaruc.target\": \"nes\"}");
+
+        ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
+
+        Assertions.assertEquals(ProjectPlatformDetectionService.Platform.NES, result.getPlatform());
+    }
 }
 

@@ -2,6 +2,14 @@
 
 ## No publicado
 
+### Añadido
+- **Master System, Game Gear, MSX y NES como plataformas de primera clase**: plantilla de proyecto y de "nuevo archivo" (`gg-c`, `msx-c`, `nes-c`), pestaña propia de compilación Z88DK para cada una, perfil de compilador seleccionable, `cc65 -t nes` como tercer target de CC65, README y `.gitignore` específicos, y emuladores empaquetados (`openMSX`, `Mesen`) con entradas en el menú Ayuda (`CC65`, `openMSX`, `Mesen`).
+- **Detección automática** de MSX y NES con pesos propios (`#include <msx.h>`, `+msx`, `-subtype=rom`, `samaruc.target`; `#include <nes.h>`, `-t nes`, `nes.cfg`, `ppu_`).
+- **`ProjectProfileService`**: al abrir un proyecto ofrece aplicar el perfil de la plataforma detectada, y devuelve vacío para las plataformas sin toolchain integrada en lugar de proponer el perfil de otra máquina.
+- **README y `.gitignore` específicos de CPC** (`*.dsk`, `*.edsk`, `*.cdt`, `*.cpr`, `*.voc`, `*.wav`, `*.sna`, `*.cpc`).
+- **Conversor PNG a C multiformato para MSX y NES**: `MSX_TILES` (TMS9918, 4bpp, CRAM de 6 bits) y `NES_TILES` (PPU 2bpp con planos entrelazados, tabla de atributos por cuadrante de 16x16 y paleta RAM de 4 subpaletas), con sus paletas de hardware, generación de código `msx.h`/`nes.h` y claves en los 6 bundles.
+- **Test de paridad de bundles de i18n** (`MessagesBundleParityTest`): falla si una clave existe en un bundle y falta en otro.
+
 ### Cambiado
 - **Reestructuración de `libs/`**: la carpeta pasó a organizarse por tipo de herramienta en dos subcarpetas:
   - `libs/devkits/` — toolchains: `cc65`, `devkitSMS`, `gbdk`, `z88dk`.
@@ -11,6 +19,7 @@
 ### Eliminado
 - `libs/cpcbox-main/`: emulador CPC en WebView, sustituido por el emulador nativo Caprice32 (`libs/emulators/cap32`).
 - `libs/lib/` (DLLs de JInput): sin uso por el código.
+- `src/main/resources/i18n/fr`: bundle francés duplicado que se había colado con nombre de archivo en vez de `MessagesBundle_fr.properties`.
 
 ## 1.3.2 - 2026-09-18
 

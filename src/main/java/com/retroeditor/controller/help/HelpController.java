@@ -88,6 +88,42 @@ public class HelpController {
         );
     }
 
+    /**
+     * Abre la documentación oficial de CC65 (Atari / C64 / NES) en una ventana WebView.
+     */
+    public void onOpenCc65Docs() {
+        openUrlWindow(
+            "https://cc65.github.io/",
+            "Documentación CC65",
+            1200,
+            800
+        );
+    }
+
+    /**
+     * Abre la documentación oficial de openMSX en una ventana WebView.
+     */
+    public void onOpenOpenMsxDocs() {
+        openUrlWindow(
+            "https://openmsx.org/manual/",
+            "Documentación openMSX",
+            1200,
+            800
+        );
+    }
+
+    /**
+     * Abre la documentación oficial de Mesen en una ventana WebView.
+     */
+    public void onOpenMesenDocs() {
+        openUrlWindow(
+            "https://www.mesen.ca/",
+            "Documentación Mesen",
+            1200,
+            800
+        );
+    }
+
     private void openHtmlWindow(String resourcePath, String title, String fallbackHtml, int width, int height) {
         javafx.scene.web.WebView webView = new javafx.scene.web.WebView();
         URL url = getClass().getResource(resourcePath);

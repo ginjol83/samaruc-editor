@@ -77,13 +77,19 @@ public class ConfigController {
     private static final String LEGACY_SPECTRUM    = "Spectrum";
     private static final String Z88DK_PROFILE_SPECTRUM = "spectrum";
     private static final String Z88DK_PROFILE_CPC = "cpc";
+    private static final String Z88DK_PROFILE_SMS = "sms";
+    private static final String Z88DK_PROFILE_GAME_GEAR = "gg";
+    private static final String Z88DK_PROFILE_MSX = "msx";
     private static final String EMULATOR_EMULICIOUS = "Emulicious";
     private static final String EMULATOR_JSPECCY   = "JSpeccy";
-    private static final String EMULATOR_CPCBOX_WEB = "CPCBoxWeb";
+    private static final String EMULATOR_CAP32 = "Cap32";
+    private static final String EMULATOR_OPENMSX = ConfigModel.EMULATOR_OPENMSX;
+    private static final String EMULATOR_MESEN = ConfigModel.EMULATOR_MESEN;
     private static final String EMULATOR_ALTIRRA   = ConfigModel.EMULATOR_ALTIRRA;
     private static final String EMULATOR_VICE      = ConfigModel.EMULATOR_VICE;
     private static final String CC65_TARGET_ATARI  = ConfigModel.CC65_TARGET_ATARI;
     private static final String CC65_TARGET_C64    = ConfigModel.CC65_TARGET_C64;
+    private static final String CC65_TARGET_NES    = ConfigModel.CC65_TARGET_NES;
 
     @FXML private TabPane          tabPaneConfig;
     @FXML private TabPane          tabPaneCompilerOptions;
@@ -107,6 +113,27 @@ public class ConfigController {
     @FXML private TextField        txtZ88dkCpcExtraArgs;
     @FXML private ComboBox<String> comboZ88dkCpcClib;
     @FXML private CheckBox         chkZ88dkCpcCrtOrgCode;
+    @FXML private TextField        txtSmsBin;
+    @FXML private TextField        txtZ88dkSmsTarget;
+    @FXML private CheckBox         chkZ88dkSmsCreateApp;
+    @FXML private TextField        txtZ88dkSmsDefines;
+    @FXML private TextField        txtZ88dkSmsIncludes;
+    @FXML private TextField        txtZ88dkSmsExtraArgs;
+    @FXML private ComboBox<String> comboZ88dkSmsClib;
+    @FXML private TextField        txtGgBin;
+    @FXML private TextField        txtZ88dkGgTarget;
+    @FXML private CheckBox         chkZ88dkGgCreateApp;
+    @FXML private TextField        txtZ88dkGgDefines;
+    @FXML private TextField        txtZ88dkGgIncludes;
+    @FXML private TextField        txtZ88dkGgExtraArgs;
+    @FXML private ComboBox<String> comboZ88dkGgClib;
+    @FXML private TextField        txtMsxBin;
+    @FXML private TextField        txtZ88dkMsxTarget;
+    @FXML private CheckBox         chkZ88dkMsxCreateApp;
+    @FXML private TextField        txtZ88dkMsxDefines;
+    @FXML private TextField        txtZ88dkMsxIncludes;
+    @FXML private TextField        txtZ88dkMsxExtraArgs;
+    @FXML private ComboBox<String> comboZ88dkMsxClib;
     @FXML private ComboBox<String> comboGbdkOptLevel;
     @FXML private CheckBox         chkGbdkOptSpeed;
     @FXML private CheckBox         chkGbdkOptSize;
@@ -159,6 +186,9 @@ public class ConfigController {
     @FXML private Tab              tabCompilerGbdk;
     @FXML private Tab              tabCompilerZ88dkSpectrum;
     @FXML private Tab              tabCompilerZ88dkCpc;
+    @FXML private Tab              tabCompilerZ88dkSms;
+    @FXML private Tab              tabCompilerZ88dkGameGear;
+    @FXML private Tab              tabCompilerZ88dkMsx;
     @FXML private Tab              tabCompilerMakefile;
     @FXML private Tab              tabPlugins;
     @FXML private Tab              tabGitHub;
@@ -457,6 +487,15 @@ public class ConfigController {
         if (txtCpcBin != null) {
             txtCpcBin.setText(configModel.getConfigProperty("cpc_bin", configModel.getConfigProperty("spectrum_bin", "")));
         }
+        if (txtSmsBin != null) {
+            txtSmsBin.setText(configModel.getConfigProperty("sms_bin", configModel.getConfigProperty("spectrum_bin", "")));
+        }
+        if (txtGgBin != null) {
+            txtGgBin.setText(configModel.getConfigProperty("gg_bin", configModel.getConfigProperty("spectrum_bin", "")));
+        }
+        if (txtMsxBin != null) {
+            txtMsxBin.setText(configModel.getConfigProperty("msx_bin", configModel.getConfigProperty("spectrum_bin", "")));
+        }
 
         loadLanguageSelectionsFromConfig();
         loadThemeUiFromConfig();
@@ -542,6 +581,15 @@ public class ConfigController {
         }
         if (txtCpcBin != null) {
             txtCpcBin.setText(configModel.getConfigProperty("cpc_bin", configModel.getConfigProperty("spectrum_bin", "")));
+        }
+        if (txtSmsBin != null) {
+            txtSmsBin.setText(configModel.getConfigProperty("sms_bin", configModel.getConfigProperty("spectrum_bin", "")));
+        }
+        if (txtGgBin != null) {
+            txtGgBin.setText(configModel.getConfigProperty("gg_bin", configModel.getConfigProperty("spectrum_bin", "")));
+        }
+        if (txtMsxBin != null) {
+            txtMsxBin.setText(configModel.getConfigProperty("msx_bin", configModel.getConfigProperty("spectrum_bin", "")));
         }
 
         loadLanguageSelectionsFromConfig();
@@ -1237,6 +1285,33 @@ public class ConfigController {
         if (txtZ88dkCpcIncludes != null) workspace.setSetting("z88dk_cpc_includes", txtZ88dkCpcIncludes.getText());
         if (txtZ88dkCpcExtraArgs != null) workspace.setSetting("z88dk_cpc_extra_args", txtZ88dkCpcExtraArgs.getText());
 
+        // Z88DK SMS
+        if (txtSmsBin != null) workspace.setSetting("sms_bin", txtSmsBin.getText());
+        if (comboZ88dkSmsClib != null) workspace.setSetting("z88dk_sms_clib_option", comboZ88dkSmsClib.getSelectionModel().getSelectedItem());
+        if (txtZ88dkSmsTarget != null) workspace.setSetting("z88dk_sms_target", txtZ88dkSmsTarget.getText());
+        if (chkZ88dkSmsCreateApp != null) workspace.setSetting("z88dk_sms_create_app", String.valueOf(chkZ88dkSmsCreateApp.isSelected()));
+        if (txtZ88dkSmsDefines != null) workspace.setSetting("z88dk_sms_defines", txtZ88dkSmsDefines.getText());
+        if (txtZ88dkSmsIncludes != null) workspace.setSetting("z88dk_sms_includes", txtZ88dkSmsIncludes.getText());
+        if (txtZ88dkSmsExtraArgs != null) workspace.setSetting("z88dk_sms_extra_args", txtZ88dkSmsExtraArgs.getText());
+
+        // Z88DK Game Gear
+        if (txtGgBin != null) workspace.setSetting("gg_bin", txtGgBin.getText());
+        if (comboZ88dkGgClib != null) workspace.setSetting("z88dk_gg_clib_option", comboZ88dkGgClib.getSelectionModel().getSelectedItem());
+        if (txtZ88dkGgTarget != null) workspace.setSetting("z88dk_gg_target", txtZ88dkGgTarget.getText());
+        if (chkZ88dkGgCreateApp != null) workspace.setSetting("z88dk_gg_create_app", String.valueOf(chkZ88dkGgCreateApp.isSelected()));
+        if (txtZ88dkGgDefines != null) workspace.setSetting("z88dk_gg_defines", txtZ88dkGgDefines.getText());
+        if (txtZ88dkGgIncludes != null) workspace.setSetting("z88dk_gg_includes", txtZ88dkGgIncludes.getText());
+        if (txtZ88dkGgExtraArgs != null) workspace.setSetting("z88dk_gg_extra_args", txtZ88dkGgExtraArgs.getText());
+
+        // Z88DK MSX
+        if (txtMsxBin != null) workspace.setSetting("msx_bin", txtMsxBin.getText());
+        if (comboZ88dkMsxClib != null) workspace.setSetting("z88dk_msx_clib_option", comboZ88dkMsxClib.getSelectionModel().getSelectedItem());
+        if (txtZ88dkMsxTarget != null) workspace.setSetting("z88dk_msx_target", txtZ88dkMsxTarget.getText());
+        if (chkZ88dkMsxCreateApp != null) workspace.setSetting("z88dk_msx_create_app", String.valueOf(chkZ88dkMsxCreateApp.isSelected()));
+        if (txtZ88dkMsxDefines != null) workspace.setSetting("z88dk_msx_defines", txtZ88dkMsxDefines.getText());
+        if (txtZ88dkMsxIncludes != null) workspace.setSetting("z88dk_msx_includes", txtZ88dkMsxIncludes.getText());
+        if (txtZ88dkMsxExtraArgs != null) workspace.setSetting("z88dk_msx_extra_args", txtZ88dkMsxExtraArgs.getText());
+
         // Makefile
         if (txtMakeExecutable != null) workspace.setSetting("make_executable", txtMakeExecutable.getText());
         if (txtMakeBuildTarget != null) workspace.setSetting("make_build_target", txtMakeBuildTarget.getText());
@@ -1304,7 +1379,7 @@ public class ConfigController {
         if (COMPILER_Z88DK.equals(selectedCompiler)) {
             String requiredPath = Z88DK_PROFILE_CPC.equals(z88dkProfile) ? cpcPath : spectrumPath;
             if (!requiredPath.isEmpty() && !(new File(requiredPath).exists())) {
-                showError("Debe especificar una ruta valida para el bin de Z88DK del perfil activo, o dejarla vacia para usar la copia integrada en libs/z88dk.");
+                showError("Debe especificar una ruta valida para el bin de Z88DK del perfil activo, o dejarla vacia para usar la copia integrada en libs/devkits/z88dk.");
                 return;
             }
         }
@@ -1348,8 +1423,12 @@ public class ConfigController {
                 COMPILER_GBDK,
                 getZ88dkSpectrumDisplayLabel(),
                 getZ88dkCpcDisplayLabel(),
+                getZ88dkSmsDisplayLabel(),
+                getZ88dkGameGearDisplayLabel(),
+                getZ88dkMsxDisplayLabel(),
                 getCc65DisplayLabel(),
                 getCc65C64DisplayLabel(),
+                getCc65NesDisplayLabel(),
                 getGccDisplayLabel(),
                 COMPILER_MAKEFILE
             );
@@ -1367,6 +1446,15 @@ public class ConfigController {
         String compiler = normalizeCompiler(configModel.getConfigProperty("compilador_seleccionado", COMPILER_GBDK));
         String profile = normalizeZ88dkProfile(configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM));
         saveCompilerSelection(compiler, profile, false);
+    }
+
+    private Tab resolveZ88dkTabForProfile(String profile) {
+        String z = normalizeZ88dkProfile(profile);
+        if (Z88DK_PROFILE_CPC.equals(z)) return tabCompilerZ88dkCpc;
+        if (Z88DK_PROFILE_SMS.equals(z)) return tabCompilerZ88dkSms;
+        if (Z88DK_PROFILE_GAME_GEAR.equals(z)) return tabCompilerZ88dkGameGear;
+        if (Z88DK_PROFILE_MSX.equals(z)) return tabCompilerZ88dkMsx;
+        return tabCompilerZ88dkSpectrum;
     }
 
     @FXML
@@ -1390,6 +1478,15 @@ public class ConfigController {
         } else if (newTab == tabCompilerZ88dkCpc) {
             selectedCompiler = COMPILER_Z88DK;
             profile = Z88DK_PROFILE_CPC;
+        } else if (newTab == tabCompilerZ88dkSms) {
+            selectedCompiler = COMPILER_Z88DK;
+            profile = Z88DK_PROFILE_SMS;
+        } else if (newTab == tabCompilerZ88dkGameGear) {
+            selectedCompiler = COMPILER_Z88DK;
+            profile = Z88DK_PROFILE_GAME_GEAR;
+        } else if (newTab == tabCompilerZ88dkMsx) {
+            selectedCompiler = COMPILER_Z88DK;
+            profile = Z88DK_PROFILE_MSX;
         } else if (newTab == tabCompilerGcc) {
             selectedCompiler = COMPILER_GCC;
         } else if (newTab == tabCompilerCc65) {
@@ -1411,7 +1508,9 @@ public class ConfigController {
         String cc65Target = resolveCurrentCc65Target();
         if (ConfigModel.COMPILER_CC65.equalsIgnoreCase(normalizedCompiler) && comboCompilador != null) {
             String comboLabel = comboCompilador.getSelectionModel().getSelectedItem();
-            if (comboLabel != null && (comboLabel.equalsIgnoreCase(getCc65DisplayLabel()) || comboLabel.equalsIgnoreCase(getCc65C64DisplayLabel()))) {
+            if (comboLabel != null && (comboLabel.equalsIgnoreCase(getCc65DisplayLabel())
+                    || comboLabel.equalsIgnoreCase(getCc65C64DisplayLabel())
+                    || comboLabel.equalsIgnoreCase(getCc65NesDisplayLabel()))) {
                 cc65Target = resolveCc65TargetFromSelection(comboLabel);
             }
         }
@@ -1421,9 +1520,7 @@ public class ConfigController {
         try {
             if (tabPaneCompilerOptions != null) {
                 if (COMPILER_Z88DK.equalsIgnoreCase(normalizedCompiler) && tabCompilerZ88dkSpectrum != null && tabCompilerZ88dkCpc != null) {
-                    tabPaneCompilerOptions.getSelectionModel().select(
-                        Z88DK_PROFILE_CPC.equals(normalizedProfile) ? tabCompilerZ88dkCpc : tabCompilerZ88dkSpectrum
-                    );
+                    tabPaneCompilerOptions.getSelectionModel().select(resolveZ88dkTabForProfile(normalizedProfile));
                 } else if (COMPILER_MAKEFILE.equalsIgnoreCase(normalizedCompiler) && tabCompilerMakefile != null) {
                     tabPaneCompilerOptions.getSelectionModel().select(tabCompilerMakefile);
                 } else if (ConfigModel.COMPILER_CC65.equalsIgnoreCase(normalizedCompiler) && tabCompilerCc65 != null) {
@@ -1456,9 +1553,14 @@ public class ConfigController {
     private String getEmulatorForCompiler(String compiler, String z88dkProfile, String cc65Target) {
         String norm = normalizeCompiler(compiler);
         if (COMPILER_Z88DK.equalsIgnoreCase(norm)) {
-            return Z88DK_PROFILE_CPC.equals(normalizeZ88dkProfile(z88dkProfile)) ? EMULATOR_CPCBOX_WEB : EMULATOR_JSPECCY;
+            String z = normalizeZ88dkProfile(z88dkProfile);
+            if (Z88DK_PROFILE_CPC.equals(z)) return EMULATOR_CAP32;
+            if (Z88DK_PROFILE_MSX.equals(z)) return EMULATOR_OPENMSX;
+            if (Z88DK_PROFILE_SMS.equals(z) || Z88DK_PROFILE_GAME_GEAR.equals(z)) return EMULATOR_EMULICIOUS;
+            return EMULATOR_JSPECCY;
         }
         if (ConfigModel.COMPILER_CC65.equalsIgnoreCase(norm)) {
+            if (CC65_TARGET_NES.equalsIgnoreCase(cc65Target)) return EMULATOR_MESEN;
             return CC65_TARGET_C64.equalsIgnoreCase(cc65Target) ? EMULATOR_VICE : EMULATOR_ALTIRRA;
         }
         return EMULATOR_EMULICIOUS;
@@ -1471,12 +1573,19 @@ public class ConfigController {
 
         Tab selected = tabPaneCompilerOptions.getSelectionModel().getSelectedItem();
         if (selected == tabCompilerZ88dkCpc) return Z88DK_PROFILE_CPC;
+        if (selected == tabCompilerZ88dkSms) return Z88DK_PROFILE_SMS;
+        if (selected == tabCompilerZ88dkGameGear) return Z88DK_PROFILE_GAME_GEAR;
+        if (selected == tabCompilerZ88dkMsx) return Z88DK_PROFILE_MSX;
         if (selected == tabCompilerZ88dkSpectrum) return Z88DK_PROFILE_SPECTRUM;
         return normalizeZ88dkProfile(configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM));
     }
 
     private String normalizeZ88dkProfile(String profile) {
-        return Z88DK_PROFILE_CPC.equalsIgnoreCase(profile) ? Z88DK_PROFILE_CPC : Z88DK_PROFILE_SPECTRUM;
+        if (Z88DK_PROFILE_CPC.equalsIgnoreCase(profile)) return Z88DK_PROFILE_CPC;
+        if (Z88DK_PROFILE_SMS.equalsIgnoreCase(profile)) return Z88DK_PROFILE_SMS;
+        if (Z88DK_PROFILE_GAME_GEAR.equalsIgnoreCase(profile)) return Z88DK_PROFILE_GAME_GEAR;
+        if (Z88DK_PROFILE_MSX.equalsIgnoreCase(profile)) return Z88DK_PROFILE_MSX;
+        return Z88DK_PROFILE_SPECTRUM;
     }
 
     private String normalizeCompiler(String compiler) {
@@ -1486,6 +1595,11 @@ public class ConfigController {
 
         if (COMPILER_MAKEFILE.equalsIgnoreCase(normalized)) {
             return COMPILER_MAKEFILE;
+        }
+
+        if (COMPILER_GBDK.equalsIgnoreCase(normalized)
+            || normalized.equalsIgnoreCase(getGbdkDisplayLabel())) {
+            return COMPILER_GBDK;
         }
 
         if (COMPILER_Z88DK.equalsIgnoreCase(normalized)
@@ -1505,9 +1619,12 @@ public class ConfigController {
 
         if (ConfigModel.COMPILER_CC65.equalsIgnoreCase(normalized)
             || normalized.equalsIgnoreCase(getCc65DisplayLabel())
+            || normalized.equalsIgnoreCase(getCc65C64DisplayLabel())
+            || normalized.equalsIgnoreCase(getCc65NesDisplayLabel())
             || normalized.toLowerCase(Locale.ROOT).contains("cc65")
             || normalized.toLowerCase(Locale.ROOT).contains("atari")
-            || normalized.toLowerCase(Locale.ROOT).contains("c64")) {
+            || normalized.toLowerCase(Locale.ROOT).contains("c64")
+            || normalized.toLowerCase(Locale.ROOT).contains("nes")) {
             return ConfigModel.COMPILER_CC65;
         }
 
@@ -1516,16 +1633,29 @@ public class ConfigController {
 
     private String toCompilerDisplayLabel(String normalizedCompiler, String z88dkProfile) {
         if (COMPILER_Z88DK.equalsIgnoreCase(normalizedCompiler)) {
-            return Z88DK_PROFILE_CPC.equals(normalizeZ88dkProfile(z88dkProfile))
-                ? getZ88dkCpcDisplayLabel()
-                : getZ88dkSpectrumDisplayLabel();
+            String z = normalizeZ88dkProfile(z88dkProfile);
+            if (Z88DK_PROFILE_CPC.equals(z)) return getZ88dkCpcDisplayLabel();
+            if (Z88DK_PROFILE_SMS.equals(z)) return getZ88dkSmsDisplayLabel();
+            if (Z88DK_PROFILE_GAME_GEAR.equals(z)) return getZ88dkGameGearDisplayLabel();
+            if (Z88DK_PROFILE_MSX.equals(z)) return getZ88dkMsxDisplayLabel();
+            return getZ88dkSpectrumDisplayLabel();
         }
         if (COMPILER_GCC.equalsIgnoreCase(normalizedCompiler)) return getGccDisplayLabel();
         if (ConfigModel.COMPILER_CC65.equalsIgnoreCase(normalizedCompiler)) {
-            return CC65_TARGET_C64.equals(resolveCurrentCc65Target()) ? getCc65C64DisplayLabel() : getCc65DisplayLabel();
+            String target = resolveCurrentCc65Target();
+            if (CC65_TARGET_NES.equals(target)) return getCc65NesDisplayLabel();
+            if (CC65_TARGET_C64.equals(target)) return getCc65C64DisplayLabel();
+            return getCc65DisplayLabel();
         }
         if (COMPILER_MAKEFILE.equalsIgnoreCase(normalizedCompiler)) return COMPILER_MAKEFILE;
-        return COMPILER_GBDK;
+        return getGbdkDisplayLabel();
+    }
+
+    private String getGbdkDisplayLabel() {
+        ResourceBundle bundle = getCurrentBundle();
+        return bundle.containsKey("config.compiler.option.gbdk")
+            ? bundle.getString("config.compiler.option.gbdk")
+            : "GBDK (Game Boy)";
     }
 
     private String getCc65DisplayLabel() {
@@ -1542,16 +1672,28 @@ public class ConfigController {
             : "CC65 (C64)";
     }
 
+    private String getCc65NesDisplayLabel() {
+        ResourceBundle bundle = getCurrentBundle();
+        return bundle.containsKey("config.compiler.option.cc65.nes")
+            ? bundle.getString("config.compiler.option.cc65.nes")
+            : "CC65 (NES)";
+    }
+
     private String resolveCurrentCc65Target() {
-        return CC65_TARGET_C64.equalsIgnoreCase(configModel.getConfigProperty("cc65_target", CC65_TARGET_ATARI))
-            ? CC65_TARGET_C64
-            : CC65_TARGET_ATARI;
+        String selected = configModel.getConfigProperty("cc65_target", CC65_TARGET_ATARI);
+        if (CC65_TARGET_NES.equalsIgnoreCase(selected)) return CC65_TARGET_NES;
+        if (CC65_TARGET_C64.equalsIgnoreCase(selected)) return CC65_TARGET_C64;
+        return CC65_TARGET_ATARI;
     }
 
     private String resolveCc65TargetFromSelection(String compilerLabel) {
-        return compilerLabel != null && compilerLabel.equalsIgnoreCase(getCc65C64DisplayLabel())
-            ? CC65_TARGET_C64
-            : CC65_TARGET_ATARI;
+        if (compilerLabel != null && compilerLabel.equalsIgnoreCase(getCc65NesDisplayLabel())) {
+            return CC65_TARGET_NES;
+        }
+        if (compilerLabel != null && compilerLabel.equalsIgnoreCase(getCc65C64DisplayLabel())) {
+            return CC65_TARGET_C64;
+        }
+        return CC65_TARGET_ATARI;
     }
 
     private String resolveZ88dkProfileFromSelection(String compilerLabel, String fallbackProfile) {
@@ -1559,6 +1701,9 @@ public class ConfigController {
 
         if (compilerLabel.equalsIgnoreCase(getZ88dkCpcDisplayLabel())) return Z88DK_PROFILE_CPC;
         if (compilerLabel.equalsIgnoreCase(getZ88dkSpectrumDisplayLabel())) return Z88DK_PROFILE_SPECTRUM;
+        if (compilerLabel.equalsIgnoreCase(getZ88dkSmsDisplayLabel())) return Z88DK_PROFILE_SMS;
+        if (compilerLabel.equalsIgnoreCase(getZ88dkGameGearDisplayLabel())) return Z88DK_PROFILE_GAME_GEAR;
+        if (compilerLabel.equalsIgnoreCase(getZ88dkMsxDisplayLabel())) return Z88DK_PROFILE_MSX;
 
         return normalizeZ88dkProfile(fallbackProfile);
     }
@@ -1577,6 +1722,27 @@ public class ConfigController {
             : "Z88DK (CPC)";
     }
 
+    private String getZ88dkSmsDisplayLabel() {
+        ResourceBundle bundle = getCurrentBundle();
+        return bundle.containsKey("config.compiler.option.z88dk.sms")
+            ? bundle.getString("config.compiler.option.z88dk.sms")
+            : "Z88DK (Master System)";
+    }
+
+    private String getZ88dkGameGearDisplayLabel() {
+        ResourceBundle bundle = getCurrentBundle();
+        return bundle.containsKey("config.compiler.option.z88dk.gamegear")
+            ? bundle.getString("config.compiler.option.z88dk.gamegear")
+            : "Z88DK (Game Gear)";
+    }
+
+    private String getZ88dkMsxDisplayLabel() {
+        ResourceBundle bundle = getCurrentBundle();
+        return bundle.containsKey("config.compiler.option.z88dk.msx")
+            ? bundle.getString("config.compiler.option.z88dk.msx")
+            : "Z88DK (MSX)";
+    }
+
     private String getGccDisplayLabel() {
         ResourceBundle bundle = getCurrentBundle();
         return bundle.containsKey("config.compiler.option.gcc")
@@ -1591,11 +1757,15 @@ public class ConfigController {
         String profile = normalizeZ88dkProfile(configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM));
 
         comboCompilador.getItems().setAll(
-            COMPILER_GBDK,
+            getGbdkDisplayLabel(),
             getZ88dkSpectrumDisplayLabel(),
             getZ88dkCpcDisplayLabel(),
+            getZ88dkSmsDisplayLabel(),
+            getZ88dkGameGearDisplayLabel(),
+            getZ88dkMsxDisplayLabel(),
             getCc65DisplayLabel(),
             getCc65C64DisplayLabel(),
+            getCc65NesDisplayLabel(),
             getGccDisplayLabel(),
             COMPILER_MAKEFILE
         );
@@ -1635,6 +1805,39 @@ public class ConfigController {
             persistConfig();
             persistCompilerSettingsToActiveWorkspace();
             UserActionMonitor.compilerPathUpdated("Z88DK-CPC", path);
+        }
+    }
+
+    @FXML
+    public void onSaveSmsBin(ActionEvent event) {
+        if (txtSmsBin != null) {
+            String path = txtSmsBin.getText();
+            configModel.setConfigProperty("sms_bin", path);
+            persistConfig();
+            persistCompilerSettingsToActiveWorkspace();
+            UserActionMonitor.compilerPathUpdated("Z88DK-SMS", path);
+        }
+    }
+
+    @FXML
+    public void onSaveGgBin(ActionEvent event) {
+        if (txtGgBin != null) {
+            String path = txtGgBin.getText();
+            configModel.setConfigProperty("gg_bin", path);
+            persistConfig();
+            persistCompilerSettingsToActiveWorkspace();
+            UserActionMonitor.compilerPathUpdated("Z88DK-GameGear", path);
+        }
+    }
+
+    @FXML
+    public void onSaveMsxBin(ActionEvent event) {
+        if (txtMsxBin != null) {
+            String path = txtMsxBin.getText();
+            configModel.setConfigProperty("msx_bin", path);
+            persistConfig();
+            persistCompilerSettingsToActiveWorkspace();
+            UserActionMonitor.compilerPathUpdated("Z88DK-MSX", path);
         }
     }
 
@@ -1909,6 +2112,69 @@ public class ConfigController {
         if (txtZ88dkCpcExtraArgs != null) {
             txtZ88dkCpcExtraArgs.setText(configModel.getConfigProperty("z88dk_cpc_extra_args", ""));
         }
+
+        if (comboZ88dkSmsClib != null) {
+            comboZ88dkSmsClib.getItems().setAll(ConfigModel.getSupportedZ88dkClibOptions());
+            String selected = configModel.getConfigProperty("z88dk_sms_clib_option", ConfigModel.Z88DK_CLIB_DEFAULT);
+            comboZ88dkSmsClib.getSelectionModel().select(selected);
+        }
+        if (txtZ88dkSmsTarget != null) {
+            txtZ88dkSmsTarget.setText(configModel.getConfigProperty("z88dk_sms_target", "+sms"));
+        }
+        if (chkZ88dkSmsCreateApp != null) {
+            chkZ88dkSmsCreateApp.setSelected(Boolean.parseBoolean(configModel.getConfigProperty("z88dk_sms_create_app", "true")));
+        }
+        if (txtZ88dkSmsDefines != null) {
+            txtZ88dkSmsDefines.setText(configModel.getConfigProperty("z88dk_sms_defines", ""));
+        }
+        if (txtZ88dkSmsIncludes != null) {
+            txtZ88dkSmsIncludes.setText(configModel.getConfigProperty("z88dk_sms_includes", ""));
+        }
+        if (txtZ88dkSmsExtraArgs != null) {
+            txtZ88dkSmsExtraArgs.setText(configModel.getConfigProperty("z88dk_sms_extra_args", ""));
+        }
+
+        if (comboZ88dkGgClib != null) {
+            comboZ88dkGgClib.getItems().setAll(ConfigModel.getSupportedZ88dkClibOptions());
+            String selected = configModel.getConfigProperty("z88dk_gg_clib_option", ConfigModel.Z88DK_CLIB_DEFAULT);
+            comboZ88dkGgClib.getSelectionModel().select(selected);
+        }
+        if (txtZ88dkGgTarget != null) {
+            txtZ88dkGgTarget.setText(configModel.getConfigProperty("z88dk_gg_target", "+gg"));
+        }
+        if (chkZ88dkGgCreateApp != null) {
+            chkZ88dkGgCreateApp.setSelected(Boolean.parseBoolean(configModel.getConfigProperty("z88dk_gg_create_app", "true")));
+        }
+        if (txtZ88dkGgDefines != null) {
+            txtZ88dkGgDefines.setText(configModel.getConfigProperty("z88dk_gg_defines", ""));
+        }
+        if (txtZ88dkGgIncludes != null) {
+            txtZ88dkGgIncludes.setText(configModel.getConfigProperty("z88dk_gg_includes", ""));
+        }
+        if (txtZ88dkGgExtraArgs != null) {
+            txtZ88dkGgExtraArgs.setText(configModel.getConfigProperty("z88dk_gg_extra_args", ""));
+        }
+
+        if (comboZ88dkMsxClib != null) {
+            comboZ88dkMsxClib.getItems().setAll(ConfigModel.getSupportedZ88dkClibOptions());
+            String selected = configModel.getConfigProperty("z88dk_msx_clib_option", ConfigModel.Z88DK_CLIB_DEFAULT);
+            comboZ88dkMsxClib.getSelectionModel().select(selected);
+        }
+        if (txtZ88dkMsxTarget != null) {
+            txtZ88dkMsxTarget.setText(configModel.getConfigProperty("z88dk_msx_target", "+msx"));
+        }
+        if (chkZ88dkMsxCreateApp != null) {
+            chkZ88dkMsxCreateApp.setSelected(Boolean.parseBoolean(configModel.getConfigProperty("z88dk_msx_create_app", "true")));
+        }
+        if (txtZ88dkMsxDefines != null) {
+            txtZ88dkMsxDefines.setText(configModel.getConfigProperty("z88dk_msx_defines", ""));
+        }
+        if (txtZ88dkMsxIncludes != null) {
+            txtZ88dkMsxIncludes.setText(configModel.getConfigProperty("z88dk_msx_includes", ""));
+        }
+        if (txtZ88dkMsxExtraArgs != null) {
+            txtZ88dkMsxExtraArgs.setText(configModel.getConfigProperty("z88dk_msx_extra_args", ""));
+        }
     }
 
     private void loadMakeOptsFromConfig() {
@@ -2049,6 +2315,30 @@ public class ConfigController {
         configModel.setConfigProperty("z88dk_cpc_includes", txtZ88dkCpcIncludes != null ? txtZ88dkCpcIncludes.getText().trim() : "");
         configModel.setConfigProperty("z88dk_cpc_extra_args", txtZ88dkCpcExtraArgs != null ? txtZ88dkCpcExtraArgs.getText().trim() : "");
 
+        String smsClibOption = comboZ88dkSmsClib != null ? comboZ88dkSmsClib.getValue() : ConfigModel.Z88DK_CLIB_DEFAULT;
+        configModel.setConfigProperty("z88dk_sms_clib_option", smsClibOption != null ? smsClibOption : ConfigModel.Z88DK_CLIB_DEFAULT);
+        configModel.setConfigProperty("z88dk_sms_target", txtZ88dkSmsTarget != null ? txtZ88dkSmsTarget.getText().trim() : "+sms");
+        configModel.setConfigProperty("z88dk_sms_create_app", chkZ88dkSmsCreateApp != null ? Boolean.toString(chkZ88dkSmsCreateApp.isSelected()) : "true");
+        configModel.setConfigProperty("z88dk_sms_defines", txtZ88dkSmsDefines != null ? txtZ88dkSmsDefines.getText().trim() : "");
+        configModel.setConfigProperty("z88dk_sms_includes", txtZ88dkSmsIncludes != null ? txtZ88dkSmsIncludes.getText().trim() : "");
+        configModel.setConfigProperty("z88dk_sms_extra_args", txtZ88dkSmsExtraArgs != null ? txtZ88dkSmsExtraArgs.getText().trim() : "");
+
+        String ggClibOption = comboZ88dkGgClib != null ? comboZ88dkGgClib.getValue() : ConfigModel.Z88DK_CLIB_DEFAULT;
+        configModel.setConfigProperty("z88dk_gg_clib_option", ggClibOption != null ? ggClibOption : ConfigModel.Z88DK_CLIB_DEFAULT);
+        configModel.setConfigProperty("z88dk_gg_target", txtZ88dkGgTarget != null ? txtZ88dkGgTarget.getText().trim() : "+gg");
+        configModel.setConfigProperty("z88dk_gg_create_app", chkZ88dkGgCreateApp != null ? Boolean.toString(chkZ88dkGgCreateApp.isSelected()) : "true");
+        configModel.setConfigProperty("z88dk_gg_defines", txtZ88dkGgDefines != null ? txtZ88dkGgDefines.getText().trim() : "");
+        configModel.setConfigProperty("z88dk_gg_includes", txtZ88dkGgIncludes != null ? txtZ88dkGgIncludes.getText().trim() : "");
+        configModel.setConfigProperty("z88dk_gg_extra_args", txtZ88dkGgExtraArgs != null ? txtZ88dkGgExtraArgs.getText().trim() : "");
+
+        String msxClibOption = comboZ88dkMsxClib != null ? comboZ88dkMsxClib.getValue() : ConfigModel.Z88DK_CLIB_DEFAULT;
+        configModel.setConfigProperty("z88dk_msx_clib_option", msxClibOption != null ? msxClibOption : ConfigModel.Z88DK_CLIB_DEFAULT);
+        configModel.setConfigProperty("z88dk_msx_target", txtZ88dkMsxTarget != null ? txtZ88dkMsxTarget.getText().trim() : "+msx");
+        configModel.setConfigProperty("z88dk_msx_create_app", chkZ88dkMsxCreateApp != null ? Boolean.toString(chkZ88dkMsxCreateApp.isSelected()) : "true");
+        configModel.setConfigProperty("z88dk_msx_defines", txtZ88dkMsxDefines != null ? txtZ88dkMsxDefines.getText().trim() : "");
+        configModel.setConfigProperty("z88dk_msx_includes", txtZ88dkMsxIncludes != null ? txtZ88dkMsxIncludes.getText().trim() : "");
+        configModel.setConfigProperty("z88dk_msx_extra_args", txtZ88dkMsxExtraArgs != null ? txtZ88dkMsxExtraArgs.getText().trim() : "");
+
         if (persist) {
             persistConfig();
             persistCompilerSettingsToActiveWorkspace();
@@ -2102,6 +2392,48 @@ public class ConfigController {
         if (selectedDir != null) {
             txtCpcBin.setText(selectedDir.getAbsolutePath());
             UserActionMonitor.compilerPathUpdated("Z88DK-CPC", selectedDir.getAbsolutePath());
+        }
+    }
+
+    @FXML
+    public void onSeleccionarSmsBin(ActionEvent event) {
+        javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
+
+        chooser.setTitle("Seleccionar carpeta bin de Z88DK (SMS)");
+
+        File selectedDir = chooser.showDialog(txtSmsBin.getScene().getWindow());
+
+        if (selectedDir != null) {
+            txtSmsBin.setText(selectedDir.getAbsolutePath());
+            UserActionMonitor.compilerPathUpdated("Z88DK-SMS", selectedDir.getAbsolutePath());
+        }
+    }
+
+    @FXML
+    public void onSeleccionarGgBin(ActionEvent event) {
+        javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
+
+        chooser.setTitle("Seleccionar carpeta bin de Z88DK (Game Gear)");
+
+        File selectedDir = chooser.showDialog(txtGgBin.getScene().getWindow());
+
+        if (selectedDir != null) {
+            txtGgBin.setText(selectedDir.getAbsolutePath());
+            UserActionMonitor.compilerPathUpdated("Z88DK-GameGear", selectedDir.getAbsolutePath());
+        }
+    }
+
+    @FXML
+    public void onSeleccionarMsxBin(ActionEvent event) {
+        javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
+
+        chooser.setTitle("Seleccionar carpeta bin de Z88DK (MSX)");
+
+        File selectedDir = chooser.showDialog(txtMsxBin.getScene().getWindow());
+
+        if (selectedDir != null) {
+            txtMsxBin.setText(selectedDir.getAbsolutePath());
+            UserActionMonitor.compilerPathUpdated("Z88DK-MSX", selectedDir.getAbsolutePath());
         }
     }
 

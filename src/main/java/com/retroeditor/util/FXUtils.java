@@ -83,6 +83,10 @@ public class FXUtils {
         TRANSLATOR,
         GITHUB,
         CPC,
+        SMS,
+        GAME_GEAR,
+        MSX,
+        NES,
         GCC,
         GCC_CALC,
         CC65,
@@ -223,6 +227,22 @@ public class FXUtils {
 
     public boolean wasLastCreatedProjectCpcTemplate() {
         return lastCreatedProjectTemplate == ProjectTemplate.CPC;
+    }
+
+    public boolean wasLastCreatedProjectSmsTemplate() {
+        return lastCreatedProjectTemplate == ProjectTemplate.SMS;
+    }
+
+    public boolean wasLastCreatedProjectGameGearTemplate() {
+        return lastCreatedProjectTemplate == ProjectTemplate.GAME_GEAR;
+    }
+
+    public boolean wasLastCreatedProjectMsxTemplate() {
+        return lastCreatedProjectTemplate == ProjectTemplate.MSX;
+    }
+
+    public boolean wasLastCreatedProjectNesTemplate() {
+        return lastCreatedProjectTemplate == ProjectTemplate.NES;
     }
 
     public boolean wasLastCreatedProjectCc65Template() {
@@ -1037,6 +1057,10 @@ public class FXUtils {
         labels.put(ProjectTemplate.GAMEBOY, msg(bundle, "dialog.project.new.template.option.gameboy", "Game Boy - Basico"));
         labels.put(ProjectTemplate.GAMEBOY_SPRITE, msg(bundle, "dialog.project.new.template.option.gameboySprite", "Game Boy - Sprite demo"));
         labels.put(ProjectTemplate.CPC, msg(bundle, "dialog.project.new.template.option.cpc", "Amstrad CPC - Basico"));
+        labels.put(ProjectTemplate.SMS, msg(bundle, "dialog.project.new.template.option.sms", "Master System - Basico"));
+        labels.put(ProjectTemplate.GAME_GEAR, msg(bundle, "dialog.project.new.template.option.gameGear", "Game Gear - Basico"));
+        labels.put(ProjectTemplate.MSX, msg(bundle, "dialog.project.new.template.option.msx", "MSX - Basico"));
+        labels.put(ProjectTemplate.NES, msg(bundle, "dialog.project.new.template.option.nes", "NES - Basico"));
         labels.put(ProjectTemplate.GCC, msg(bundle, "dialog.project.new.template.option.gcc", "C normal (gcc) - Basico"));
         labels.put(ProjectTemplate.GCC_CALC, msg(bundle, "dialog.project.new.template.option.gccCalc", "C normal (gcc) - Calculadora"));
         labels.put(ProjectTemplate.CC65, msg(bundle, "dialog.project.new.template.option.cc65", "CC65 (Atari XE/XL) - Basico"));
@@ -1054,6 +1078,10 @@ public class FXUtils {
         descriptions.put(ProjectTemplate.GAMEBOY, msg(bundle, "dialog.project.new.template.description.gameboy", "Plantilla base de Game Boy con bucle principal y sincronizacion VBlank."));
         descriptions.put(ProjectTemplate.GAMEBOY_SPRITE, msg(bundle, "dialog.project.new.template.description.gameboySprite", "Demo de Game Boy con sprite cargado y mostrado en pantalla."));
         descriptions.put(ProjectTemplate.CPC, msg(bundle, "dialog.project.new.template.description.cpc", "Plantilla basica para Amstrad CPC con Z88DK."));
+        descriptions.put(ProjectTemplate.SMS, msg(bundle, "dialog.project.new.template.description.sms", "Plantilla basica para Sega Master System con Z88DK."));
+        descriptions.put(ProjectTemplate.GAME_GEAR, msg(bundle, "dialog.project.new.template.description.gameGear", "Plantilla basica para Sega Game Gear con Z88DK."));
+        descriptions.put(ProjectTemplate.MSX, msg(bundle, "dialog.project.new.template.description.msx", "Plantilla basica para MSX con Z88DK."));
+        descriptions.put(ProjectTemplate.NES, msg(bundle, "dialog.project.new.template.description.nes", "Plantilla basica para Nintendo NES con CC65."));
         descriptions.put(ProjectTemplate.GCC, msg(bundle, "dialog.project.new.template.description.gcc", "Plantilla basica de C normal para compilar y ejecutar de forma nativa con GCC."));
         descriptions.put(ProjectTemplate.GCC_CALC, msg(bundle, "dialog.project.new.template.description.gccCalc", "Ejemplo de consola en C normal con bucles y entrada por teclado."));
         descriptions.put(ProjectTemplate.CC65, msg(bundle, "dialog.project.new.template.description.cc65", "Plantilla basica para Atari XE/XL con CC65."));
@@ -1229,6 +1257,18 @@ public class FXUtils {
         if (template == ProjectTemplate.CPC) {
             return "cpc";
         }
+        if (template == ProjectTemplate.SMS) {
+            return "sms";
+        }
+        if (template == ProjectTemplate.GAME_GEAR) {
+            return "gamegear";
+        }
+        if (template == ProjectTemplate.MSX) {
+            return "msx";
+        }
+        if (template == ProjectTemplate.NES) {
+            return "nes";
+        }
         if (template == ProjectTemplate.GCC || template == ProjectTemplate.GCC_CALC) {
             return "gcc";
         }
@@ -1255,11 +1295,53 @@ public class FXUtils {
             return getSpectrumReadmeContent(normalizedName, template);
         }
 
+        if (template == ProjectTemplate.CPC) {
+            return getCpcReadmeContent(normalizedName);
+        }
+
         if (template == ProjectTemplate.CC65 || template == ProjectTemplate.CC65_C64) {
             return getCc65ReadmeContent(normalizedName, template);
         }
 
+        if (template == ProjectTemplate.SMS || template == ProjectTemplate.GAME_GEAR
+                || template == ProjectTemplate.MSX || template == ProjectTemplate.NES) {
+            return getNewPlatformReadmeContent(normalizedName, template);
+        }
+
         return getGenericReadmeContent(normalizedName);
+    }
+
+    private String getNewPlatformReadmeContent(String projectName, ProjectTemplate template) {
+        String platform;
+        if (template == ProjectTemplate.SMS) {
+            platform = "Sega Master System";
+        } else if (template == ProjectTemplate.GAME_GEAR) {
+            platform = "Sega Game Gear";
+        } else if (template == ProjectTemplate.MSX) {
+            platform = "MSX";
+        } else if (template == ProjectTemplate.NES) {
+            platform = "Nintendo NES";
+        } else {
+            platform = "Retro";
+        }
+
+        String compiler = template == ProjectTemplate.NES ? "CC65" : "Z88DK";
+
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            platform + " project created with Samaruc.",
+            "",
+            "## Build",
+            "",
+            "Compila desde Samaruc con el compilador integrado (" + compiler + ").",
+            "",
+            "## Structure",
+            "",
+            "- `src/main.c` - main source file.",
+            "- `README.md` - this file.",
+            ""
+        );
     }
 
     private String getSpectrumReadmeContent(String projectName, ProjectTemplate template) {
@@ -1286,6 +1368,51 @@ public class FXUtils {
             "",
             "## Notes",
             "- If you use a Makefile, try to write artifacts to `out/`.",
+            ""
+        );
+    }
+
+    private String getCpcReadmeContent(String projectName) {
+        if (isSpanishReadme()) {
+            return getCpcReadmeContentEs(projectName);
+        }
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "Amstrad CPC project created with Samaruc.",
+            "",
+            "## Structure",
+            "- Main source file: `src/main.c`",
+            "- Build output: `out/`",
+            "",
+            "## Recommended Toolchain",
+            "- z88dk (`zcc +cpc`)",
+            "- Emulator: Caprice32",
+            "",
+            "## Notes",
+            "- Use `-subtype=dsk` (or `-subtype=cpr`) so Caprice32 can load the artifact.",
+            "- If you use a Makefile, try to write artifacts to `out/`.",
+            ""
+        );
+    }
+
+    private String getCpcReadmeContentEs(String projectName) {
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "Proyecto Amstrad CPC creado con Samaruc.",
+            "",
+            "## Estructura",
+            "- Archivo principal: `src/main.c`",
+            "- Salida de compilaci\u00f3n: `out/`",
+            "",
+            "## Toolchain recomendada",
+            "- z88dk (`zcc +cpc`)",
+            "- Emulador: Caprice32",
+            "",
+            "## Notas",
+            "- Usa `-subtype=dsk` (o `-subtype=cpr`) para que Caprice32 pueda cargar el artefacto.",
+            "- Si usas Makefile, intenta generar artefactos en `out/`.",
             ""
         );
     }
@@ -1520,6 +1647,14 @@ public class FXUtils {
             appendGameBoyGitignore(sb);
         } else if (template == ProjectTemplate.SPECTRUM || template == ProjectTemplate.SPECTRUM_SCREEN) {
             appendSpectrumGitignore(sb);
+        } else if (template == ProjectTemplate.SMS || template == ProjectTemplate.GAME_GEAR) {
+            appendSmsGitignore(sb);
+        } else if (template == ProjectTemplate.MSX) {
+            appendMsxGitignore(sb);
+        } else if (template == ProjectTemplate.NES) {
+            appendNesGitignore(sb);
+        } else if (template == ProjectTemplate.CPC) {
+            appendCpcGitignore(sb);
         } else if (template == ProjectTemplate.CC65) {
             appendCc65Gitignore(sb);
         } else if (template == ProjectTemplate.CC65_C64) {
@@ -1561,6 +1696,41 @@ public class FXUtils {
         sb.append("# Game Boy outputs\n");
         sb.append("*.gb\n");
         sb.append("*.gbc\n");
+        sb.append("\n");
+    }
+
+    private void appendSmsGitignore(StringBuilder sb) {
+        sb.append("# Sega Master System / Game Gear outputs\n");
+        sb.append("*.sms\n");
+        sb.append("*.gg\n");
+        sb.append("\n");
+    }
+
+    private void appendMsxGitignore(StringBuilder sb) {
+        sb.append("# MSX outputs\n");
+        sb.append("*.rom\n");
+        sb.append("*.dsk\n");
+        sb.append("*.cas\n");
+        sb.append("*.bin\n");
+        sb.append("\n");
+    }
+
+    private void appendNesGitignore(StringBuilder sb) {
+        sb.append("# NES / CC65 outputs\n");
+        sb.append("*.nes\n");
+        sb.append("\n");
+    }
+
+    private void appendCpcGitignore(StringBuilder sb) {
+        sb.append("# Amstrad CPC / z88dk outputs\n");
+        sb.append("*.dsk\n");
+        sb.append("*.edsk\n");
+        sb.append("*.cdt\n");
+        sb.append("*.cpr\n");
+        sb.append("*.voc\n");
+        sb.append("*.wav\n");
+        sb.append("*.sna\n");
+        sb.append("*.cpc\n");
         sb.append("\n");
     }
 
@@ -1715,6 +1885,18 @@ public class FXUtils {
 
         if (template == ProjectTemplate.CPC) {
             return loadResourceTemplate("/templates/cpc_main.c");
+        }
+        if (template == ProjectTemplate.SMS) {
+            return loadResourceTemplate("/templates/sms_main.c");
+        }
+        if (template == ProjectTemplate.GAME_GEAR) {
+            return loadResourceTemplate("/templates/gg_main.c");
+        }
+        if (template == ProjectTemplate.MSX) {
+            return loadResourceTemplate("/templates/msx_main.c");
+        }
+        if (template == ProjectTemplate.NES) {
+            return loadResourceTemplate("/templates/nes_main.c");
         }
         if (template == ProjectTemplate.GCC) {
             return loadResourceTemplate("/templates/native_main.c");

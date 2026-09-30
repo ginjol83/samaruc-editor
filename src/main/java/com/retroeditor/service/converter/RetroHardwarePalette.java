@@ -18,6 +18,11 @@ package com.retroeditor.service.converter;
  *   <li>Master System: TMS9918, 16 colores de 6 bits (2 bits por canal,
  *       niveles 0/85/170/255). El color 0 es transparente en sprites.</li>
  *   <li>Game Gear: 12 bits (3 bits por canal, 8 niveles).</li>
+ *   <li>MSX: TMS9918, 16 colores de 6 bits con la misma tabla que el Master
+ *       System y el mismo layout de CRAM {@code %00BBGGRR}.</li>
+ *   <li>NES: PPU 2C02, 64 entradas de paleta (indices 0x00-0x3F). Los
+ *       indices 0x0D-0x0F, 0x1D-0x1F, 0x2D-0x2F y 0x3D-0x3F son negros
+ *       (transparente / negro de pantalla) y no se usoan como color.</li>
  * </ul>
  */
 public final class RetroHardwarePalette {
@@ -138,6 +143,47 @@ public final class RetroHardwarePalette {
     }
 
     /**
+     * MSX: 16 colores del TMS9918.
+     *
+     * La tabla de 2 bits por canal es la misma que la del Master System (el
+     * MSX1 comparte el VDP), asi que se reutiliza para el preview. La CRAM
+     * MSX1 guarda cada entrada como un byte de 6 bits con el mismo layout
+     * {@code %00BBGGRR} del Master System (ver {@link #msxCramByte(int)}).
+     */
+    public static int[] msx() {
+        return masterSystem();
+    }
+
+    /**
+     * NES: los 64 colores del PPU 2C02 (indices 0x00-0x3F).
+     *
+     * Es la tabla aproximada NTSC de uso habitual en emuladores (FCEUX y
+     * afines); la salida exacta del 2C02 depende de la implementacion del
+     * decodificador de video de cada televisor, no hay unos valores unicos
+     * "de fabrica".
+     */
+    public static int[] nes() {
+        return new int[] {
+            rgb(0x7C7C7C), rgb(0x0000FC), rgb(0x0000BC), rgb(0x4428BC),
+            rgb(0x940084), rgb(0xA80020), rgb(0xA81000), rgb(0x881400),
+            rgb(0x503000), rgb(0x007800), rgb(0x006800), rgb(0x005800),
+            rgb(0x004058), rgb(0x000000), rgb(0x000000), rgb(0x000000),
+            rgb(0xBCBCBC), rgb(0x0078F8), rgb(0x0058F8), rgb(0x6844FC),
+            rgb(0xD800CC), rgb(0xE40058), rgb(0xF83800), rgb(0xE45C10),
+            rgb(0xAC7C00), rgb(0x00B800), rgb(0x00A800), rgb(0x00A844),
+            rgb(0x008888), rgb(0x000000), rgb(0x000000), rgb(0x000000),
+            rgb(0xF8F8F8), rgb(0x3CBCFC), rgb(0x6888FC), rgb(0x9878F8),
+            rgb(0xF878F8), rgb(0xF85898), rgb(0xF87858), rgb(0xFCA044),
+            rgb(0xF8B800), rgb(0xB8F818), rgb(0x58D854), rgb(0x58F898),
+            rgb(0x00E8D8), rgb(0x787878), rgb(0x000000), rgb(0x000000),
+            rgb(0xFCFCFC), rgb(0xA4E4FC), rgb(0xB8B8F8), rgb(0xD8B8F8),
+            rgb(0xF8B8F8), rgb(0xF8A4C0), rgb(0xF0D0B0), rgb(0xFCE0A8),
+            rgb(0xF8D878), rgb(0xD8F878), rgb(0xB8F8B8), rgb(0xB8F8D8),
+            rgb(0x00FCFC), rgb(0xF8D8F8), rgb(0x000000), rgb(0x000000)
+        };
+    }
+
+    /**
      * Byte de CRAM del Master System para un color de la paleta.
      *
      * El registro es {@code %00BBGGRR} con dos bits por canal, y esos dos bits
@@ -155,6 +201,16 @@ public final class RetroHardwarePalette {
     /** Cuantiza un canal de 0-255 a los 4 niveles de 2 bits del TMS9918. */
     private static int level2(int component) {
         return Math.min(3, (component + 42) / 85);
+    }
+
+    /**
+     * Byte de CRAM del MSX1 para un color de la paleta.
+     *
+     * El TMS9918 guarda 6 bits por entrada con el mismo layout que el Master
+     * System: {@code %00BBGGRR}.
+     */
+    public static int msxCramByte(int argb) {
+        return masterSystemCramByte(argb);
     }
 
     /**

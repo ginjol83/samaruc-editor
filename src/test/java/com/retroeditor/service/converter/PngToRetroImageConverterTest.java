@@ -123,6 +123,48 @@ class PngToRetroImageConverterTest {
     }
 
     @Test
+    void convertPixels_ForMsx_EmitsSixBitCramLikeTheSharedVdp() {
+        int[] pixels = new int[8 * 8];
+        Arrays.fill(pixels, 0xFFFF0000);
+        pixels[0] = 0x00FFFFFF;
+
+        RetroImageConversion conversion =
+                converter.convertPixels(pixels, RetroImageMode.MSX_TILES, 8, 8);
+
+        assertEquals(0, conversion.indexAt(0, 0), "El pixel transparente se queda en el indice 0");
+        assertNotNull(conversion.cram());
+        assertEquals(2, conversion.cram().length, "Solo se exportan los colores usados");
+        assertEquals(0x00, conversion.cram()[0] & 0xFF, "El color 0 del TMS9918 es transparente");
+        assertEquals(0x03, conversion.cram()[1] & 0xFF, "Rojo claro = %000011");
+        assertEquals(32, conversion.totalBytes(), "Un tile 8x8 de 4bpp ocupa 32 bytes");
+    }
+
+    @Test
+    void convertPixels_ForNes_SplitsPatternsAttributesAndPaletteRam() {
+        int[] pixels = new int[8 * 8];
+        Arrays.fill(pixels, 0xFFFF0000);
+        pixels[0] = 0xFF00B800;
+
+        RetroImageConversion conversion =
+                converter.convertPixels(pixels, RetroImageMode.NES_TILES, 8, 8);
+
+        assertEquals(3, conversion.layers().size());
+        assertEquals(33, conversion.totalBytes(), "16 bytes de tile + 1 atributo + 16 de paleta RAM");
+        assertEquals(16, conversion.layers().get(0).data().length);
+        assertEquals(1, conversion.layers().get(1).data().length);
+        assertEquals(16, conversion.layers().get(2).data().length);
+        assertEquals(conversion.hardwareIndices()[0] & 0xFF,
+                conversion.layers().get(2).data()[0] & 0xFF,
+                "El color mas usado se escribe en el primer slot de la subpaleta 0");
+        assertEquals(conversion.hardwareIndices()[1] & 0xFF,
+                conversion.layers().get(2).data()[1] & 0xFF,
+                "El segundo color ocupa el slot 1");
+        assertEquals((byte) 0xFF, conversion.layers().get(2).data()[2], "El resto de slots quedan sin usar");
+        assertEquals((byte) 0xFF, conversion.layers().get(2).data()[15]);
+        assertEquals(0, conversion.layers().get(1).data()[0] & 0x03, "La celda usa la subpaleta 0");
+    }
+
+    @Test
     void convertPixels_WithMoreTonesThanColours_KeepsThemCloseToTheOriginal() {
         // Degradado de 16 tonos de gris: mas de los 2 colores del modo 0 del CPC.
         int width = 16;

@@ -36,14 +36,10 @@ import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ReadOnlyBooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
-import javafx.concurrent.Worker;
-import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
-import javafx.scene.web.WebEngine;
-import javafx.scene.web.WebView;
 import javafx.stage.Stage;
 import org.fxmisc.richtext.StyleClassedTextArea;
 
@@ -57,16 +53,29 @@ public class BuildController {
     private static final String LEGACY_SPECTRUM = "Spectrum";
     private static final String Z88DK_PROFILE_SPECTRUM = "spectrum";
     private static final String Z88DK_PROFILE_CPC = "cpc";
+    private static final String Z88DK_PROFILE_SMS = "sms";
+    private static final String Z88DK_PROFILE_GAME_GEAR = "gg";
+    private static final String Z88DK_PROFILE_MSX = "msx";
     private static final String EMULATOR_EMULICIOUS = "Emulicious";
     private static final String EMULATOR_JSPECCY    = "JSpeccy";
-    private static final String EMULATOR_CPCBOX_WEB = "CPCBoxWeb";
+    private static final String EMULATOR_CAP32 = "Cap32";
+    private static final String EMULATOR_CPCBOX_WEB_LEGACY = "CPCBoxWeb";
     private static final String EMULATOR_ALTIRRA    = "Altirra";
     private static final String EMULATOR_VICE       = "VICE";
+    private static final String EMULATOR_OPENMSX    = "openMSX";
+    private static final String EMULATOR_MESEN      = "Mesen";
     private static final String CC65_TARGET_ATARI   = "atari";
     private static final String CC65_TARGET_C64     = "c64";
+    private static final String CC65_TARGET_NES     = "nes";
     private static final List<String> GAMEBOY_ROM_EXTENSIONS = Collections.unmodifiableList(Arrays.asList("gb", "gbc"));
     private static final List<String> SPECTRUM_ROM_EXTENSIONS = Collections.unmodifiableList(Arrays.asList("tap", "tzx", "sna", "z80"));
-    private static final List<String> CPC_ROM_EXTENSIONS = Collections.unmodifiableList(Arrays.asList("cdt", "wav", "dsk", "edsk"));
+    private static final List<String> SMS_ROM_EXTENSIONS = Collections.unmodifiableList(Arrays.asList("sms", "gg"));
+    private static final List<String> MSX_ROM_EXTENSIONS = Collections.unmodifiableList(Arrays.asList("rom", "bin", "dsk", "ds2"));
+    private static final List<String> NES_ROM_EXTENSIONS = Collections.unmodifiableList(Arrays.asList("nes"));
+    private static final List<String> CPC_ROM_EXTENSIONS = Collections.unmodifiableList(Arrays.asList("cdt", "wav", "dsk", "edsk", "voc", "cpr", "sna"));
+
+    /** Formatos de medio que Caprice32 carga por extension. */
+    private static final List<String> CPC_CAP32_EXTENSIONS = Collections.unmodifiableList(Arrays.asList("dsk", "cdt", "voc", "cpr", "sna", "zip"));
     private static final List<String> ATARI_ROM_EXTENSIONS = Collections.unmodifiableList(Arrays.asList("xex", "atr", "com", "exe"));
     private static final List<String> C64_ROM_EXTENSIONS = Collections.unmodifiableList(Arrays.asList("prg", "d64", "t64", "tap", "crt"));
     private static final List<String> CPC_AUTORUN_PRIORITY = Collections.unmodifiableList(Arrays.asList(
@@ -169,19 +178,16 @@ public class BuildController {
             String z88dkBin = resolveEffectiveZ88dkBin(configModel, selectedCompiler);
 
             if (z88dkBin == null || z88dkBin.isBlank()) {
+                String profileLabel = profileLabel(z88dkProfile);
                 Alert alert = new Alert(AlertType.ERROR);
 
                 alert.setTitle      ("Error de compilación");
-                alert.setHeaderText (cpcProfile ? "No se ha configurado la ruta de Z88DK para CPC" : "No se ha configurado la ruta de Z88DK");
-                alert.setContentText(cpcProfile
-                    ? "No se ha configurado la ruta del bin de Z88DK para CPC y no se encuentra la copia integrada en libs/z88dk."
-                    : "No se ha configurado la ruta del bin de Z88DK y no se encuentra la copia integrada en libs/z88dk.");
+                alert.setHeaderText ("No se ha configurado la ruta de Z88DK para " + profileLabel);
+                alert.setContentText("No se ha configurado la ruta del bin de Z88DK para " + profileLabel + " y no se encuentra la copia integrada en libs/devkits/z88dk.");
                 alert.showAndWait   ();
 
                 terminalController.appendConsoleOutput(
-                    cpcProfile
-                        ? "ERROR: No se ha configurado la ruta del bin de Z88DK para CPC."
-                        : "ERROR: No se ha configurado la ruta del bin de Z88DK.",
+                    "ERROR: No se ha configurado la ruta del bin de Z88DK para " + profileLabel + ".",
                     consoleOutputArea
                 );
 
@@ -190,18 +196,19 @@ public class BuildController {
 
             String compiler = resolveCompilerExecutable(z88dkBin, "zcc");
             String clibOption = configModel.getConfigProperty(
-                cpcProfile ? "z88dk_cpc_clib_option" : "z88dk_clib_option",
-                cpcProfile ? ConfigModel.Z88DK_CLIB_DEFAULT : ConfigModel.Z88DK_CLIB_NEW
+                z88dkProfileKey(z88dkProfile, "clib_option"),
+                z88dkDefaultClib(z88dkProfile)
             );
-            if (cpcProfile && (clibOption == null || ConfigModel.Z88DK_CLIB_NEW.equalsIgnoreCase(clibOption.trim()))) {
+            if (!Z88DK_PROFILE_SPECTRUM.equals(z88dkProfile)
+                    && (clibOption == null || ConfigModel.Z88DK_CLIB_NEW.equalsIgnoreCase(clibOption.trim()))) {
                 clibOption = ConfigModel.Z88DK_CLIB_DEFAULT;
             }
             boolean useCrtOrgCode = Boolean.parseBoolean(configModel.getConfigProperty(
-                cpcProfile ? "z88dk_cpc_use_pragma_crt_org_code_32768" : "z88dk_use_pragma_crt_org_code_32768",
-                cpcProfile ? "false" : "true"
+                z88dkProfileKey(z88dkProfile, "use_pragma_crt_org_code_32768"),
+                Z88DK_PROFILE_SPECTRUM.equals(z88dkProfile) ? "true" : "false"
             ));
             boolean useCreateApp = Boolean.parseBoolean(configModel.getConfigProperty(
-                cpcProfile ? "z88dk_cpc_create_app" : "z88dk_create_app",
+                z88dkProfileKey(z88dkProfile, "create_app"),
                 "true"
             ));
             String spectrumOutputBase = new File(
@@ -209,22 +216,23 @@ public class BuildController {
                 cpcProfile ? resolveCpcOutputBaseName(sourceFileName) : outputBaseName
             ).getAbsolutePath();
             String z88dkTarget = normalizeZ88dkTarget(configModel.getConfigProperty(
-                cpcProfile ? "z88dk_cpc_target" : "z88dk_target",
-                cpcProfile ? "+cpc" : "+zx"
+                z88dkProfileKey(z88dkProfile, "target"),
+                z88dkDefaultTarget(z88dkProfile)
             ));
-            String z88dkExtraArgs = configModel.getConfigProperty(cpcProfile ? "z88dk_cpc_extra_args" : "z88dk_extra_args", "");
+            String z88dkExtraArgs = configModel.getConfigProperty(z88dkProfileKey(z88dkProfile, "extra_args"), "");
+            String subtype = z88dkDefaultSubtype(z88dkProfile);
 
             List<String> spectrumCmd = new ArrayList<>();
             spectrumCmd.add(compiler);
             spectrumCmd.add(z88dkTarget);
-            if (cpcProfile && !containsSubtypeArgument(z88dkExtraArgs)) {
-                spectrumCmd.add("-subtype=dsk");
+            if (subtype != null && !containsSubtypeArgument(z88dkExtraArgs)) {
+                spectrumCmd.add("-subtype=" + subtype);
             }
             String clibArgument = resolveZ88dkClibArgument(clibOption);
             if (clibArgument != null) spectrumCmd.add(clibArgument);
             if (useCrtOrgCode) spectrumCmd.add("-pragma-define:CRT_ORG_CODE=32768");
-            compilerArgs.addMacroFlags(spectrumCmd, configModel.getConfigProperty(cpcProfile ? "z88dk_cpc_defines" : "z88dk_defines", ""));
-            compilerArgs.addIncludeFlags(spectrumCmd, configModel.getConfigProperty(cpcProfile ? "z88dk_cpc_includes" : "z88dk_includes", ""));
+            compilerArgs.addMacroFlags(spectrumCmd, configModel.getConfigProperty(z88dkProfileKey(z88dkProfile, "defines"), ""));
+            compilerArgs.addIncludeFlags(spectrumCmd, configModel.getConfigProperty(z88dkProfileKey(z88dkProfile, "includes"), ""));
             compilerArgs.addExtraArgs(spectrumCmd, z88dkExtraArgs);
             spectrumCmd.add("-o");
             spectrumCmd.add(spectrumOutputBase);
@@ -315,10 +323,10 @@ public class BuildController {
                     Alert alert = new Alert(AlertType.ERROR);
                     alert.setTitle("Error de compilación");
                     alert.setHeaderText("No se encontró CC65 integrado");
-                    alert.setContentText("No se ha encontrado la distribución de CC65 incluida con Samaruc en la carpeta libs/cc65/bin.");
+                    alert.setContentText("No se ha encontrado la distribución de CC65 incluida con Samaruc en la carpeta libs/devkits/cc65/bin.");
                     alert.showAndWait();
 
-                    terminalController.appendConsoleOutput("ERROR: No se encontró la distribución de CC65 integrada en libs/cc65/bin.", consoleOutputArea);
+                    terminalController.appendConsoleOutput("ERROR: No se encontró la distribución de CC65 integrada en libs/devkits/cc65/bin.", consoleOutputArea);
 
                     return;
                 }
@@ -326,8 +334,9 @@ public class BuildController {
             }
 
             String cc65Target = normalizeCc65Target(configModel.getConfigProperty("cc65_target", CC65_TARGET_ATARI));
-            String cc65TargetFlag = CC65_TARGET_C64.equals(cc65Target) ? "c64" : "atari";
-            String outputArtifact = new File(outputDir, outputBaseName + (CC65_TARGET_C64.equals(cc65Target) ? ".prg" : ".xex")).getAbsolutePath();
+            String cc65TargetFlag = cc65TargetActual(cc65Target);
+            String cc65ArtifactExtension = cc65ArtifactExtension(cc65Target);
+            String outputArtifact = new File(outputDir, outputBaseName + cc65ArtifactExtension).getAbsolutePath();
             List<String> cc65Cmd = new ArrayList<>();
             cc65Cmd.add(cl65);
             cc65Cmd.add("-t");
@@ -352,10 +361,10 @@ public class BuildController {
                 Alert alert = new Alert(AlertType.ERROR);
                 alert.setTitle      ("Error de compilación");
                 alert.setHeaderText ("No se encontró GBDK integrado");
-                alert.setContentText("No se ha encontrado la distribución de GBDK incluida con Samaruc en la carpeta libs/gbdk/bin.");
+                alert.setContentText("No se ha encontrado la distribución de GBDK incluida con Samaruc en la carpeta libs/devkits/gbdk/bin.");
                 alert.showAndWait   ();
 
-                terminalController.appendConsoleOutput("ERROR: No se encontró la distribución de GBDK integrada en libs/gbdk/bin.", consoleOutputArea);
+                terminalController.appendConsoleOutput("ERROR: No se encontró la distribución de GBDK integrada en libs/devkits/gbdk/bin.", consoleOutputArea);
 
                 return;
             }
@@ -643,10 +652,10 @@ public class BuildController {
         }
 
         String selectedProfile = normalizeZ88dkProfile(configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM));
-        String selectedEmulator = configModel.getConfigProperty(
+        String selectedEmulator = ConfigModel.normalizeEmulatorSelection(configModel.getConfigProperty(
             "emulador_seleccionado",
             getEmulatorForCompiler(selectedCompiler, selectedProfile, configModel)
-        );
+        ));
 
         // F6/Play compila primero y, si termina OK, lanza el emulador o el ejecutable nativo.
         onCompilar(
@@ -695,8 +704,23 @@ public class BuildController {
             return;
         }
 
+        if (SMS_ROM_EXTENSIONS.contains(ext)) {
+            launchSmsRom(romFile, consoleOutputArea, ownerStage);
+            return;
+        }
+
+        if (MSX_ROM_EXTENSIONS.contains(ext)) {
+            launchMsxRom(romFile, consoleOutputArea, ownerStage);
+            return;
+        }
+
+        if (NES_ROM_EXTENSIONS.contains(ext)) {
+            launchNesRom(romFile, consoleOutputArea, ownerStage);
+            return;
+        }
+
         if (CPC_ROM_EXTENSIONS.contains(ext)) {
-            launchCpcBoxRom(romFile, consoleOutputArea, ownerStage);
+            launchCap32Rom(romFile, consoleOutputArea, ownerStage);
             return;
         }
 
@@ -722,6 +746,9 @@ public class BuildController {
         return GAMEBOY_ROM_EXTENSIONS.contains(ext)
             || SPECTRUM_ROM_EXTENSIONS.contains(ext)
             || CPC_ROM_EXTENSIONS.contains(ext)
+            || SMS_ROM_EXTENSIONS.contains(ext)
+            || MSX_ROM_EXTENSIONS.contains(ext)
+            || NES_ROM_EXTENSIONS.contains(ext)
             || ATARI_ROM_EXTENSIONS.contains(ext)
             || C64_ROM_EXTENSIONS.contains(ext);
     }
@@ -1106,93 +1133,210 @@ public class BuildController {
         }
     }
 
-    private void launchCpc(File sourceFile, File projectRootDir, StyleClassedTextArea consoleOutputArea, Stage ownerStage) {
-        File cpcArtifact = resolveCpcArtifact(sourceFile, projectRootDir);
+    private void launchSms(File sourceFile, File projectRootDir, StyleClassedTextArea consoleOutputArea, Stage ownerStage) {
+        File smsArtifact = resolveSmsArtifact(sourceFile, projectRootDir);
 
-        if (cpcArtifact == null) {
-            File cpcContainer = buildOutputFile(sourceFile, ".cpc", projectRootDir);
+        if (smsArtifact == null || !smsArtifact.exists()) {
             terminalController.appendConsoleOutput(
-                "No se encontró un archivo compatible para CPCBox (.dsk, .edsk, .wav o .cdt).",
-                consoleOutputArea
-            );
-            if (cpcContainer.exists()) {
-                terminalController.appendConsoleOutput(
-                    "Se generó un .cpc, pero CPCBox necesita .dsk/.edsk/.wav/.cdt. Activa -create-app y usa -subtype=dsk o -subtype=wav.",
-                    consoleOutputArea
-                );
-            }
-            terminalController.appendConsoleOutput(
-                "Compila el proyecto para CPC antes de ejecutar en el emulador web.",
+                "No se encontró un archivo SMS/Game Gear (.sms o .gg). Compila el proyecto antes de ejecutar.",
                 consoleOutputArea
             );
             return;
         }
 
-        launchCpcBoxRom(cpcArtifact, consoleOutputArea, ownerStage);
+        launchSmsRom(smsArtifact, consoleOutputArea, ownerStage);
     }
 
-    private void launchCpcBoxRom(File romFile, StyleClassedTextArea consoleOutputArea, Stage ownerStage) {
-        File cpcBoxIndex = resolveCpcBoxIndex();
-        if (cpcBoxIndex == null) {
+    private void launchSmsRom(File romFile, StyleClassedTextArea consoleOutputArea, Stage ownerStage) {
+        File emuliciousJar = resolveBundledJar("Emulicious");
+
+        if (emuliciousJar == null) {
             terminalController.appendConsoleOutput(
-                "No se encontró CPCBox en libs/cpcbox-main/cpcbox-main/index.html.",
+                "No se encontró Emulicious.jar en la carpeta libs.",
                 consoleOutputArea
             );
             return;
         }
 
         try {
-            UserActionMonitor.emulatorLaunched(EMULATOR_CPCBOX_WEB, romFile.getName());
-
-            WebView webView = new WebView();
-            WebEngine engine = webView.getEngine();
-
-            engine.getLoadWorker().stateProperty().addListener((obs, oldState, newState) -> {
-                if (newState != Worker.State.SUCCEEDED) return;
-
-                Platform.runLater(() -> {
-                    try {
-                        injectCpcMedia(engine, romFile, consoleOutputArea);
-                    } catch (Exception ex) {
-                        terminalController.appendConsoleOutput(
-                            "Error al preparar medio CPC en el emulador web: " + ex.getMessage(),
-                            consoleOutputArea
-                        );
-                    }
-                });
-            });
-
-            Stage stage = new Stage();
-            if (ownerStage != null) {
-                stage.initOwner(ownerStage);
-            }
-            stage.setTitle("CPCBox Web - " + romFile.getName());
-            stage.setScene(new Scene(webView, 1280, 900));
-            stage.setOnShown(event -> Platform.runLater(() -> {
-                try {
-                    stage.toFront();
-                    stage.requestFocus();
-                    webView.requestFocus();
-                } catch (Exception ignored) {
-                }
-            }));
-            stage.show();
-
-            engine.load(cpcBoxIndex.toURI().toString() + "?samaruc_autostart=0");
-
-            UserActionMonitor.emulatorRunning(EMULATOR_CPCBOX_WEB);
+            UserActionMonitor.emulatorLaunched(EMULATOR_EMULICIOUS, romFile.getName());
+            EmulatorLauncher.LaunchResult launch = EmulatorLauncher.launchSmsEmulator(emuliciousJar, romFile, consoleOutputArea, null);
+            UserActionMonitor.emulatorRunning(EMULATOR_EMULICIOUS);
+            monitorEmulatorStartup(EMULATOR_EMULICIOUS, launch.process, ownerStage, consoleOutputArea);
+            handoffFocusToEmulator(ownerStage, consoleOutputArea);
             terminalController.appendConsoleOutput(
-                "Emulador lanzado. Si no responde al teclado, haz clic dentro de su ventana.",
+                "Lanzando Emulicious con ROM SMS/Game Gear: " + romFile.getName(),
                 consoleOutputArea
             );
+        } catch (Exception e) {
+            UserActionMonitor.executionError(EMULATOR_EMULICIOUS + ": " + e.getMessage());
+            terminalController.appendConsoleOutput("Error al lanzar Emulicious: " + e.getMessage(), consoleOutputArea);
+        }
+    }
+
+    private void launchMsx(File sourceFile, File projectRootDir, StyleClassedTextArea consoleOutputArea, Stage ownerStage) {
+        File msxArtifact = resolveMsxArtifact(sourceFile, projectRootDir);
+
+        if (msxArtifact == null || !msxArtifact.exists()) {
             terminalController.appendConsoleOutput(
-                "Lanzando CPCBox Web con ROM: " + romFile.getName(),
+                "No se encontró un archivo MSX (.rom/.bin/.dsk). Compila el proyecto antes de ejecutar.",
+                consoleOutputArea
+            );
+            return;
+        }
+
+        launchMsxRom(msxArtifact, consoleOutputArea, ownerStage);
+    }
+
+    private void launchMsxRom(File romFile, StyleClassedTextArea consoleOutputArea, Stage ownerStage) {
+        try {
+            File openMsxExe = EmulatorLauncher.resolveBundledOpenMsxExecutable();
+            if (openMsxExe == null) {
+                terminalController.appendConsoleOutput(
+                    "No se encontró openMSX en libs/emulators/openmsx/openmsx.exe.",
+                    consoleOutputArea
+                );
+                return;
+            }
+
+            UserActionMonitor.emulatorLaunched(EMULATOR_OPENMSX, romFile.getName());
+            EmulatorLauncher.LaunchResult launch = EmulatorLauncher.launchOpenMsx(openMsxExe, romFile, consoleOutputArea, null);
+            UserActionMonitor.emulatorRunning(EMULATOR_OPENMSX);
+            monitorEmulatorStartup(EMULATOR_OPENMSX, launch.process, ownerStage, consoleOutputArea);
+            handoffFocusToEmulator(ownerStage, consoleOutputArea);
+            terminalController.appendConsoleOutput(
+                "Lanzando openMSX con: " + romFile.getName(),
                 consoleOutputArea
             );
         } catch (Exception ex) {
-            UserActionMonitor.executionError(EMULATOR_CPCBOX_WEB + ": " + ex.getMessage());
+            UserActionMonitor.executionError(EMULATOR_OPENMSX + ": " + ex.getMessage());
             terminalController.appendConsoleOutput(
-                "Error al lanzar CPCBox Web: " + ex.getMessage(),
+                "Error al lanzar openMSX: " + ex.getMessage(),
+                consoleOutputArea
+            );
+        }
+    }
+
+    private void launchNes(File sourceFile, File projectRootDir, StyleClassedTextArea consoleOutputArea, Stage ownerStage) {
+        File nesArtifact = resolveNesArtifact(sourceFile, projectRootDir);
+
+        if (nesArtifact == null || !nesArtifact.exists()) {
+            terminalController.appendConsoleOutput(
+                "No se encontró un archivo NES (.nes). Compila el proyecto antes de ejecutar.",
+                consoleOutputArea
+            );
+            return;
+        }
+
+        launchNesRom(nesArtifact, consoleOutputArea, ownerStage);
+    }
+
+    private void launchNesRom(File romFile, StyleClassedTextArea consoleOutputArea, Stage ownerStage) {
+        try {
+            File mesenExe = EmulatorLauncher.resolveBundledMesenExecutable();
+            if (mesenExe == null) {
+                terminalController.appendConsoleOutput(
+                    "No se encontró Mesen en libs/emulators/mesen/Mesen.exe.",
+                    consoleOutputArea
+                );
+                return;
+            }
+
+            UserActionMonitor.emulatorLaunched(EMULATOR_MESEN, romFile.getName());
+            EmulatorLauncher.LaunchResult launch = EmulatorLauncher.launchMesen(mesenExe, romFile, consoleOutputArea, null);
+            UserActionMonitor.emulatorRunning(EMULATOR_MESEN);
+            monitorEmulatorStartup(EMULATOR_MESEN, launch.process, ownerStage, consoleOutputArea);
+            handoffFocusToEmulator(ownerStage, consoleOutputArea);
+            terminalController.appendConsoleOutput(
+                "Lanzando Mesen con: " + romFile.getName(),
+                consoleOutputArea
+            );
+        } catch (Exception ex) {
+            UserActionMonitor.executionError(EMULATOR_MESEN + ": " + ex.getMessage());
+            terminalController.appendConsoleOutput(
+                "Error al lanzar Mesen: " + ex.getMessage(),
+                consoleOutputArea
+            );
+        }
+    }
+
+    private void launchCpc(File sourceFile, File projectRootDir, StyleClassedTextArea consoleOutputArea, Stage ownerStage) {
+        File cpcArtifact = resolveCpcArtifact(sourceFile, projectRootDir);
+
+        if (cpcArtifact == null) {
+            File cpcContainer = buildOutputFile(sourceFile, ".cpc", projectRootDir);
+            terminalController.appendConsoleOutput(
+                "No se encontró un archivo compatible para Caprice32 (.dsk, .cdt, .voc, .cpr, .sna o .zip).",
+                consoleOutputArea
+            );
+            if (cpcContainer.exists()) {
+                terminalController.appendConsoleOutput(
+                    "Se generó un .cpc, pero Caprice32 necesita .dsk/.cdt/.cpr. Activa -create-app y usa -subtype=dsk o -subtype=cpr.",
+                    consoleOutputArea
+                );
+            }
+            terminalController.appendConsoleOutput(
+                "Compila el proyecto para CPC antes de ejecutar en el emulador.",
+                consoleOutputArea
+            );
+            return;
+        }
+
+        launchCap32Rom(cpcArtifact, consoleOutputArea, ownerStage);
+    }
+
+    private void launchCap32Rom(File romFile, StyleClassedTextArea consoleOutputArea, Stage ownerStage) {
+        try {
+            File cap32Exe = resolveCap32Executable();
+            if (cap32Exe == null) {
+                terminalController.appendConsoleOutput(
+                    "No se encontró Caprice32 en libs/emulators/cap32/cap32.exe.",
+                    consoleOutputArea
+                );
+                return;
+            }
+
+            String mediaName = romFile != null ? romFile.getName() : "";
+            String extension = getExtension(romFile);
+            File loadableMedium = romFile;
+
+            if ("edsk".equals(extension)) {
+                terminalController.appendConsoleOutput(
+                    "Aviso: Caprice32 no admite .edsk. Se ha abierto el emulador; convierte el disco a .dsk para cargarlo automáticamente.",
+                    consoleOutputArea
+                );
+            }
+
+            if (!CPC_CAP32_EXTENSIONS.contains(extension)) {
+                terminalController.appendConsoleOutput(
+                    "Aviso: Caprice32 no admite ." + extension + " como medio (admitidos: .dsk, .cdt, .voc, .cpr, .sna, .zip). Se abrirá el emulador sin cargar el archivo.",
+                    consoleOutputArea
+                );
+                loadableMedium = null;
+            }
+
+            UserActionMonitor.emulatorLaunched(EMULATOR_CAP32, mediaName);
+            List<String> cap32Args = new ArrayList<>();
+            String autoCommand = resolveCap32AutoCommand(loadableMedium);
+            if (autoCommand != null) {
+                cap32Args.add("--autocmd=" + autoCommand);
+                terminalController.appendConsoleOutput(
+                    "Caprice32 arrancará con: " + autoCommand,
+                    consoleOutputArea
+                );
+            }
+            EmulatorLauncher.LaunchResult launch = EmulatorLauncher.launchCap32(cap32Exe, loadableMedium, consoleOutputArea, cap32Args);
+            UserActionMonitor.emulatorRunning(EMULATOR_CAP32);
+            monitorEmulatorStartup(EMULATOR_CAP32, launch.process, ownerStage, consoleOutputArea);
+            handoffFocusToEmulator(ownerStage, consoleOutputArea);
+            terminalController.appendConsoleOutput(
+                "Lanzando Caprice32 con: " + mediaName,
+                consoleOutputArea
+            );
+        } catch (Exception ex) {
+            UserActionMonitor.executionError(EMULATOR_CAP32 + ": " + ex.getMessage());
+            terminalController.appendConsoleOutput(
+                "Error al lanzar Caprice32: " + ex.getMessage(),
                 consoleOutputArea
             );
         }
@@ -1200,21 +1344,45 @@ public class BuildController {
 
     private String getEmulatorForCompiler(String compiler, String z88dkProfile, ConfigModel configModel) {
         if (isSpectrumCompiler(compiler)) {
-            return Z88DK_PROFILE_CPC.equalsIgnoreCase(normalizeZ88dkProfile(z88dkProfile))
-                ? EMULATOR_CPCBOX_WEB
-                : EMULATOR_JSPECCY;
+            String z = normalizeZ88dkProfile(z88dkProfile);
+            if (Z88DK_PROFILE_CPC.equalsIgnoreCase(z)) {
+                return EMULATOR_CAP32;
+            }
+            if (Z88DK_PROFILE_MSX.equalsIgnoreCase(z)) {
+                return EMULATOR_OPENMSX;
+            }
+            if (Z88DK_PROFILE_SMS.equalsIgnoreCase(z) || Z88DK_PROFILE_GAME_GEAR.equalsIgnoreCase(z)) {
+                return EMULATOR_EMULICIOUS;
+            }
+            return EMULATOR_JSPECCY;
         }
         if (COMPILER_CC65.equalsIgnoreCase(compiler)) {
             String target = configModel != null
                 ? normalizeCc65Target(configModel.getConfigProperty("cc65_target", CC65_TARGET_ATARI))
                 : CC65_TARGET_ATARI;
-            return CC65_TARGET_C64.equals(target) ? EMULATOR_VICE : EMULATOR_ALTIRRA;
+            if (CC65_TARGET_C64.equals(target)) return EMULATOR_VICE;
+            if (CC65_TARGET_NES.equals(target)) return EMULATOR_MESEN;
+            return EMULATOR_ALTIRRA;
         }
         return EMULATOR_EMULICIOUS;
     }
 
     private String normalizeCc65Target(String target) {
-        return target != null && target.trim().equalsIgnoreCase(CC65_TARGET_C64) ? CC65_TARGET_C64 : CC65_TARGET_ATARI;
+        if (target != null && target.trim().equalsIgnoreCase(CC65_TARGET_C64)) return CC65_TARGET_C64;
+        if (target != null && target.trim().equalsIgnoreCase(CC65_TARGET_NES)) return CC65_TARGET_NES;
+        return CC65_TARGET_ATARI;
+    }
+
+    private String cc65TargetActual(String normalizedTarget) {
+        if (CC65_TARGET_NES.equals(normalizedTarget)) return "nes";
+        if (CC65_TARGET_C64.equals(normalizedTarget)) return "c64";
+        return "atari";
+    }
+
+    private String cc65ArtifactExtension(String normalizedTarget) {
+        if (CC65_TARGET_NES.equals(normalizedTarget)) return ".nes";
+        if (CC65_TARGET_C64.equals(normalizedTarget)) return ".prg";
+        return ".xex";
     }
 
     private boolean isSpectrumCompiler(String compiler) {
@@ -1231,10 +1399,20 @@ public class BuildController {
         }
 
         String profile = normalizeZ88dkProfile(configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM));
+        String profileBinKey = null;
         if (Z88DK_PROFILE_CPC.equalsIgnoreCase(profile)) {
-            String cpcBin = configModel.getConfigProperty("cpc_bin", "");
-            if (cpcBin != null && !cpcBin.isBlank()) {
-                return cpcBin;
+            profileBinKey = "cpc_bin";
+        } else if (Z88DK_PROFILE_SMS.equalsIgnoreCase(profile)) {
+            profileBinKey = "sms_bin";
+        } else if (Z88DK_PROFILE_GAME_GEAR.equalsIgnoreCase(profile)) {
+            profileBinKey = "gg_bin";
+        } else if (Z88DK_PROFILE_MSX.equalsIgnoreCase(profile)) {
+            profileBinKey = "msx_bin";
+        }
+        if (profileBinKey != null) {
+            String profileBin = configModel.getConfigProperty(profileBinKey, "");
+            if (profileBin != null && !profileBin.isBlank()) {
+                return profileBin;
             }
         }
         return configModel.getConfigProperty("spectrum_bin", "");
@@ -1242,23 +1420,48 @@ public class BuildController {
 
 
     private File resolveBundledJar(String prefix) {
-        File libsDir = new File(System.getProperty("user.dir"), "libs");
+        File libsDir = new File(System.getProperty("user.dir"), "libs/emulators");
 
         if (!libsDir.exists() || !libsDir.isDirectory()) return null;
 
-        File[] matches = libsDir.listFiles((dir, name) -> {
-            String lower = name.toLowerCase();
-            return lower.startsWith(prefix.toLowerCase()) && lower.endsWith(".jar");
-        });
-
+        File[] matches = findJarsStartingWith(libsDir, prefix);
         if (matches == null || matches.length == 0) return null;
 
         Arrays.sort(matches);
         return matches[0];
     }
 
+    private File[] findJarsStartingWith(File dir, String prefix) {
+        File[] direct = dir.listFiles((d, name) -> {
+            String lower = name.toLowerCase();
+            return lower.startsWith(prefix.toLowerCase()) && lower.endsWith(".jar");
+        });
+
+        File[] nested = dir.listFiles(File::isDirectory);
+        if (nested != null && nested.length > 0) {
+            List<File> collected = new ArrayList<>();
+            if (direct != null) Collections.addAll(collected, direct);
+
+            String prefixLower = prefix.toLowerCase();
+            for (File subDir : nested) {
+                if (!subDir.getName().toLowerCase().startsWith(prefixLower)) continue;
+
+                File[] inSubDir = subDir.listFiles((d, name) -> {
+                    String lower = name.toLowerCase();
+                    return lower.startsWith(prefixLower) && lower.endsWith(".jar");
+                });
+
+                if (inSubDir != null) Collections.addAll(collected, inSubDir);
+            }
+
+            return collected.toArray(new File[0]);
+        }
+
+        return direct;
+    }
+
     private File resolveBundledGbdkBin() {
-        File binDir = new File(System.getProperty("user.dir"), "libs/gbdk/bin");
+        File binDir = new File(System.getProperty("user.dir"), "libs/devkits/gbdk/bin");
         if (!binDir.isDirectory()) return null;
         String lccName = isWindows() ? "lcc.exe" : "lcc";
         File lcc = new File(binDir, lccName);
@@ -1266,14 +1469,14 @@ public class BuildController {
     }
 
     private File resolveBundledZ88dkBin() {
-        File binDir = new File(System.getProperty("user.dir"), "libs/z88dk/bin");
+        File binDir = new File(System.getProperty("user.dir"), "libs/devkits/z88dk/bin");
         if (!binDir.isDirectory()) return null;
         String zccName = isWindows() ? "zcc.exe" : "zcc";
         return new File(binDir, zccName).isFile() ? binDir : null;
     }
 
     private File resolveBundledCc65Bin() {
-        File binDir = new File(System.getProperty("user.dir"), "libs/cc65/bin");
+        File binDir = new File(System.getProperty("user.dir"), "libs/devkits/cc65/bin");
         if (!binDir.isDirectory()) return null;
         String cl65Name = isWindows() ? "cl65.exe" : "cl65";
         return new File(binDir, cl65Name).isFile() ? binDir : null;
@@ -1317,8 +1520,14 @@ public class BuildController {
         return null;
     }
 
+    /**
+     * Caprice32 identifica el medio por extension y solo admite .dsk, .cdt, .voc,
+     * .cpr, .sna y .zip. La lista se ordena poniendo primero el cartucho .cpr
+     * (que es lo que produce z88dk con -subtype=cpr y lo que mejor reproduce un
+     * programa ya enlazado) y despues el resto.
+     */
     private File resolveCpcArtifact(File sourceFile, File projectRootDir) {
-        for (String extension : new String[] { ".dsk", ".edsk", ".wav", ".cdt" }) {
+        for (String extension : new String[] { ".cpr", ".dsk", ".cdt", ".voc", ".sna" }) {
             File artifact = buildOutputFile(sourceFile, extension, projectRootDir);
             if (artifact.exists()) return artifact;
         }
@@ -1332,48 +1541,28 @@ public class BuildController {
         return null;
     }
 
-    private File resolveCpcBoxIndex() {
-        File index = new File(System.getProperty("user.dir"), "libs/cpcbox-main/cpcbox-main/index.html");
-        return index.isFile() ? index : null;
+    private File resolveCap32Executable() {
+        return EmulatorLauncher.resolveBundledCap32Executable();
     }
 
-    private void injectCpcMedia(WebEngine engine, File romFile, StyleClassedTextArea consoleOutputArea) throws Exception {
+    /**
+     * Caprice32 carga el medio por extension y ejecuta el comando de arranque con
+     * {@code -a/--autocmd}. El comando se deduce del contenido del disco leyendo su
+     * directorio, pero sin salto de linea final: cap32 lo pasa a la BASIC del CPC,
+     * no a un emulador de consola.
+     */
+    private String resolveCap32AutoCommand(File romFile) {
         String ext = getExtension(romFile);
+        if (!"dsk".equals(ext) && !"edsk".equals(ext)) return null;
 
-        if ("cdt".equals(ext)) {
-            engine.executeScript("$('#status').text('CPCBox does not support CDT auto-loading.');");
-            terminalController.appendConsoleOutput(
-                "Aviso: CPCBox integrado no soporta carga directa de .cdt. Se ha abierto el emulador CPC, pero para carga automática necesitas .wav.",
-                consoleOutputArea
-            );
-            return;
-        }
-
-        byte[] data = Files.readAllBytes(romFile.toPath());
-        String bytesJs = toJsArrayLiteral(data);
-        String safeName = escapeJs(romFile.getName());
-
-        if ("wav".equals(ext)) {
-            terminalController.appendConsoleOutput(
-                "Preparando cinta CPC en CPCBox: " + romFile.getName(),
-                consoleOutputArea
-            );
-            engine.executeScript("window.samarucLoadTapeWav('" + safeName + "', " + bytesJs + ");");
-            return;
-        }
-
-        if ("dsk".equals(ext) || "edsk".equals(ext)) {
-            String resolvedAutoCommand = resolveCpcDiskAutoCommand(romFile, data);
-            terminalController.appendConsoleOutput(
-                "Preparando disco CPC en CPCBox: " + romFile.getName(),
-                consoleOutputArea
-            );
-            terminalController.appendConsoleOutput(
-                "CPC autorun command: " + resolvedAutoCommand.replace("\n", "\\n"),
-                consoleOutputArea
-            );
-            String autoCommand = escapeJs(resolvedAutoCommand);
-            engine.executeScript("window.samarucLoadDisk('" + safeName + "', " + bytesJs + ", '" + autoCommand + "');");
+        try {
+            byte[] data = Files.readAllBytes(romFile.toPath());
+            String command = resolveCpcDiskAutoCommand(romFile, data);
+            if (command == null) return null;
+            String cleaned = command.replace("\r", "").replace("\n", "").trim();
+            return cleaned.isEmpty() || "CAT".equalsIgnoreCase(cleaned) ? null : cleaned;
+        } catch (Exception ex) {
+            return null;
         }
     }
 
@@ -1630,26 +1819,6 @@ public class BuildController {
         }
     }
 
-    private String toJsArrayLiteral(byte[] data) {
-        StringBuilder sb = new StringBuilder(Math.max(2, data.length * 4 + 2));
-        sb.append('[');
-        for (int i = 0; i < data.length; i++) {
-            if (i > 0) sb.append(',');
-            sb.append(Byte.toUnsignedInt(data[i]));
-        }
-        sb.append(']');
-        return sb.toString();
-    }
-
-    private String escapeJs(String value) {
-        if (value == null) return "";
-        return value
-            .replace("\\", "\\\\")
-            .replace("'", "\\'")
-            .replace("\r", "")
-            .replace("\n", " ");
-    }
-
     private File buildOutputFile(File sourceFile, String extension, File projectRootDir) {
         String sourceName = sourceFile != null ? sourceFile.getName() : "program.c";
         int dotIndex = sourceName.lastIndexOf('.');
@@ -1726,8 +1895,31 @@ public class BuildController {
                                     ConfigModel configModel) {
         UserActionMonitor.executionStarted(selectedEmulator, sourceFile != null ? sourceFile.getName() : "(sin archivo)");
 
+        if (EMULATOR_CPCBOX_WEB_LEGACY.equalsIgnoreCase(selectedEmulator)) {
+            selectedEmulator = EMULATOR_CAP32;
+        }
+
+        String z88dkProfileForRun = Z88DK_PROFILE_SPECTRUM;
+        if (configModel != null && isSpectrumCompiler(configModel.getConfigProperty("compilador_seleccionado", ""))) {
+            z88dkProfileForRun = normalizeZ88dkProfile(configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM));
+        }
+
         if (EMULATOR_EMULICIOUS.equalsIgnoreCase(selectedEmulator)) {
-            launchCoffeeGb(sourceFile, projectRootDir, consoleOutputArea, ownerStage);
+            if (Z88DK_PROFILE_SMS.equals(z88dkProfileForRun) || Z88DK_PROFILE_GAME_GEAR.equals(z88dkProfileForRun)) {
+                launchSms(sourceFile, projectRootDir, consoleOutputArea, ownerStage);
+            } else {
+                launchCoffeeGb(sourceFile, projectRootDir, consoleOutputArea, ownerStage);
+            }
+            return;
+        }
+
+        if (EMULATOR_OPENMSX.equalsIgnoreCase(selectedEmulator)) {
+            launchMsx(sourceFile, projectRootDir, consoleOutputArea, ownerStage);
+            return;
+        }
+
+        if (EMULATOR_MESEN.equalsIgnoreCase(selectedEmulator)) {
+            launchNes(sourceFile, projectRootDir, consoleOutputArea, ownerStage);
             return;
         }
 
@@ -1736,7 +1928,7 @@ public class BuildController {
             return;
         }
 
-        if (EMULATOR_CPCBOX_WEB.equalsIgnoreCase(selectedEmulator)) {
+        if (EMULATOR_CAP32.equalsIgnoreCase(selectedEmulator)) {
             launchCpc(sourceFile, projectRootDir, consoleOutputArea, ownerStage);
             return;
         }
@@ -1758,6 +1950,11 @@ public class BuildController {
             return;
         }
 
+        if (compilerIsCc65 && CC65_TARGET_NES.equals(forcedCc65Target)) {
+            launchNes(sourceFile, projectRootDir, consoleOutputArea, ownerStage);
+            return;
+        }
+
         terminalController.appendConsoleOutput(
             "Emulador no soportado o no configurado: " + selectedEmulator,
             consoleOutputArea
@@ -1769,9 +1966,14 @@ public class BuildController {
     }
 
     private File resolveCc65Artifact(File sourceFile, File projectRootDir, String cc65Target) {
-        List<String> extensions = CC65_TARGET_C64.equals(cc65Target)
-            ? Arrays.asList(".prg", ".d64")
-            : Arrays.asList(".xex", ".com", ".atr", ".exe");
+        List<String> extensions;
+        if (CC65_TARGET_NES.equals(cc65Target)) {
+            extensions = Arrays.asList(".nes");
+        } else if (CC65_TARGET_C64.equals(cc65Target)) {
+            extensions = Arrays.asList(".prg", ".d64");
+        } else {
+            extensions = Arrays.asList(".xex", ".com", ".atr", ".exe");
+        }
 
         for (String extension : extensions) {
             File artifact = buildOutputFile(sourceFile, extension, projectRootDir);
@@ -1789,6 +1991,42 @@ public class BuildController {
 
     private File resolveC64Artifact(File sourceFile, File projectRootDir) {
         return resolveCc65Artifact(sourceFile, projectRootDir, CC65_TARGET_C64);
+    }
+
+    private File resolveNesArtifact(File sourceFile, File projectRootDir) {
+        return resolveCc65Artifact(sourceFile, projectRootDir, CC65_TARGET_NES);
+    }
+
+    /** Localiza el artefacto SMS/Game Gear (.sms/.gg) generado por zcc en la carpeta de salida. */
+    private File resolveSmsArtifact(File sourceFile, File projectRootDir) {
+        for (String extension : new String[] { ".sms", ".gg" }) {
+            File artifact = buildOutputFile(sourceFile, extension, projectRootDir);
+            if (artifact.exists()) return artifact;
+        }
+
+        File outputDir = resolveOutputDirectory(sourceFile, projectRootDir);
+        File fallbackArtifact = findNewestArtifact(outputDir, SMS_ROM_EXTENSIONS);
+        if (fallbackArtifact != null) {
+            return fallbackArtifact;
+        }
+
+        return null;
+    }
+
+    /** Localiza el artefacto MSX (.rom/.bin/.dsk) generado por zcc en la carpeta de salida. */
+    private File resolveMsxArtifact(File sourceFile, File projectRootDir) {
+        for (String extension : new String[] { ".rom", ".dsk" }) {
+            File artifact = buildOutputFile(sourceFile, extension, projectRootDir);
+            if (artifact.exists()) return artifact;
+        }
+
+        File outputDir = resolveOutputDirectory(sourceFile, projectRootDir);
+        File fallbackArtifact = findNewestArtifact(outputDir, MSX_ROM_EXTENSIONS);
+        if (fallbackArtifact != null) {
+            return fallbackArtifact;
+        }
+
+        return null;
     }
 
     private void launchAltirra(File sourceFile, File projectRootDir, StyleClassedTextArea consoleOutputArea, Stage ownerStage, ConfigModel configModel) {
@@ -1814,7 +2052,7 @@ public class BuildController {
                 altirraExe = new File(altirraPath, "altirra.exe");
             }
             if (!altirraExe.exists()) {
-                File bundledDir = new File(System.getProperty("user.dir"), "libs/Altirra-4.21");
+                File bundledDir = new File(System.getProperty("user.dir"), "libs/emulators/Altirra");
                 File bundledExe = new File(bundledDir, isWindows() ? "Altirra64.exe" : "Altirra");
                 if (!bundledExe.exists()) bundledExe = new File(bundledDir, "Altirra.exe");
                 if (bundledExe.exists()) altirraExe = bundledExe;
@@ -1866,7 +2104,7 @@ public class BuildController {
                 viceExe = new File(vicePath, isWindows() ? "x64sc.exe" : "x64sc");
             }
             if (viceExe == null || !viceExe.exists()) {
-                File bundledDir = new File(System.getProperty("user.dir"), "libs");
+                File bundledDir = new File(System.getProperty("user.dir"), "libs/emulators");
                 File viceRoot = findViceRoot(bundledDir);
                 if (viceRoot != null) {
                     File bundledExe = new File(viceRoot, isWindows() ? "x64sc.exe" : "x64sc");
@@ -2139,7 +2377,56 @@ public class BuildController {
     }
 
     private String normalizeZ88dkProfile(String profile) {
-        return Z88DK_PROFILE_CPC.equalsIgnoreCase(profile) ? Z88DK_PROFILE_CPC : Z88DK_PROFILE_SPECTRUM;
+        if (Z88DK_PROFILE_CPC.equalsIgnoreCase(profile)) return Z88DK_PROFILE_CPC;
+        if (Z88DK_PROFILE_SMS.equalsIgnoreCase(profile)) return Z88DK_PROFILE_SMS;
+        if (Z88DK_PROFILE_GAME_GEAR.equalsIgnoreCase(profile)) return Z88DK_PROFILE_GAME_GEAR;
+        if (Z88DK_PROFILE_MSX.equalsIgnoreCase(profile)) return Z88DK_PROFILE_MSX;
+        return Z88DK_PROFILE_SPECTRUM;
+    }
+
+    private String profileLabel(String z88dkProfile) {
+        String z = normalizeZ88dkProfile(z88dkProfile);
+        if (Z88DK_PROFILE_CPC.equals(z)) return "CPC";
+        if (Z88DK_PROFILE_SMS.equals(z)) return "SMS";
+        if (Z88DK_PROFILE_GAME_GEAR.equals(z)) return "Game Gear";
+        if (Z88DK_PROFILE_MSX.equals(z)) return "MSX";
+        return "Spectrum";
+    }
+
+    /**
+     * Devuelve la clave de configuracion del perfil z88dk para un sufijo dado.
+     * Los perfiles usan prefijo propio (z88dk_cpc_*, z88dk_sms_*, ...) salvo el de
+     * Spectrum, que es el legado sin prefijo (z88dk_target, z88dk_defines, ...).
+     */
+    private String z88dkProfileKey(String z88dkProfile, String suffix) {
+        String z = normalizeZ88dkProfile(z88dkProfile);
+        if (Z88DK_PROFILE_SPECTRUM.equals(z)) {
+            return "z88dk_" + suffix;
+        }
+        return "z88dk_" + z + "_" + suffix;
+    }
+
+    private String z88dkDefaultTarget(String z88dkProfile) {
+        String z = normalizeZ88dkProfile(z88dkProfile);
+        if (Z88DK_PROFILE_CPC.equals(z)) return "+cpc";
+        if (Z88DK_PROFILE_SMS.equals(z)) return "+sms";
+        if (Z88DK_PROFILE_GAME_GEAR.equals(z)) return "+gg";
+        if (Z88DK_PROFILE_MSX.equals(z)) return "+msx";
+        return "+zx";
+    }
+
+    private String z88dkDefaultClib(String z88dkProfile) {
+        return Z88DK_PROFILE_SPECTRUM.equals(normalizeZ88dkProfile(z88dkProfile))
+            ? ConfigModel.Z88DK_CLIB_NEW
+            : ConfigModel.Z88DK_CLIB_DEFAULT;
+    }
+
+    /** Subtype por defecto que obliga zcc para generar el artefacto adecuado. */
+    private String z88dkDefaultSubtype(String z88dkProfile) {
+        String z = normalizeZ88dkProfile(z88dkProfile);
+        if (Z88DK_PROFILE_CPC.equals(z)) return "dsk";
+        if (Z88DK_PROFILE_MSX.equals(z)) return "rom";
+        return null;
     }
 
     private String normalizeConfiguredPath(String configuredPath) {

@@ -57,11 +57,17 @@ public class ConfigModel {
     private static final String COMPILER_GCC            = "gcc";
     private static final String COMPILER_MAKEFILE       = "Makefile";
     private static final String LEGACY_SPECTRUM         = "Spectrum";
-    private static final String Z88DK_PROFILE_SPECTRUM  = "spectrum";
-    private static final String Z88DK_PROFILE_CPC       = "cpc";
-    private static final String EMULATOR_EMULICIOUS     = "Emulicious";
-    private static final String EMULATOR_JSPECCY        = "JSpeccy";
-    private static final String EMULATOR_CPCBOX_WEB     = "CPCBoxWeb";
+    public static final String Z88DK_PROFILE_SPECTRUM  = "spectrum";
+    public static final String Z88DK_PROFILE_CPC       = "cpc";
+    public static final String Z88DK_PROFILE_SMS       = "sms";
+    public static final String Z88DK_PROFILE_GAME_GEAR = "gg";
+    public static final String Z88DK_PROFILE_MSX       = "msx";
+    public static final String EMULATOR_EMULICIOUS     = "Emulicious";
+    public static final String EMULATOR_JSPECCY        = "JSpeccy";
+    public static final String EMULATOR_CAP32          = "Cap32";
+    public static final String EMULATOR_OPENMSX        = "openMSX";
+    public static final String EMULATOR_MESEN          = "Mesen";
+    public static final String EMULATOR_CPCBOX_WEB_LEGACY = "CPCBoxWeb";
 
     private final Properties     configProps             = new Properties();
     private final StringProperty idioma                  = new SimpleStringProperty (this, "idioma", "es");
@@ -71,6 +77,9 @@ public class ConfigModel {
     private final StringProperty compilador              = new SimpleStringProperty (this, "compilador", "gcc");
     private final StringProperty spectrumBin             = new SimpleStringProperty (this, "spectrum_bin", "");
     private final StringProperty cpcBin                  = new SimpleStringProperty (this, "cpc_bin", "");
+    private final StringProperty smsBin                  = new SimpleStringProperty (this, "sms_bin", "");
+    private final StringProperty ggBin                   = new SimpleStringProperty (this, "gg_bin", "");
+    private final StringProperty msxBin                  = new SimpleStringProperty (this, "msx_bin", "");
     private final StringProperty compiladorSeleccionado  = new SimpleStringProperty (this, "compilador_seleccionado", "GBDK");
     private final StringProperty emuladorSeleccionado    = new SimpleStringProperty (this, "emulador_seleccionado", "Emulicious");
     private final StringProperty z88dkProfile            = new SimpleStringProperty (this, "z88dk_profile", Z88DK_PROFILE_SPECTRUM);
@@ -88,6 +97,24 @@ public class ConfigModel {
     private final StringProperty z88dkCpcDefines         = new SimpleStringProperty (this, "z88dk_cpc_defines", "");
     private final StringProperty z88dkCpcIncludes        = new SimpleStringProperty (this, "z88dk_cpc_includes", "");
     private final StringProperty z88dkCpcExtraArgs       = new SimpleStringProperty (this, "z88dk_cpc_extra_args", "");
+    private final StringProperty z88dkSmsClibOption      = new SimpleStringProperty (this, "z88dk_sms_clib_option", Z88DK_CLIB_DEFAULT);
+    private final StringProperty z88dkSmsTarget          = new SimpleStringProperty (this, "z88dk_sms_target", "+sms");
+    private final BooleanProperty z88dkSmsCreateApp      = new SimpleBooleanProperty(this, "z88dk_sms_create_app", true);
+    private final StringProperty z88dkSmsDefines         = new SimpleStringProperty (this, "z88dk_sms_defines", "");
+    private final StringProperty z88dkSmsIncludes        = new SimpleStringProperty (this, "z88dk_sms_includes", "");
+    private final StringProperty z88dkSmsExtraArgs       = new SimpleStringProperty (this, "z88dk_sms_extra_args", "");
+    private final StringProperty z88dkGgClibOption       = new SimpleStringProperty (this, "z88dk_gg_clib_option", Z88DK_CLIB_DEFAULT);
+    private final StringProperty z88dkGgTarget           = new SimpleStringProperty (this, "z88dk_gg_target", "+gg");
+    private final BooleanProperty z88dkGgCreateApp       = new SimpleBooleanProperty(this, "z88dk_gg_create_app", true);
+    private final StringProperty z88dkGgDefines          = new SimpleStringProperty (this, "z88dk_gg_defines", "");
+    private final StringProperty z88dkGgIncludes         = new SimpleStringProperty (this, "z88dk_gg_includes", "");
+    private final StringProperty z88dkGgExtraArgs        = new SimpleStringProperty (this, "z88dk_gg_extra_args", "");
+    private final StringProperty z88dkMsxClibOption      = new SimpleStringProperty (this, "z88dk_msx_clib_option", Z88DK_CLIB_DEFAULT);
+    private final StringProperty z88dkMsxTarget          = new SimpleStringProperty (this, "z88dk_msx_target", "+msx");
+    private final BooleanProperty z88dkMsxCreateApp      = new SimpleBooleanProperty(this, "z88dk_msx_create_app", true);
+    private final StringProperty z88dkMsxDefines         = new SimpleStringProperty (this, "z88dk_msx_defines", "");
+    private final StringProperty z88dkMsxIncludes        = new SimpleStringProperty (this, "z88dk_msx_includes", "");
+    private final StringProperty z88dkMsxExtraArgs       = new SimpleStringProperty (this, "z88dk_msx_extra_args", "");
     private final StringProperty marketplaceCatalogUrl   = new SimpleStringProperty (this, "marketplace_catalog_url", PluginMarketplaceService.DEFAULT_MARKETPLACE_URL);
     private final BooleanProperty autoApplyDetectedProjectProfile         = new SimpleBooleanProperty(this, "project_detect_auto_apply", true);
     private final StringProperty autoApplyDetectedProjectProfileThreshold = new SimpleStringProperty (this, "project_detect_auto_apply_threshold", "75");
@@ -143,6 +170,7 @@ public class ConfigModel {
     public static final String EMULATOR_VICE = "VICE";
     public static final String CC65_TARGET_ATARI = "atari";
     public static final String CC65_TARGET_C64 = "c64";
+    public static final String CC65_TARGET_NES = "nes";
     public static final String CC65_OPT_NONE = "none";
     public static final String CC65_OPT_O    = "-O";
     public static final String CC65_OPT_OI   = "-Oi";
@@ -198,6 +226,27 @@ public class ConfigModel {
             case "z88dk_cpc_defines"        : return getZ88dkCpcDefines()         != null ? getZ88dkCpcDefines() : defaultValue;
             case "z88dk_cpc_includes"       : return getZ88dkCpcIncludes()        != null ? getZ88dkCpcIncludes() : defaultValue;
             case "z88dk_cpc_extra_args"     : return getZ88dkCpcExtraArgs()       != null ? getZ88dkCpcExtraArgs() : defaultValue;
+            case "sms_bin"                  : return getSmsBin()                 != null ? getSmsBin() : defaultValue;
+            case "gg_bin"                   : return getGgBin()                  != null ? getGgBin() : defaultValue;
+            case "msx_bin"                  : return getMsxBin()                 != null ? getMsxBin() : defaultValue;
+            case "z88dk_sms_clib_option"    : return getZ88dkSmsClibOption()      != null ? normalizeZ88dkClibOption(getZ88dkSmsClibOption()) : defaultValue;
+            case "z88dk_sms_target"         : return getZ88dkSmsTarget()          != null ? getZ88dkSmsTarget() : defaultValue;
+            case "z88dk_sms_create_app"     : return Boolean.toString(isZ88dkSmsCreateApp());
+            case "z88dk_sms_defines"        : return getZ88dkSmsDefines()         != null ? getZ88dkSmsDefines() : defaultValue;
+            case "z88dk_sms_includes"       : return getZ88dkSmsIncludes()        != null ? getZ88dkSmsIncludes() : defaultValue;
+            case "z88dk_sms_extra_args"     : return getZ88dkSmsExtraArgs()       != null ? getZ88dkSmsExtraArgs() : defaultValue;
+            case "z88dk_gg_clib_option"     : return getZ88dkGgClibOption()       != null ? normalizeZ88dkClibOption(getZ88dkGgClibOption()) : defaultValue;
+            case "z88dk_gg_target"          : return getZ88dkGgTarget()           != null ? getZ88dkGgTarget() : defaultValue;
+            case "z88dk_gg_create_app"      : return Boolean.toString(isZ88dkGgCreateApp());
+            case "z88dk_gg_defines"         : return getZ88dkGgDefines()          != null ? getZ88dkGgDefines() : defaultValue;
+            case "z88dk_gg_includes"        : return getZ88dkGgIncludes()         != null ? getZ88dkGgIncludes() : defaultValue;
+            case "z88dk_gg_extra_args"      : return getZ88dkGgExtraArgs()        != null ? getZ88dkGgExtraArgs() : defaultValue;
+            case "z88dk_msx_clib_option"    : return getZ88dkMsxClibOption()      != null ? normalizeZ88dkClibOption(getZ88dkMsxClibOption()) : defaultValue;
+            case "z88dk_msx_target"         : return getZ88dkMsxTarget()          != null ? getZ88dkMsxTarget() : defaultValue;
+            case "z88dk_msx_create_app"     : return Boolean.toString(isZ88dkMsxCreateApp());
+            case "z88dk_msx_defines"        : return getZ88dkMsxDefines()         != null ? getZ88dkMsxDefines() : defaultValue;
+            case "z88dk_msx_includes"       : return getZ88dkMsxIncludes()        != null ? getZ88dkMsxIncludes() : defaultValue;
+            case "z88dk_msx_extra_args"     : return getZ88dkMsxExtraArgs()       != null ? getZ88dkMsxExtraArgs() : defaultValue;
             case "marketplace_catalog_url"  : return getMarketplaceCatalogUrl()    != null ? getMarketplaceCatalogUrl() : defaultValue;
             case "project_detect_auto_apply": return Boolean.toString(isAutoApplyDetectedProjectProfile());
             case "project_detect_auto_apply_threshold": return getAutoApplyDetectedProjectProfileThreshold();
@@ -263,6 +312,27 @@ public class ConfigModel {
             case "z88dk_cpc_defines":       setZ88dkCpcDefines(value);           break;
             case "z88dk_cpc_includes":      setZ88dkCpcIncludes(value);          break;
             case "z88dk_cpc_extra_args":    setZ88dkCpcExtraArgs(value);         break;
+            case "sms_bin":                 setSmsBin(value);                    break;
+            case "gg_bin":                  setGgBin(value);                     break;
+            case "msx_bin":                 setMsxBin(value);                    break;
+            case "z88dk_sms_clib_option":   setZ88dkSmsClibOption(normalizeZ88dkClibOption(value)); break;
+            case "z88dk_sms_target":        setZ88dkSmsTarget(value);            break;
+            case "z88dk_sms_create_app":    setZ88dkSmsCreateApp(Boolean.parseBoolean(value)); break;
+            case "z88dk_sms_defines":       setZ88dkSmsDefines(value);           break;
+            case "z88dk_sms_includes":      setZ88dkSmsIncludes(value);          break;
+            case "z88dk_sms_extra_args":    setZ88dkSmsExtraArgs(value);         break;
+            case "z88dk_gg_clib_option":    setZ88dkGgClibOption(normalizeZ88dkClibOption(value)); break;
+            case "z88dk_gg_target":         setZ88dkGgTarget(value);             break;
+            case "z88dk_gg_create_app":     setZ88dkGgCreateApp(Boolean.parseBoolean(value)); break;
+            case "z88dk_gg_defines":        setZ88dkGgDefines(value);            break;
+            case "z88dk_gg_includes":       setZ88dkGgIncludes(value);           break;
+            case "z88dk_gg_extra_args":     setZ88dkGgExtraArgs(value);          break;
+            case "z88dk_msx_clib_option":   setZ88dkMsxClibOption(normalizeZ88dkClibOption(value)); break;
+            case "z88dk_msx_target":        setZ88dkMsxTarget(value);            break;
+            case "z88dk_msx_create_app":    setZ88dkMsxCreateApp(Boolean.parseBoolean(value)); break;
+            case "z88dk_msx_defines":       setZ88dkMsxDefines(value);           break;
+            case "z88dk_msx_includes":      setZ88dkMsxIncludes(value);          break;
+            case "z88dk_msx_extra_args":    setZ88dkMsxExtraArgs(value);         break;
             case "marketplace_catalog_url": setMarketplaceCatalogUrl(value);      break;
             case "project_detect_auto_apply": setAutoApplyDetectedProjectProfile(Boolean.parseBoolean(value)); break;
             case "project_detect_auto_apply_threshold": setAutoApplyDetectedProjectProfileThreshold(value); break;
@@ -326,6 +396,9 @@ public class ConfigModel {
         emuladorSeleccionado   .set(deriveEmulatorForCompilerAndProfile(compilerSelection, profile));
         spectrumBin            .set(source.getProperty("spectrum_bin", ""));
         cpcBin                 .set(source.getProperty("cpc_bin", source.getProperty("spectrum_bin", "")));
+        smsBin                 .set(source.getProperty("sms_bin", source.getProperty("spectrum_bin", "")));
+        ggBin                  .set(source.getProperty("gg_bin", source.getProperty("spectrum_bin", "")));
+        msxBin                 .set(source.getProperty("msx_bin", source.getProperty("spectrum_bin", "")));
         z88dkProfile           .set(profile);
         z88dkClibOption        .set(normalizeZ88dkClibOption(source.getProperty("z88dk_clib_option", Z88DK_CLIB_NEW)));
         z88dkUseCrtOrgCode     .set(Boolean.parseBoolean(source.getProperty("z88dk_use_pragma_crt_org_code_32768", "true")));
@@ -341,6 +414,24 @@ public class ConfigModel {
         z88dkCpcDefines        .set(source.getProperty("z88dk_cpc_defines", ""));
         z88dkCpcIncludes       .set(source.getProperty("z88dk_cpc_includes", ""));
         z88dkCpcExtraArgs      .set(source.getProperty("z88dk_cpc_extra_args", ""));
+        z88dkSmsClibOption     .set(normalizeZ88dkClibOption(source.getProperty("z88dk_sms_clib_option", Z88DK_CLIB_DEFAULT)));
+        z88dkSmsTarget         .set(source.getProperty("z88dk_sms_target", "+sms"));
+        z88dkSmsCreateApp      .set(Boolean.parseBoolean(source.getProperty("z88dk_sms_create_app", "true")));
+        z88dkSmsDefines        .set(source.getProperty("z88dk_sms_defines", ""));
+        z88dkSmsIncludes       .set(source.getProperty("z88dk_sms_includes", ""));
+        z88dkSmsExtraArgs      .set(source.getProperty("z88dk_sms_extra_args", ""));
+        z88dkGgClibOption      .set(normalizeZ88dkClibOption(source.getProperty("z88dk_gg_clib_option", Z88DK_CLIB_DEFAULT)));
+        z88dkGgTarget          .set(source.getProperty("z88dk_gg_target", "+gg"));
+        z88dkGgCreateApp       .set(Boolean.parseBoolean(source.getProperty("z88dk_gg_create_app", "true")));
+        z88dkGgDefines         .set(source.getProperty("z88dk_gg_defines", ""));
+        z88dkGgIncludes        .set(source.getProperty("z88dk_gg_includes", ""));
+        z88dkGgExtraArgs       .set(source.getProperty("z88dk_gg_extra_args", ""));
+        z88dkMsxClibOption     .set(normalizeZ88dkClibOption(source.getProperty("z88dk_msx_clib_option", Z88DK_CLIB_DEFAULT)));
+        z88dkMsxTarget         .set(source.getProperty("z88dk_msx_target", "+msx"));
+        z88dkMsxCreateApp      .set(Boolean.parseBoolean(source.getProperty("z88dk_msx_create_app", "true")));
+        z88dkMsxDefines        .set(source.getProperty("z88dk_msx_defines", ""));
+        z88dkMsxIncludes       .set(source.getProperty("z88dk_msx_includes", ""));
+        z88dkMsxExtraArgs      .set(source.getProperty("z88dk_msx_extra_args", ""));
         marketplaceCatalogUrl   .set(source.getProperty("marketplace_catalog_url", PluginMarketplaceService.DEFAULT_MARKETPLACE_URL));
         autoApplyDetectedProjectProfile.set(Boolean.parseBoolean(source.getProperty("project_detect_auto_apply", "true")));
         autoApplyDetectedProjectProfileThreshold.set(source.getProperty("project_detect_auto_apply_threshold", "75"));
@@ -401,6 +492,27 @@ public class ConfigModel {
         p.setProperty("z88dk_cpc_defines", getZ88dkCpcDefines() != null ? getZ88dkCpcDefines() : "");
         p.setProperty("z88dk_cpc_includes", getZ88dkCpcIncludes() != null ? getZ88dkCpcIncludes() : "");
         p.setProperty("z88dk_cpc_extra_args", getZ88dkCpcExtraArgs() != null ? getZ88dkCpcExtraArgs() : "");
+        p.setProperty("sms_bin", getSmsBin() != null ? getSmsBin() : "");
+        p.setProperty("gg_bin", getGgBin() != null ? getGgBin() : "");
+        p.setProperty("msx_bin", getMsxBin() != null ? getMsxBin() : "");
+        p.setProperty("z88dk_sms_clib_option", normalizeZ88dkClibOption(getZ88dkSmsClibOption()));
+        p.setProperty("z88dk_sms_target", getZ88dkSmsTarget() != null ? getZ88dkSmsTarget() : "+sms");
+        p.setProperty("z88dk_sms_create_app", Boolean.toString(isZ88dkSmsCreateApp()));
+        p.setProperty("z88dk_sms_defines", getZ88dkSmsDefines() != null ? getZ88dkSmsDefines() : "");
+        p.setProperty("z88dk_sms_includes", getZ88dkSmsIncludes() != null ? getZ88dkSmsIncludes() : "");
+        p.setProperty("z88dk_sms_extra_args", getZ88dkSmsExtraArgs() != null ? getZ88dkSmsExtraArgs() : "");
+        p.setProperty("z88dk_gg_clib_option", normalizeZ88dkClibOption(getZ88dkGgClibOption()));
+        p.setProperty("z88dk_gg_target", getZ88dkGgTarget() != null ? getZ88dkGgTarget() : "+gg");
+        p.setProperty("z88dk_gg_create_app", Boolean.toString(isZ88dkGgCreateApp()));
+        p.setProperty("z88dk_gg_defines", getZ88dkGgDefines() != null ? getZ88dkGgDefines() : "");
+        p.setProperty("z88dk_gg_includes", getZ88dkGgIncludes() != null ? getZ88dkGgIncludes() : "");
+        p.setProperty("z88dk_gg_extra_args", getZ88dkGgExtraArgs() != null ? getZ88dkGgExtraArgs() : "");
+        p.setProperty("z88dk_msx_clib_option", normalizeZ88dkClibOption(getZ88dkMsxClibOption()));
+        p.setProperty("z88dk_msx_target", getZ88dkMsxTarget() != null ? getZ88dkMsxTarget() : "+msx");
+        p.setProperty("z88dk_msx_create_app", Boolean.toString(isZ88dkMsxCreateApp()));
+        p.setProperty("z88dk_msx_defines", getZ88dkMsxDefines() != null ? getZ88dkMsxDefines() : "");
+        p.setProperty("z88dk_msx_includes", getZ88dkMsxIncludes() != null ? getZ88dkMsxIncludes() : "");
+        p.setProperty("z88dk_msx_extra_args", getZ88dkMsxExtraArgs() != null ? getZ88dkMsxExtraArgs() : "");
         p.setProperty("marketplace_catalog_url", getMarketplaceCatalogUrl() != null ? getMarketplaceCatalogUrl() : PluginMarketplaceService.DEFAULT_MARKETPLACE_URL);
         p.setProperty("project_detect_auto_apply", Boolean.toString(isAutoApplyDetectedProjectProfile()));
         p.setProperty("project_detect_auto_apply_threshold", getAutoApplyDetectedProjectProfileThreshold());
@@ -494,9 +606,24 @@ public class ConfigModel {
     public String         getCpcBin()                         { return cpcBin.get(); }
     public void           setCpcBin(String v)                 { cpcBin.set(v); }
 
+    public String         getSmsBin()                         { return smsBin.get(); }
+    public void           setSmsBin(String v)                 { smsBin.set(v); }
+
+    public String         getGgBin()                          { return ggBin.get(); }
+    public void           setGgBin(String v)                  { ggBin.set(v); }
+
+    public String         getMsxBin()                         { return msxBin.get(); }
+    public void           setMsxBin(String v)                 { msxBin.set(v); }
+
     public StringProperty emuladorSeleccionadoProperty()      { return emuladorSeleccionado; }
     public String         getEmuladorSeleccionado()           { return emuladorSeleccionado.get(); }
-    public void           setEmuladorSeleccionado(String v)   { emuladorSeleccionado.set(v); }
+    public void           setEmuladorSeleccionado(String v)   { emuladorSeleccionado.set(normalizeEmulatorSelection(v)); }
+
+    public static String   normalizeEmulatorSelection(String v) {
+        if (v == null || v.isBlank()) return null;
+        String normalized = v.trim();
+        return EMULATOR_CPCBOX_WEB_LEGACY.equalsIgnoreCase(normalized) ? EMULATOR_CAP32 : normalized;
+    }
 
     public StringProperty z88dkProfileProperty()              { return z88dkProfile; }
     public String         getZ88dkProfile()                   { return normalizeZ88dkProfile(z88dkProfile.get()); }
@@ -557,6 +684,63 @@ public class ConfigModel {
     public StringProperty  z88dkCpcExtraArgsProperty()       { return z88dkCpcExtraArgs; }
     public String          getZ88dkCpcExtraArgs()            { return z88dkCpcExtraArgs.get(); }
     public void            setZ88dkCpcExtraArgs(String v)    { z88dkCpcExtraArgs.set(v != null ? v.trim() : ""); }
+
+    public StringProperty z88dkSmsClibOptionProperty()      { return z88dkSmsClibOption; }
+    public String         getZ88dkSmsClibOption()           { return normalizeZ88dkClibOption(z88dkSmsClibOption.get()); }
+    public void           setZ88dkSmsClibOption(String v)   { z88dkSmsClibOption.set(normalizeZ88dkClibOption(v)); }
+    public StringProperty z88dkSmsTargetProperty()          { return z88dkSmsTarget; }
+    public String         getZ88dkSmsTarget()               { return z88dkSmsTarget.get(); }
+    public void           setZ88dkSmsTarget(String v)       { z88dkSmsTarget.set(v != null && !v.isBlank() ? v.trim() : "+sms"); }
+    public BooleanProperty z88dkSmsCreateAppProperty()      { return z88dkSmsCreateApp; }
+    public boolean        isZ88dkSmsCreateApp()             { return z88dkSmsCreateApp.get(); }
+    public void           setZ88dkSmsCreateApp(boolean v)   { z88dkSmsCreateApp.set(v); }
+    public StringProperty z88dkSmsDefinesProperty()         { return z88dkSmsDefines; }
+    public String         getZ88dkSmsDefines()              { return z88dkSmsDefines.get(); }
+    public void           setZ88dkSmsDefines(String v)      { z88dkSmsDefines.set(v != null ? v.trim() : ""); }
+    public StringProperty z88dkSmsIncludesProperty()        { return z88dkSmsIncludes; }
+    public String         getZ88dkSmsIncludes()             { return z88dkSmsIncludes.get(); }
+    public void           setZ88dkSmsIncludes(String v)     { z88dkSmsIncludes.set(v != null ? v.trim() : ""); }
+    public StringProperty z88dkSmsExtraArgsProperty()       { return z88dkSmsExtraArgs; }
+    public String         getZ88dkSmsExtraArgs()            { return z88dkSmsExtraArgs.get(); }
+    public void           setZ88dkSmsExtraArgs(String v)    { z88dkSmsExtraArgs.set(v != null ? v.trim() : ""); }
+
+    public StringProperty z88dkGgClibOptionProperty()       { return z88dkGgClibOption; }
+    public String         getZ88dkGgClibOption()            { return normalizeZ88dkClibOption(z88dkGgClibOption.get()); }
+    public void           setZ88dkGgClibOption(String v)    { z88dkGgClibOption.set(normalizeZ88dkClibOption(v)); }
+    public StringProperty z88dkGgTargetProperty()           { return z88dkGgTarget; }
+    public String         getZ88dkGgTarget()                { return z88dkGgTarget.get(); }
+    public void           setZ88dkGgTarget(String v)        { z88dkGgTarget.set(v != null && !v.isBlank() ? v.trim() : "+gg"); }
+    public BooleanProperty z88dkGgCreateAppProperty()       { return z88dkGgCreateApp; }
+    public boolean        isZ88dkGgCreateApp()              { return z88dkGgCreateApp.get(); }
+    public void           setZ88dkGgCreateApp(boolean v)    { z88dkGgCreateApp.set(v); }
+    public StringProperty z88dkGgDefinesProperty()          { return z88dkGgDefines; }
+    public String         getZ88dkGgDefines()               { return z88dkGgDefines.get(); }
+    public void           setZ88dkGgDefines(String v)       { z88dkGgDefines.set(v != null ? v.trim() : ""); }
+    public StringProperty z88dkGgIncludesProperty()         { return z88dkGgIncludes; }
+    public String         getZ88dkGgIncludes()              { return z88dkGgIncludes.get(); }
+    public void           setZ88dkGgIncludes(String v)      { z88dkGgIncludes.set(v != null ? v.trim() : ""); }
+    public StringProperty z88dkGgExtraArgsProperty()        { return z88dkGgExtraArgs; }
+    public String         getZ88dkGgExtraArgs()             { return z88dkGgExtraArgs.get(); }
+    public void           setZ88dkGgExtraArgs(String v)     { z88dkGgExtraArgs.set(v != null ? v.trim() : ""); }
+
+    public StringProperty z88dkMsxClibOptionProperty()      { return z88dkMsxClibOption; }
+    public String         getZ88dkMsxClibOption()           { return normalizeZ88dkClibOption(z88dkMsxClibOption.get()); }
+    public void           setZ88dkMsxClibOption(String v)   { z88dkMsxClibOption.set(normalizeZ88dkClibOption(v)); }
+    public StringProperty z88dkMsxTargetProperty()          { return z88dkMsxTarget; }
+    public String         getZ88dkMsxTarget()               { return z88dkMsxTarget.get(); }
+    public void           setZ88dkMsxTarget(String v)       { z88dkMsxTarget.set(v != null && !v.isBlank() ? v.trim() : "+msx"); }
+    public BooleanProperty z88dkMsxCreateAppProperty()      { return z88dkMsxCreateApp; }
+    public boolean        isZ88dkMsxCreateApp()             { return z88dkMsxCreateApp.get(); }
+    public void           setZ88dkMsxCreateApp(boolean v)   { z88dkMsxCreateApp.set(v); }
+    public StringProperty z88dkMsxDefinesProperty()         { return z88dkMsxDefines; }
+    public String         getZ88dkMsxDefines()              { return z88dkMsxDefines.get(); }
+    public void           setZ88dkMsxDefines(String v)      { z88dkMsxDefines.set(v != null ? v.trim() : ""); }
+    public StringProperty z88dkMsxIncludesProperty()        { return z88dkMsxIncludes; }
+    public String         getZ88dkMsxIncludes()             { return z88dkMsxIncludes.get(); }
+    public void           setZ88dkMsxIncludes(String v)     { z88dkMsxIncludes.set(v != null ? v.trim() : ""); }
+    public StringProperty z88dkMsxExtraArgsProperty()       { return z88dkMsxExtraArgs; }
+    public String         getZ88dkMsxExtraArgs()            { return z88dkMsxExtraArgs.get(); }
+    public void           setZ88dkMsxExtraArgs(String v)    { z88dkMsxExtraArgs.set(v != null ? v.trim() : ""); }
 
     public StringProperty marketplaceCatalogUrlProperty()    { return marketplaceCatalogUrl; }
     public String         getMarketplaceCatalogUrl()         { return marketplaceCatalogUrl.get(); }
@@ -756,9 +940,11 @@ public class ConfigModel {
         if (COMPILER_CC65.equalsIgnoreCase(normalized)
             || "atari".equalsIgnoreCase(normalized)
             || "c64".equalsIgnoreCase(normalized)
+            || "nes".equalsIgnoreCase(normalized)
             || normalized.toLowerCase().contains("cc65")
             || normalized.toLowerCase().contains("atari")
-            || normalized.toLowerCase().contains("c64")) {
+            || normalized.toLowerCase().contains("c64")
+            || normalized.toLowerCase().contains("nes")) {
             return COMPILER_CC65;
         }
 
@@ -766,7 +952,11 @@ public class ConfigModel {
     }
 
     private String normalizeZ88dkProfile(String profile) {
-        return Z88DK_PROFILE_CPC.equalsIgnoreCase(profile) ? Z88DK_PROFILE_CPC : Z88DK_PROFILE_SPECTRUM;
+        if (Z88DK_PROFILE_CPC.equalsIgnoreCase(profile)) return Z88DK_PROFILE_CPC;
+        if (Z88DK_PROFILE_SMS.equalsIgnoreCase(profile)) return Z88DK_PROFILE_SMS;
+        if (Z88DK_PROFILE_GAME_GEAR.equalsIgnoreCase(profile)) return Z88DK_PROFILE_GAME_GEAR;
+        if (Z88DK_PROFILE_MSX.equalsIgnoreCase(profile)) return Z88DK_PROFILE_MSX;
+        return Z88DK_PROFILE_SPECTRUM;
     }
 
     private String normalizeReadmeLanguage(String lang) {
@@ -790,10 +980,16 @@ public class ConfigModel {
     private String deriveEmulatorForCompilerAndProfile(String compiler, String profile) {
         String normCompiler = normalizeCompilerSelection(compiler);
         if (COMPILER_Z88DK.equalsIgnoreCase(normCompiler)) {
-            return Z88DK_PROFILE_CPC.equalsIgnoreCase(normalizeZ88dkProfile(profile)) ? EMULATOR_CPCBOX_WEB : EMULATOR_JSPECCY;
+            String z = normalizeZ88dkProfile(profile);
+            if (Z88DK_PROFILE_CPC.equalsIgnoreCase(z)) return EMULATOR_CAP32;
+            if (Z88DK_PROFILE_MSX.equalsIgnoreCase(z)) return EMULATOR_OPENMSX;
+            if (Z88DK_PROFILE_SMS.equalsIgnoreCase(z) || Z88DK_PROFILE_GAME_GEAR.equalsIgnoreCase(z)) return EMULATOR_EMULICIOUS;
+            return EMULATOR_JSPECCY;
         }
         if (COMPILER_CC65.equalsIgnoreCase(normCompiler)) {
-            return CC65_TARGET_C64.equalsIgnoreCase(getCc65Target()) ? EMULATOR_VICE : EMULATOR_ALTIRRA;
+            if (CC65_TARGET_C64.equalsIgnoreCase(getCc65Target())) return EMULATOR_VICE;
+            if (CC65_TARGET_NES.equalsIgnoreCase(getCc65Target())) return EMULATOR_MESEN;
+            return EMULATOR_ALTIRRA;
         }
         return EMULATOR_EMULICIOUS;
     }
@@ -813,8 +1009,29 @@ public class ConfigModel {
     public void applyCpcProfile() {
         setCompiladorSeleccionado(COMPILER_Z88DK);
         setZ88dkProfile(Z88DK_PROFILE_CPC);
-        setEmuladorSeleccionado(EMULATOR_CPCBOX_WEB);
+        setEmuladorSeleccionado(EMULATOR_CAP32);
         setZ88dkCpcTarget(getZ88dkCpcTarget());
+    }
+
+    public void applySmsProfile() {
+        setCompiladorSeleccionado(COMPILER_Z88DK);
+        setZ88dkProfile(Z88DK_PROFILE_SMS);
+        setEmuladorSeleccionado(EMULATOR_EMULICIOUS);
+        setZ88dkSmsTarget(getZ88dkSmsTarget());
+    }
+
+    public void applyGameGearProfile() {
+        setCompiladorSeleccionado(COMPILER_Z88DK);
+        setZ88dkProfile(Z88DK_PROFILE_GAME_GEAR);
+        setEmuladorSeleccionado(EMULATOR_EMULICIOUS);
+        setZ88dkGgTarget(getZ88dkGgTarget());
+    }
+
+    public void applyMsxProfile() {
+        setCompiladorSeleccionado(COMPILER_Z88DK);
+        setZ88dkProfile(Z88DK_PROFILE_MSX);
+        setEmuladorSeleccionado(EMULATOR_OPENMSX);
+        setZ88dkMsxTarget(getZ88dkMsxTarget());
     }
 
     public void applyAtariProfile() {
@@ -829,8 +1046,16 @@ public class ConfigModel {
         setEmuladorSeleccionado(EMULATOR_VICE);
     }
 
+    public void applyNesProfile() {
+        setCompiladorSeleccionado(COMPILER_CC65);
+        setCc65Target(CC65_TARGET_NES);
+        setEmuladorSeleccionado(EMULATOR_MESEN);
+    }
+
     private String normalizeCc65Target(String target) {
-        return CC65_TARGET_C64.equalsIgnoreCase(target) ? CC65_TARGET_C64 : CC65_TARGET_ATARI;
+        if (target != null && target.trim().equalsIgnoreCase(CC65_TARGET_C64)) return CC65_TARGET_C64;
+        if (target != null && target.trim().equalsIgnoreCase(CC65_TARGET_NES)) return CC65_TARGET_NES;
+        return CC65_TARGET_ATARI;
     }
 
 }

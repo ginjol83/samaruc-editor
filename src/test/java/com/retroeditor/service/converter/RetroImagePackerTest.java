@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Arrays;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -59,6 +60,66 @@ class RetroImagePackerTest {
         assertEquals((byte) 0x7F, packed[1], "Plano alto: solo el pixel superior tiene el bit 1 a 0");
         assertEquals((byte) 0xFF, packed[2], "Columna 1 completa con color 3");
         assertEquals((byte) 0xFF, packed[3]);
+    }
+
+    @Test
+    void packNES_SplitsTilesAttributesAndPaletteRam() {
+        RetroImageMode mode = RetroImageMode.NES_TILES;
+        int width = 16;
+        int height = 16;
+        int[] indices = new int[width * height];
+        Arrays.fill(indices, 0);
+        indices[0] = 3;
+        int[] palette = { RetroHardwarePalette.nes()[0], RetroHardwarePalette.nes()[1],
+                RetroHardwarePalette.nes()[2], RetroHardwarePalette.nes()[3] };
+        int[] hardwareIndices = { 0x00, 0x01, 0x02, 0x03 };
+
+        List<RetroImageLayer> layers = RetroImagePacker.pack(mode, indices, palette, hardwareIndices, width, height);
+
+        assertEquals(3, layers.size());
+        assertEquals("tiles", layers.get(0).name());
+        assertEquals("attributes", layers.get(1).name());
+        assertEquals("palette", layers.get(2).name());
+        assertEquals(64, layers.get(0).data().length, "4 tiles de 8x8 a 16 bytes cada uno");
+        assertEquals(1, layers.get(1).data().length, "Una celda de 16x16");
+        assertEquals(16, layers.get(2).data().length, "4 subpaletas de 4 colores");
+        // El pixel (0,0) usa el color 3 (entrada 0x03), que tras el mas usado (0x00)
+        // ocupa el slot 1 de la subpaleta 0: bit 0 a 1, bit 1 a 0.
+        assertEquals((byte) 0x80, layers.get(0).data()[0], "Plano 0: el bit alto de la fila 0");
+        assertEquals((byte) 0x00, layers.get(0).data()[8], "Plano 1: el slot 1 solo tiene el bit 0");
+        assertEquals((byte) 0x00, layers.get(1).data()[0], "La celda usa la subpaleta 0");
+        assertEquals((byte) 0x00, layers.get(2).data()[0]);
+        assertEquals((byte) 0x03, layers.get(2).data()[1], "El color de la entrada 3 se guarda en el slot 1");
+        assertEquals((byte) 0xFF, layers.get(2).data()[2], "El resto de la paleta RAM queda sin usar");
+        assertEquals((byte) 0xFF, layers.get(2).data()[15]);
+    }
+
+    @Test
+    void packNES_ReusesASubpaletteWhoseColoursAlreadyFit() {
+        RetroImageMode mode = RetroImageMode.NES_TILES;
+        int width = 16;
+        int height = 32;
+        int[] indices = new int[width * height];
+        // La primera mitad usa los colores 0-3 y la segunda solo 0-1.
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                indices[y * width + x] = y < 16 ? ((x / 2) + y) % 4 : x % 2;
+            }
+        }
+        int[] palette = { RetroHardwarePalette.nes()[0], RetroHardwarePalette.nes()[1],
+                RetroHardwarePalette.nes()[2], RetroHardwarePalette.nes()[3] };
+        int[] hardwareIndices = { 0x00, 0x01, 0x02, 0x03 };
+
+        List<RetroImageLayer> layers = RetroImagePacker.pack(mode, indices, palette, hardwareIndices, width, height);
+
+        int[] attributes = new int[layers.get(1).data().length];
+        for (int i = 0; i < attributes.length; i++) {
+            attributes[i] = layers.get(1).data()[i] & 0x03;
+        }
+        assertEquals(0, attributes[0], "La primera celda se queda con la subpaleta 0");
+        assertEquals(0, attributes[1], "Los colores 0-1 ya estaban en la subpaleta 0 y se reutilizan");
+        assertEquals(8, layers.get(0).data().length / 16, "2 tiles por fila y 4 filas");
+        assertEquals(2, attributes.length, "16x32 son dos celdas de 16x16");
     }
 
     @Test
@@ -195,6 +256,10 @@ class RetroImagePackerTest {
         assertThrows(IllegalArgumentException.class,
                 () -> RetroImageMode.MASTER_SYSTEM_TILES.validateDimensions(12, 8));
         assertThrows(IllegalArgumentException.class,
+                () -> RetroImageMode.MSX_TILES.validateDimensions(8, 6));
+        assertThrows(IllegalArgumentException.class,
+                () -> RetroImageMode.NES_TILES.validateDimensions(10, 8));
+        assertThrows(IllegalArgumentException.class,
                 () -> RetroImageMode.C64_CHARSET.validateDimensions(16, 4));
         assertThrows(IllegalArgumentException.class,
                 () -> RetroImageMode.C64_BITMAP.validateDimensions(8, 12));
@@ -208,6 +273,8 @@ class RetroImagePackerTest {
                 RetroImagePacker.layerNames(RetroImageMode.C64_CHARSET, "hero"));
         assertEquals(List.of("hero_bitmap", "hero_screen", "hero_colors"),
                 RetroImagePacker.layerNames(RetroImageMode.C64_BITMAP, "hero"));
+        assertEquals(List.of("hero", "hero_attributes", "hero_palette"),
+                RetroImagePacker.layerNames(RetroImageMode.NES_TILES, "hero"));
         assertEquals(List.of("hero"),
                 RetroImagePacker.layerNames(RetroImageMode.CPC_MODE_1, "hero"));
     }

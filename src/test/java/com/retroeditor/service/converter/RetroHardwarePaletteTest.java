@@ -63,6 +63,50 @@ class RetroHardwarePaletteTest {
     }
 
     @Test
+    void msxPalette_IsTheSixteenColourTms9918Table() {
+        int[] palette = RetroHardwarePalette.msx();
+
+        assertEquals(16, palette.length);
+        assertEquals(0xFF000000, palette[0], "transparente de sprites = negro");
+        assertEquals(0xFF00AA00, palette[2], "verde medio");
+        assertEquals(0xFF0000FF, palette[5], "azul claro");
+        assertEquals(0xFF00FF00, palette[3], "verde claro");
+        assertEquals(0xFFFFFFFF, palette[15], "blanco");
+        assertEquals(15, distinctColours(palette), "solo se repiten el 0 y el 1 (negro)");
+    }
+
+    @Test
+    void msxCramByte_UsesTheSameSixBitLayoutAsTheVdp() {
+        int[] palette = RetroHardwarePalette.msx();
+
+        assertEquals(0x03, RetroHardwarePalette.msxCramByte(palette[9]), "rojo 255 = %11");
+        assertEquals(0x30, RetroHardwarePalette.msxCramByte(palette[5]), "azul 255 = %11");
+        assertEquals(0x3F, RetroHardwarePalette.msxCramByte(palette[15]), "blanco = %111111");
+        for (int i = 0; i < palette.length; i++) {
+            assertEquals(palette[i], fromCram2(RetroHardwarePalette.msxCramByte(palette[i])),
+                    "El byte de CRAM del color " + i + " no devuelve el mismo color");
+        }
+    }
+
+    @Test
+    void nesPalette_HasTheSixtyFourPpuEntriesWithBlackedOutTail() {
+        int[] palette = RetroHardwarePalette.nes();
+
+        assertEquals(64, palette.length);
+        assertEquals(0xFF7C7C7C, palette[0x00], "gris oscuro");
+        assertEquals(0xFFF8F8F8, palette[0x20], "gris claro");
+        assertEquals(0xFFFCFCFC, palette[0x30], "blanco");
+        assertEquals(0xFF0078F8, palette[0x11], "azul brillante");
+        assertEquals(0xFFFCA044, palette[0x27], "naranja");
+        assertEquals(0xFF787878, palette[0x2D], "gris medio del renglon 2");
+        assertEquals(0xFFF8D8F8, palette[0x3D], "tono claro del renglon 3");
+        for (int index : new int[] { 0x0D, 0x0E, 0x0F, 0x1D, 0x1E, 0x1F, 0x2E, 0x2F, 0x3E, 0x3F }) {
+            assertEquals(0xFF000000, palette[index], "el indice " + index + " es el negro de renglon");
+        }
+        assertEquals(55, distinctColours(palette), "64 entradas menos los 9 negros repetidos");
+    }
+
+    @Test
     void c64Palette_MatchesTheTileEditorPalette() {
         int[] palette = RetroHardwarePalette.c64();
 
@@ -89,10 +133,15 @@ class RetroHardwarePaletteTest {
     @Test
     void everyColourOfAPaletteQuantisesToItsOwnIndex() {
         for (RetroImageMode mode : RetroImageMode.values()) {
+            int[] palette = mode.palette();
             if (mode.hasTransparentFirstColor()) {
                 continue;
             }
-            int[] palette = mode.palette();
+            if (distinctColours(palette) < palette.length) {
+                // Las paletas con colores repetidos (la del NES repite el negro
+                // de los indices 0x0D-0x3F) no pueden devolverse a si mismas.
+                continue;
+            }
             for (int i = 0; i < palette.length; i++) {
                 int[] pixel = { 0xFF000000 | palette[i] };
                 int index = RetroQuantizer.quantize(pixel, palette, false)[0];

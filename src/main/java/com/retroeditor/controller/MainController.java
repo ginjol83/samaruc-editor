@@ -63,6 +63,7 @@ import com.retroeditor.service.LocalHistoryService;
 import com.retroeditor.service.AutoSaveService;
 import com.retroeditor.service.TodoScanService;
 import com.retroeditor.service.ProjectPlatformDetectionService;
+import com.retroeditor.service.ProjectProfileService;
 import com.retroeditor.service.PropertiesConfigRepository;
 import com.retroeditor.service.syntax.SyntaxHighlighter;
 import com.retroeditor.service.HomeReleaseNotesService;
@@ -101,6 +102,7 @@ import com.retroeditor.service.github.GitHubShareService;
 
 import com.retroeditor.util.CompilationDiagnosticsUiHelper;
 import com.retroeditor.util.FXUtils;
+import com.retroeditor.emulator.EmulatorLauncher;
 import com.retroeditor.util.FoldingCodeArea;
 import com.retroeditor.util.TabPaneDragSupport;
 import com.retroeditor.util.SnippetTabStopNavigator;
@@ -204,6 +206,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private final WorkspaceService workspaceService = new WorkspaceService();
     private final PluginApplicationService pluginApplicationService = new PluginApplicationService();
     private final ProjectPlatformDetectionService projectPlatformDetectionService = new ProjectPlatformDetectionService();
+    private final ProjectProfileService projectProfileService = new ProjectProfileService();
     private final ProjectSearchService projectSearchService = new ProjectSearchService();
     private final TextSearchService textSearchService = new TextSearchService();
     private final RenameRefactoringService renameRefactoringService = new RenameRefactoringService();
@@ -290,6 +293,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private MenuItem menuItemPublishRelease;
     @FXML private MenuItem menuItemIssues;
     @FXML private MenuItem menuItemPngToZx;
+    @FXML private MenuItem menuItemPngToRetro;
     @FXML private MenuItem menuItemGoToLine;
     @FXML private MenuItem menuItemFind;
     @FXML private MenuItem menuItemFindProject;
@@ -299,6 +303,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private MenuItem menuItemManual;
     @FXML private MenuItem menuItemGbdkDocs;
     @FXML private MenuItem menuItemZ88dkDocs;
+    @FXML private MenuItem menuItemCc65Docs;
+    @FXML private MenuItem menuItemOpenMsxDocs;
+    @FXML private MenuItem menuItemMesenDocs;
     @FXML private MenuItem menuItemPluginManual;
     @FXML private MenuItem menuItemLicenses;
     @FXML private MenuItem menuItemCreditos;
@@ -763,6 +770,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemExtractFunction != null) menuItemExtractFunction.setText(bundle.getString("menu.refactor.extractFunction"));
         if (menuItemTileEditor    != null) menuItemTileEditor.setText(bundle.getString("menu.tools.tileEditor"));
         if (menuItemTilemapEditor != null) menuItemTilemapEditor.setText(bundle.getString("menu.tools.tilemapEditor"));
+        if (menuItemPngToRetro   != null) menuItemPngToRetro.setText(bundle.getString("menu.tools.pngToRetro"));
         if (menuItemGoToLine      != null) menuItemGoToLine.setText(bundle.getString("menu.goto.line"));
         if (menuItemFind          != null) menuItemFind.setText(bundle.getString("menu.find.file"));
         if (menuItemFindProject   != null) menuItemFindProject.setText(bundle.getString("menu.find.project"));
@@ -772,6 +780,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemManual        != null) menuItemManual.setText(bundle.getString("menu.help.manual"));
         if (menuItemGbdkDocs      != null) menuItemGbdkDocs.setText(bundle.getString("menu.help.gbdkDocs"));
         if (menuItemZ88dkDocs     != null) menuItemZ88dkDocs.setText(bundle.getString("menu.help.z88dkDocs"));
+        if (menuItemCc65Docs      != null) menuItemCc65Docs.setText(bundle.getString("menu.help.cc65Docs"));
+        if (menuItemOpenMsxDocs   != null) menuItemOpenMsxDocs.setText(bundle.getString("menu.help.openMsxDocs"));
+        if (menuItemMesenDocs     != null) menuItemMesenDocs.setText(bundle.getString("menu.help.mesenDocs"));
         if (menuItemPluginManual  != null) menuItemPluginManual.setText(bundle.getString("menu.help.pluginsManual"));
         if (menuItemLicenses      != null) menuItemLicenses.setText(bundle.getString("menu.help.licenses"));
         if (menuItemCreditos      != null) menuItemCreditos.setText(bundle.getString("menu.help.credits"));
@@ -1115,6 +1126,18 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             } else if (fxUtils.wasLastCreatedProjectCpcTemplate()) {
                 configModel.applyCpcProfile();
                 configRepository.save(userConfigFile, configModel.toProperties());
+            } else if (fxUtils.wasLastCreatedProjectSmsTemplate()) {
+                configModel.applySmsProfile();
+                configRepository.save(userConfigFile, configModel.toProperties());
+            } else if (fxUtils.wasLastCreatedProjectGameGearTemplate()) {
+                configModel.applyGameGearProfile();
+                configRepository.save(userConfigFile, configModel.toProperties());
+            } else if (fxUtils.wasLastCreatedProjectMsxTemplate()) {
+                configModel.applyMsxProfile();
+                configRepository.save(userConfigFile, configModel.toProperties());
+            } else if (fxUtils.wasLastCreatedProjectNesTemplate()) {
+                configModel.applyNesProfile();
+                configRepository.save(userConfigFile, configModel.toProperties());
             } else if (fxUtils.wasLastCreatedProjectCc65Template()) {
                 configModel.applyAtariProfile();
                 configRepository.save(userConfigFile, configModel.toProperties());
@@ -1167,31 +1190,16 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     private void maybeApplyDetectedProfileForOpenedProject(File projectDir) {
         ProjectPlatformDetectionService.DetectionResult detected = projectPlatformDetectionService.detectProjectPlatform(projectDir);
-        if (detected == null || detected.getPlatform() == ProjectPlatformDetectionService.Platform.UNKNOWN) return;
+        if (detected == null) return;
 
-        boolean profileAlreadyMatches =
-                (detected.getPlatform() == ProjectPlatformDetectionService.Platform.GAMEBOY && isCurrentProfileGameBoy())
-                || (detected.getPlatform() == ProjectPlatformDetectionService.Platform.SPECTRUM && isCurrentProfileSpectrum())
-                || (detected.getPlatform() == ProjectPlatformDetectionService.Platform.CPC && isCurrentProfileCpc())
-                || (detected.getPlatform() == ProjectPlatformDetectionService.Platform.ATARI && isCurrentProfileAtari())
-                || (detected.getPlatform() == ProjectPlatformDetectionService.Platform.C64 && isCurrentProfileC64());
+        ProjectPlatformDetectionService.Platform platform = detected.getPlatform();
+        // SMS/Game Gear y las plataformas no reconocidas no tienen toolchain integrada,
+        // asi que no hay perfil que proponer: antes caian en el nombre de ZX Spectrum.
+        ProjectProfileService.Profile profile = projectProfileService.profileFor(platform).orElse(null);
+        if (profile == null) return;
+        if (projectProfileService.isCurrentProfile(platform, configModel)) return;
 
-
-        if (profileAlreadyMatches) return;
-
-        String detectedProfileName;
-        if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.GAMEBOY) {
-            detectedProfileName = msg("dialog.project.detected.profile.gameboy", "Game Boy (GBDK)");
-        } else if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.CPC) {
-            detectedProfileName = msg("dialog.project.detected.profile.cpc", "Amstrad CPC (Z88DK)");
-        } else if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.ATARI) {
-            detectedProfileName = msg("dialog.project.detected.profile.atari", "Atari 8-bit (CC65)");
-        } else if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.C64) {
-            detectedProfileName = msg("dialog.project.detected.profile.c64", "Commodore 64 (CC65)");
-        } else {
-            detectedProfileName = msg("dialog.project.detected.profile.spectrum", "ZX Spectrum (z88dk)");
-        }
-
+        String detectedProfileName = msg(profile.bundleKey(), profile.fallbackName());
         String confidenceText = Integer.toString(detected.getConfidence());
         String evidence = detected.getEvidence() != null ? detected.getEvidence() : "";
 
@@ -1217,47 +1225,10 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         Optional<ButtonType> selected = alert.showAndWait();
         if (!selected.isPresent() || selected.get() != applyButton) return;
 
-        if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.GAMEBOY) {
-            configModel.applyGameBoyProfile();
-        } else if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.CPC) {
-            configModel.applyCpcProfile();
-        } else if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.ATARI) {
-            configModel.applyAtariProfile();
-        } else if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.C64) {
-            configModel.applyC64Profile();
-        } else if (detected.getPlatform() == ProjectPlatformDetectionService.Platform.SPECTRUM) {
-            configModel.applySpectrumProfile();
-        }
+        projectProfileService.apply(platform, configModel);
         configRepository.save(userConfigFile, configModel.toProperties());
     }
 
-    private boolean isCurrentProfileC64() {
-        if (!"cc65".equalsIgnoreCase(configModel.getConfigProperty("compilador_seleccionado", "GBDK"))) return false;
-        return "c64".equalsIgnoreCase(configModel.getConfigProperty("cc65_target", "atari"));
-    }
-
-    private boolean isCurrentProfileGameBoy() {
-        return "GBDK".equalsIgnoreCase(configModel.getConfigProperty("compilador_seleccionado", "GBDK"));
-    }
-
-    private boolean isCurrentProfileSpectrum() {
-        String compiler = configModel.getConfigProperty("compilador_seleccionado", "GBDK");
-        if (!"z88dk".equalsIgnoreCase(compiler) && !"Spectrum".equalsIgnoreCase(compiler)) {
-            return false;
-        }
-        return "spectrum".equalsIgnoreCase(configModel.getConfigProperty("z88dk_profile", "spectrum"));
-    }
-
-    private boolean isCurrentProfileCpc() {
-        String compiler = configModel.getConfigProperty("compilador_seleccionado", "GBDK");
-        return "z88dk".equalsIgnoreCase(compiler)
-            && "cpc".equalsIgnoreCase(configModel.getConfigProperty("z88dk_profile", "spectrum"));
-    }
-
-    private boolean isCurrentProfileAtari() {
-        String compiler = configModel.getConfigProperty("compilador_seleccionado", "GBDK");
-        return "cc65".equalsIgnoreCase(compiler);
-    }
 
     private String msg(String key, String fallback) {
         if (bundle == null) return fallback;
@@ -2658,26 +2629,27 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     @FXML
-    private void onOpenCpcWebTest(ActionEvent event) {
-        File cpcIndex = new File(System.getProperty("user.dir"), "libs/cpcbox-main/cpcbox-main/index.html");
+    private void onOpenCap32(ActionEvent event) {
+        File cap32Exe = EmulatorLauncher.resolveBundledCap32Executable();
 
-        if (!cpcIndex.isFile()) {
+        if (cap32Exe == null) {
             Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.setTitle("CPC Web");
-            alert.setHeaderText("No se encontró el emulador CPC web");
-            alert.setContentText("Ruta esperada: " + cpcIndex.getAbsolutePath());
+            alert.setTitle("Caprice32");
+            alert.setHeaderText("No se encontró el emulador de CPC");
+            alert.setContentText("Ruta esperada: libs/emulators/cap32/cap32.exe");
             alert.showAndWait();
             return;
         }
 
-        javafx.scene.web.WebView webView = new javafx.scene.web.WebView();
-        webView.getEngine().load(cpcIndex.toURI().toString());
-
-        Stage stage = new Stage();
-        stage.setTitle("CPC Web Test");
-        stage.initOwner(getStage());
-        stage.setScene(new Scene(webView, 1280, 900));
-        stage.show();
+        try {
+            EmulatorLauncher.launchCap32(cap32Exe, null, null, null);
+        } catch (Exception ex) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle("Caprice32");
+            alert.setHeaderText("No se pudo iniciar Caprice32");
+            alert.setContentText(String.valueOf(ex.getMessage()));
+            alert.showAndWait();
+        }
     }
 
     @FXML
@@ -3311,7 +3283,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML
     private void onOpenPngToRetroConverter(ActionEvent event) {
         String title = toolTitle("tool.pngToRetro.title",
-                "Convertir PNG a C (CPC, C64, Master System, Game Gear, Atari)");
+                "Convertir PNG a C (CPC, C64, Master System, Game Gear, Atari, MSX, NES)");
         Consumer<File> onExported = exportedFile -> {
             if (projectExplorerController != null) {
                 projectExplorerController.refreshTree();
@@ -4076,6 +4048,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private void onOpenZ88dkDocs()                            { helpController.onOpenZ88dkDocs(); }
 
     @FXML
+    private void onOpenCc65Docs()                             { helpController.onOpenCc65Docs(); }
+
+    @FXML
+    private void onOpenOpenMsxDocs()                          { helpController.onOpenOpenMsxDocs(); }
+
+    @FXML
+    private void onOpenMesenDocs()                            { helpController.onOpenMesenDocs(); }
+
+    @FXML
     private void onOpenPluginManual()                         { helpController.onOpenPluginManual(); }
 
     @FXML
@@ -4226,6 +4207,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemExtractConstant != null) menuItemExtractConstant.setText(bundle.getString("menu.refactor.extractConstant"));
         if (menuItemExtractFunction != null) menuItemExtractFunction.setText(bundle.getString("menu.refactor.extractFunction"));
         if (menuItemTileEditor  != null) menuItemTileEditor.setText(bundle.getString("menu.tools.tileEditor"));
+        if (menuItemPngToRetro  != null) menuItemPngToRetro.setText(bundle.getString("menu.tools.pngToRetro"));
         if (menuItemRomTextTranslator != null) menuItemRomTextTranslator.setText(bundle.getString("menu.tools.romTextTranslator"));
         if (menuItemGitHubRepos != null) menuItemGitHubRepos.setText(bundle.getString("menu.tools.githubRepos"));
         if (menuItemGitPanel    != null) menuItemGitPanel.setText(bundle.getString("menu.git.panel"));
@@ -4243,6 +4225,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemManual      != null) menuItemManual.setText(bundle.getString("menu.help.manual"));
         if (menuItemGbdkDocs    != null) menuItemGbdkDocs.setText(bundle.getString("menu.help.gbdkDocs"));
         if (menuItemZ88dkDocs   != null) menuItemZ88dkDocs.setText(bundle.getString("menu.help.z88dkDocs"));
+        if (menuItemCc65Docs    != null) menuItemCc65Docs.setText(bundle.getString("menu.help.cc65Docs"));
+        if (menuItemOpenMsxDocs != null) menuItemOpenMsxDocs.setText(bundle.getString("menu.help.openMsxDocs"));
+        if (menuItemMesenDocs   != null) menuItemMesenDocs.setText(bundle.getString("menu.help.mesenDocs"));
         if (menuItemPluginManual != null) menuItemPluginManual.setText(bundle.getString("menu.help.pluginsManual"));
         if (menuItemLicenses    != null) menuItemLicenses.setText(bundle.getString("menu.help.licenses"));
         if (menuItemCreditos    != null) menuItemCreditos.setText(bundle.getString("menu.help.credits"));
@@ -4948,6 +4933,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         commands.add(new CommandPalette.Entry(msg("menu.help.manual", "Manual"), h, () -> onOpenManual()));
         commands.add(new CommandPalette.Entry(msg("menu.help.gbdkDocs", "Documentación GBDK"), h, () -> onOpenGbdkDocs()));
         commands.add(new CommandPalette.Entry(msg("menu.help.z88dkDocs", "Documentación Z88DK"), h, () -> onOpenZ88dkDocs()));
+        commands.add(new CommandPalette.Entry(msg("menu.help.cc65Docs", "Documentación CC65"), h, () -> onOpenCc65Docs()));
+        commands.add(new CommandPalette.Entry(msg("menu.help.openMsxDocs", "Documentación openMSX"), h, () -> onOpenOpenMsxDocs()));
+        commands.add(new CommandPalette.Entry(msg("menu.help.mesenDocs", "Documentación Mesen"), h, () -> onOpenMesenDocs()));
         commands.add(new CommandPalette.Entry(msg("menu.config", "Configuración"), h, () -> onOpenConfig(null)));
 
         String prompt = msg("palette.commands.prompt", "Escriba un comando...");

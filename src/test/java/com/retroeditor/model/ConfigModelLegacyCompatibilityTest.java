@@ -21,14 +21,14 @@ class ConfigModelLegacyCompatibilityTest {
     }
 
     @Test
-    void appliesCpcProfileWithZ88dkAndCpcBox() {
+    void appliesCpcProfileWithZ88dkAndCap32() {
         ConfigModel model = new ConfigModel();
 
         model.applyCpcProfile();
 
         Assertions.assertEquals("z88dk", model.getConfigProperty("compilador_seleccionado", "GBDK"));
         Assertions.assertEquals("cpc", model.getConfigProperty("z88dk_profile", "spectrum"));
-        Assertions.assertEquals("CPCBoxWeb", model.getConfigProperty("emulador_seleccionado", ""));
+        Assertions.assertEquals("Cap32", model.getConfigProperty("emulador_seleccionado", ""));
         Assertions.assertEquals("+cpc", model.getConfigProperty("z88dk_cpc_target", ""));
     }
 
@@ -43,7 +43,51 @@ class ConfigModelLegacyCompatibilityTest {
 
         Assertions.assertEquals("z88dk", model.getConfigProperty("compilador_seleccionado", "GBDK"));
         Assertions.assertEquals("cpc", model.getConfigProperty("z88dk_profile", "spectrum"));
-        Assertions.assertEquals("CPCBoxWeb", model.getConfigProperty("emulador_seleccionado", ""));
+        Assertions.assertEquals("Cap32", model.getConfigProperty("emulador_seleccionado", ""));
+    }
+
+    @Test
+    void legacyCpcConfigResolvesToCap32AndPersistsCanonicalValue() {
+        ConfigModel model = new ConfigModel();
+        Properties props = new Properties();
+        props.setProperty("compilador_seleccionado", "z88dk");
+        props.setProperty("z88dk_profile", "cpc");
+        props.setProperty("emulador_seleccionado", "CPCBoxWeb");
+
+        model.applyProperties(props);
+
+        Assertions.assertEquals(
+            "Cap32",
+            model.getConfigProperty("emulador_seleccionado", ""),
+            "A CPC profile must resolve to Cap32, never to the removed CPCBoxWeb emulator"
+        );
+        Assertions.assertEquals(
+            "Cap32",
+            model.toProperties().getProperty("emulador_seleccionado"),
+            "Re-serializing must persist the canonical value"
+        );
+    }
+
+    @Test
+    void legacyCpcBoxWebWorkspaceSettingIsNormalisedOnWrite() {
+        ConfigModel model = new ConfigModel();
+        model.applyCpcProfile();
+
+        model.setEmuladorSeleccionado("CPCBoxWeb");
+
+        Assertions.assertEquals("Cap32", model.getEmuladorSeleccionado());
+    }
+
+    @Test
+    void normalizeEmulatorSelectionMapsLegacyAndPreservesKnownValues() {
+        Assertions.assertEquals("Cap32", ConfigModel.normalizeEmulatorSelection("CPCBoxWeb"));
+        Assertions.assertEquals("Cap32", ConfigModel.normalizeEmulatorSelection("  cpcboxweb "));
+        Assertions.assertEquals("JSpeccy", ConfigModel.normalizeEmulatorSelection("JSpeccy"));
+        Assertions.assertEquals("Altirra", ConfigModel.normalizeEmulatorSelection("Altirra"));
+        Assertions.assertEquals("VICE", ConfigModel.normalizeEmulatorSelection("VICE"));
+        Assertions.assertEquals("Emulicious", ConfigModel.normalizeEmulatorSelection("Emulicious"));
+        Assertions.assertNull(ConfigModel.normalizeEmulatorSelection(null));
+        Assertions.assertNull(ConfigModel.normalizeEmulatorSelection("   "));
     }
 
     @Test

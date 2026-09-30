@@ -76,7 +76,7 @@ class RetroPackingRoundTripTest {
     @DisplayName("Master System y Game Gear: los dos planos de cada columna")
     void tilePlanarIsLossless() throws IOException {
         for (RetroImageMode mode : new RetroImageMode[] {RetroImageMode.MASTER_SYSTEM_TILES,
-                RetroImageMode.GAME_GEAR_TILES}) {
+                RetroImageMode.GAME_GEAR_TILES, RetroImageMode.MSX_TILES}) {
             RetroImageConversion conversion = convert(mode, patronRico(mode));
 
             byte[] data = conversion.layers().get(0).data();
@@ -178,6 +178,34 @@ class RetroPackingRoundTripTest {
         assertEquals(1, backgrounds.size(), "$D021 solo admite un color para toda la imagen");
         assertTrue(conversion.totalBytes() == WIDTH * HEIGHT / 4 + 2 * (WIDTH / 8) * (HEIGHT / 8),
                 "Bitmap 2bpp + 1 byte de pantalla y 1 de color RAM por celda");
+    }
+
+    @Test
+    @DisplayName("NES: el 2bpp recupera el color de la subpaleta de la celda")
+    void nes2BppIsLossless() throws IOException {
+        RetroImageMode mode = RetroImageMode.NES_TILES;
+        RetroImageConversion conversion = convert(mode, patronRico(mode));
+
+        byte[] patterns = conversion.layers().get(0).data();
+        byte[] attributes = conversion.layers().get(1).data();
+        byte[] paletteRam = conversion.layers().get(2).data();
+        int tilesX = WIDTH / RetroImageMode.TILE_SIZE;
+        int subpalette = attributes[0] & 0x03;
+        for (int y = 0; y < HEIGHT; y++) {
+            for (int x = 0; x < WIDTH; x++) {
+                int tile = (y / RetroImageMode.TILE_SIZE) * tilesX + x / RetroImageMode.TILE_SIZE;
+                int row = y % RetroImageMode.TILE_SIZE;
+                int column = x % RetroImageMode.TILE_SIZE;
+                int offset = tile * 16;
+                int bit = 7 - column;
+                int plane0 = (patterns[offset + row] >> bit) & 1;
+                int plane1 = (patterns[offset + 8 + row] >> bit) & 1;
+                int slot = plane0 | (plane1 << 1);
+                int ppu = paletteRam[subpalette * 4 + slot] & 0xFF;
+                assertEquals(conversion.hardwareIndices()[conversion.indexAt(x, y)], ppu,
+                        "El pixel (" + x + "," + y + ") no recupera su entrada de la paleta del PPU");
+            }
+        }
     }
 
     private void assertIndex(RetroImageConversion conversion, int x, int y, int packed, RetroImageMode mode) {

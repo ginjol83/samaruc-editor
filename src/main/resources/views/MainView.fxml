@@ -76,7 +76,7 @@
                         <MenuItem fx:id="menuItemGameBoyAudioEditor" text="Editor de audio (Game Boy)" onAction="#onOpenGameBoyAudioEditor" />
                         <MenuItem fx:id="menuItemPngToGameBoy" text="Convertir PNG a C (Game Boy)" onAction="#onOpenPngToGameBoyConverter" />
                         <MenuItem fx:id="menuItemPngToZx" text="Convertir PNG a C (ZX Spectrum)" onAction="#onOpenPngToZxConverter" />
-                        <MenuItem fx:id="menuItemPngToRetro" text="Convertir PNG a C (CPC, C64, Master System, Game Gear, Atari)" onAction="#onOpenPngToRetroConverter" />
+                        <MenuItem fx:id="menuItemPngToRetro" text="Convertir PNG a C (CPC, C64, Master System, Game Gear, Atari, MSX, NES)" onAction="#onOpenPngToRetroConverter" />
                         <MenuItem fx:id="menuItemRomTextTranslator" text="Traductor de texto Game Boy" onAction="#onOpenRomTextTranslator" />
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemGitHubRepos" text="Repositorios de GitHub" onAction="#onOpenGitHubRepoBrowser" />
@@ -96,6 +96,9 @@
                         <MenuItem fx:id="menuItemManual" text="Manual" onAction="#onOpenManual" />
                         <MenuItem fx:id="menuItemGbdkDocs" text="Documentación GBDK-2020" onAction="#onOpenGbdkDocs" />
                         <MenuItem fx:id="menuItemZ88dkDocs" text="Documentación Z88DK" onAction="#onOpenZ88dkDocs" />
+                        <MenuItem fx:id="menuItemCc65Docs" text="Documentación CC65" onAction="#onOpenCc65Docs" />
+                        <MenuItem fx:id="menuItemOpenMsxDocs" text="Documentación openMSX" onAction="#onOpenOpenMsxDocs" />
+                        <MenuItem fx:id="menuItemMesenDocs" text="Documentación Mesen" onAction="#onOpenMesenDocs" />
                         <MenuItem fx:id="menuItemPluginManual" text="Manual de plugins" onAction="#onOpenPluginManual" />
                         <MenuItem fx:id="menuItemLicenses" text="Licencias" onAction="#onOpenLicenses" />
                         <MenuItem fx:id="menuItemCreditos" text="Créditos" onAction="#onShowCredits" />
@@ -159,8 +162,8 @@
                 <Button fx:id="btnEjecutar" onAction="#onEjecutar">
                     <tooltip><Tooltip text="Ejecutar" /></tooltip>
                 </Button>
-                <!-- Button fx:id="btnCpcWebTest" onAction="#onOpenCpcWebTest">
-                    <tooltip><Tooltip text="Probar CPC en WebView" /></tooltip>
+                <!-- Button fx:id="btnCap32" onAction="#onOpenCap32">
+                    <tooltip><Tooltip text="Probar CPC en Caprice32" /></tooltip>
                 </Button -->
                 <Separator />
                 <!-- Configuración -->

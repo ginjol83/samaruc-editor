@@ -58,7 +58,23 @@ public enum RetroImageMode {
     MASTER_SYSTEM_TILES(RetroImagePlatform.MASTER_SYSTEM, "Master System modo 4 (tiles 4bpp)", 4, 256, 224, 16, Layout.TILE_PLANAR),
 
     /** Game Gear modo 4: mismo empaquetado que el Master System, paleta GG. */
-    GAME_GEAR_TILES(RetroImagePlatform.GAME_GEAR, "Game Gear modo 4 (tiles 4bpp)", 4, 256, 224, 16, Layout.TILE_PLANAR);
+    GAME_GEAR_TILES(RetroImagePlatform.GAME_GEAR, "Game Gear modo 4 (tiles 4bpp)", 4, 256, 224, 16, Layout.TILE_PLANAR),
+
+    /**
+     * MSX: 256x192 de tiles 8x8 a 4bpp, mismo empaquetado planar por columnas
+     * que el Master System (el MSX1 comparte el TMS9918 y su CRAM de 6 bits).
+     * La imagen se puede pintar por software en SCREEN 1/2 desde los dos
+     * planos, como hace la plantilla {@code msx-c}.
+     */
+    MSX_TILES(RetroImagePlatform.MSX, "MSX tiles 4bpp (TMS9918)", 4, 256, 192, 16, Layout.TILE_PLANAR),
+
+    /**
+     * NES: 256x240 de tiles 8x8 a 2bpp, 16 bytes por tile (los 8 primeros
+     * bytes el plano 0 y los 8 siguientes el plano 1). Cada celda de 16x16
+     * escoge una subpaleta de 4 colores de la paleta del PPU de 64 entradas,
+     * como hace la tabla de atributos del NES.
+     */
+    NES_TILES(RetroImagePlatform.NES, "NES tiles 2bpp (PPU)", 2, 256, 240, 16, Layout.NES_2BPP);
 
     /** Tamano de tile en pixeles de los modos basados en tiles. */
     public static final int TILE_SIZE = 8;
@@ -74,7 +90,9 @@ public enum RetroImageMode {
         /** C64: 2bpp por pixel (4 px/byte) + 1 byte de pantalla y 1 de color RAM por celda 8x8. */
         C64_BITMAP,
         /** Tiles 8x8 de 4bpp: por columna, byte del plano bajo y byte del plano alto. */
-        TILE_PLANAR
+        TILE_PLANAR,
+        /** NES: tiles 8x8 de 2bpp (16 bytes por tile, plano 0 y plano 1) + atributos por celda de 16x16. */
+        NES_2BPP
     }
 
     private final RetroImagePlatform platform;
@@ -135,6 +153,8 @@ public enum RetroImageMode {
             case C64_CHARSET, C64_BITMAP -> RetroHardwarePalette.c64();
             case MASTER_SYSTEM_TILES -> RetroHardwarePalette.masterSystem();
             case GAME_GEAR_TILES -> RetroHardwarePalette.gameGear();
+            case MSX_TILES -> RetroHardwarePalette.msx();
+            case NES_TILES -> RetroHardwarePalette.nes();
         };
     }
 
@@ -151,6 +171,8 @@ public enum RetroImageMode {
         return switch (this) {
             case MASTER_SYSTEM_TILES -> cram(colors, RetroHardwarePalette::masterSystemCramByte);
             case GAME_GEAR_TILES -> cram(colors, RetroHardwarePalette::gameGearCramValue);
+            case MSX_TILES -> cram(colors, RetroHardwarePalette::msxCramByte);
+            case NES_TILES -> null;
             default -> null;
         };
     }
@@ -170,6 +192,7 @@ public enum RetroImageMode {
             case C64_CHARSET -> 8;
             case C64_BITMAP -> 8;
             case TILE_PLANAR -> 2;
+            case NES_2BPP -> 4;
         };
     }
 
@@ -183,12 +206,14 @@ public enum RetroImageMode {
             case C64_CHARSET -> width / TILE_SIZE * TILE_SIZE;
             case C64_BITMAP -> width / 4;
             case TILE_PLANAR -> width / TILE_SIZE * (TILE_SIZE * 4);
+            case NES_2BPP -> width / TILE_SIZE * (TILE_SIZE * 2);
         };
     }
 
     /** El modo obliga a que el alto y el ancho sean multiplos de 8. */
     public boolean requiresTileAligned() {
-        return layout == Layout.TILE_PLANAR || layout == Layout.C64_CHARSET || layout == Layout.C64_BITMAP;
+        return layout == Layout.TILE_PLANAR || layout == Layout.C64_CHARSET
+                || layout == Layout.C64_BITMAP || layout == Layout.NES_2BPP;
     }
 
     /** Valida las dimensiones para este modo. */
@@ -208,7 +233,7 @@ public enum RetroImageMode {
 
     /** Modos que usan paleta de sprites con el color 0 transparente. */
     public boolean hasTransparentFirstColor() {
-        return this == MASTER_SYSTEM_TILES || this == GAME_GEAR_TILES;
+        return this == MASTER_SYSTEM_TILES || this == GAME_GEAR_TILES || this == MSX_TILES;
     }
 
     /** Modos disponibles, en el orden en que se muestran en la interfaz. */

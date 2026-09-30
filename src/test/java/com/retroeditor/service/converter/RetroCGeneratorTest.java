@@ -64,6 +64,40 @@ class RetroCGeneratorTest {
     }
 
     @Test
+    void generate_ForMsx_EmitsSmsIncludeAndCommentsVdpCram() {
+        int[] pixels = new int[8 * 8];
+        Arrays.fill(pixels, 0xFFFF0000);
+        pixels[0] = 0x00FFFFFF;
+        RetroImageConversion conversion =
+                converter.convertPixels(pixels, RetroImageMode.MSX_TILES, 8, 8);
+
+        String code = generator.generate(conversion, RetroExportOptions.defaults("tiles"));
+
+        assertTrue(code.contains("#include <msx.h>"), "El codigo MSX incluye la cabecera de MSX-C");
+        assertTrue(code.contains("Paleta MSX1 (%00BBGGRR"), "EL comentario explica el layout de 6 bits");
+        assertTrue(code.contains("0x00 0x03"), "Transparente y rojo claro en la tabla CRAM");
+        assertTrue(code.contains("const unsigned char tiles[] = {"));
+    }
+
+    @Test
+    void generate_ForNes_EmitsNesIncludeAndPaletteRamMap() {
+        int[] pixels = new int[8 * 8];
+        Arrays.fill(pixels, 0xFFFF0000);
+        pixels[0] = 0xFF00B800;
+        RetroImageConversion conversion =
+                converter.convertPixels(pixels, RetroImageMode.NES_TILES, 8, 8);
+
+        String code = generator.generate(conversion, RetroExportOptions.defaults("hero"));
+
+        assertTrue(code.contains("#include <nes.h>"), "El codigo NES incluye la cabecera de cc65");
+        assertTrue(code.contains("unsigned char hero[] = {"));
+        assertTrue(code.contains("unsigned char hero_attributes[] = {"));
+        assertTrue(code.contains("unsigned char hero_palette[] = {"));
+        assertTrue(code.contains("$3F01"), "El comentario mapea las subpaletas al PPU");
+        assertTrue(code.contains("slot de la subpaleta"));
+    }
+
+    @Test
     void generate_ForGameGear_CommentsTwelveBitPalette() {
         int[] pixels = new int[8 * 8];
         Arrays.fill(pixels, 0xFFFF0000);

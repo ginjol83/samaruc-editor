@@ -105,7 +105,7 @@
                         <ScrollPane fitToWidth="true" fitToHeight="false" prefHeight="340" hbarPolicy="NEVER" vbarPolicy="ALWAYS">
                         <content>
                         <VBox spacing="12" alignment="CENTER_LEFT" style="-fx-padding: 8 0 0 0;">
-                            <Label fx:id="lblGbdkBundled" wrapText="true" text="GBDK se incluye con Samaruc (libs/gbdk/bin)" />
+                            <Label fx:id="lblGbdkBundled" wrapText="true" text="GBDK se incluye con Samaruc (libs/devkits/gbdk/bin)" />
                             <Label fx:id="lblGbdkOpts" text="Opciones de optimización GBDK:" />
                             <HBox spacing="6" alignment="CENTER_LEFT">
                                 <Label fx:id="lblGbdkOptLevel" text="Nivel de optimización:" />
@@ -127,7 +127,7 @@
                         <ScrollPane fitToWidth="true" fitToHeight="false" prefHeight="340" hbarPolicy="NEVER" vbarPolicy="ALWAYS">
                         <content>
                         <VBox spacing="12" alignment="CENTER_LEFT" style="-fx-padding: 8 0 0 0;">
-                            <Label fx:id="lblZ88dkSpectrumBundled" wrapText="true" text="Z88DK se incluye con Samaruc (libs/z88dk/bin)" />
+                            <Label fx:id="lblZ88dkSpectrumBundled" wrapText="true" text="Z88DK se incluye con Samaruc (libs/devkits/z88dk/bin)" />
                             <Label fx:id="lblZ88dkSpectrumBin" text="RUTA DE BIN DE Z88DK (SPECTRUM):" />
                             <HBox spacing="6" alignment="CENTER_LEFT">
                                 <TextField fx:id="txtSpectrumBin" prefWidth="220" promptText="/ruta/a/Z88DK/bin" />
@@ -158,7 +158,7 @@
                         <ScrollPane fitToWidth="true" fitToHeight="false" prefHeight="340" hbarPolicy="NEVER" vbarPolicy="ALWAYS">
                         <content>
                         <VBox spacing="12" alignment="CENTER_LEFT" style="-fx-padding: 8 0 0 0;">
-                            <Label fx:id="lblZ88dkCpcBundled" wrapText="true" text="Z88DK se incluye con Samaruc (libs/z88dk/bin)" />
+                            <Label fx:id="lblZ88dkCpcBundled" wrapText="true" text="Z88DK se incluye con Samaruc (libs/devkits/z88dk/bin)" />
                             <Label fx:id="lblZ88dkCpcBin" text="RUTA DE BIN DE Z88DK (CPC):" />
                             <HBox spacing="6" alignment="CENTER_LEFT">
                                 <TextField fx:id="txtCpcBin" prefWidth="220" promptText="/ruta/a/Z88DK/bin" />
@@ -181,6 +181,96 @@
                             <TextField fx:id="txtZ88dkCpcIncludes" prefWidth="420" promptText="include; libs/include" />
                             <Label fx:id="lblZ88dkCpcExtraArgs" text="Argumentos extra Z88DK:" />
                             <TextField fx:id="txtZ88dkCpcExtraArgs" prefWidth="420" promptText="-SO3 --max-allocs-per-node 50000" />
+                        </VBox>
+                        </content>
+                        </ScrollPane>
+                    </Tab>
+                    <Tab fx:id="tabCompilerZ88dkSms" text="Z88DK - Master System">
+                        <ScrollPane fitToWidth="true" fitToHeight="false" prefHeight="340" hbarPolicy="NEVER" vbarPolicy="ALWAYS">
+                        <content>
+                        <VBox spacing="12" alignment="CENTER_LEFT" style="-fx-padding: 8 0 0 0;">
+                            <Label fx:id="lblZ88dkSmsBundled" wrapText="true" text="Z88DK se incluye con Samaruc (libs/devkits/z88dk/bin)" />
+                            <Label fx:id="lblZ88dkSmsBin" text="RUTA DE BIN DE Z88DK (SMS):" />
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <TextField fx:id="txtSmsBin" prefWidth="220" promptText="/ruta/a/Z88DK/bin" />
+                                <Button fx:id="btnSeleccionarSmsBin" text="..." onAction="#onSeleccionarSmsBin" />
+                            </HBox>
+                            <Label fx:id="lblZ88dkSmsOpts" text="Opciones de compilacion Z88DK (Master System):" />
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <Label fx:id="lblZ88dkSmsClib" text="Opcion -clib:" />
+                                <ComboBox fx:id="comboZ88dkSmsClib" prefWidth="120" />
+                            </HBox>
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <Label fx:id="lblZ88dkSmsTarget" text="Target Z88DK:" />
+                                <TextField fx:id="txtZ88dkSmsTarget" prefWidth="120" promptText="+sms" />
+                            </HBox>
+                            <CheckBox fx:id="chkZ88dkSmsCreateApp" text="Usar -create-app" />
+                            <Label fx:id="lblZ88dkSmsDefines" text="Defines (-D), separados por coma o espacio:" />
+                            <TextField fx:id="txtZ88dkSmsDefines" prefWidth="420" promptText="DEBUG" />
+                            <Label fx:id="lblZ88dkSmsIncludes" text="Includes (-I), separados por ; o coma:" />
+                            <TextField fx:id="txtZ88dkSmsIncludes" prefWidth="420" promptText="include; libs/include" />
+                            <Label fx:id="lblZ88dkSmsExtraArgs" text="Argumentos extra Z88DK:" />
+                            <TextField fx:id="txtZ88dkSmsExtraArgs" prefWidth="420" promptText="-SO3 --max-allocs-per-node 50000" />
+                        </VBox>
+                        </content>
+                        </ScrollPane>
+                    </Tab>
+                    <Tab fx:id="tabCompilerZ88dkGameGear" text="Z88DK - Game Gear">
+                        <ScrollPane fitToWidth="true" fitToHeight="false" prefHeight="340" hbarPolicy="NEVER" vbarPolicy="ALWAYS">
+                        <content>
+                        <VBox spacing="12" alignment="CENTER_LEFT" style="-fx-padding: 8 0 0 0;">
+                            <Label fx:id="lblZ88dkGameGearBundled" wrapText="true" text="Z88DK se incluye con Samaruc (libs/devkits/z88dk/bin)" />
+                            <Label fx:id="lblZ88dkGameGearBin" text="RUTA DE BIN DE Z88DK (GAME GEAR):" />
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <TextField fx:id="txtGgBin" prefWidth="220" promptText="/ruta/a/Z88DK/bin" />
+                                <Button fx:id="btnSeleccionarGgBin" text="..." onAction="#onSeleccionarGgBin" />
+                            </HBox>
+                            <Label fx:id="lblZ88dkGameGearOpts" text="Opciones de compilacion Z88DK (Game Gear):" />
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <Label fx:id="lblZ88dkGameGearClib" text="Opcion -clib:" />
+                                <ComboBox fx:id="comboZ88dkGgClib" prefWidth="120" />
+                            </HBox>
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <Label fx:id="lblZ88dkGameGearTarget" text="Target Z88DK:" />
+                                <TextField fx:id="txtZ88dkGgTarget" prefWidth="120" promptText="+gg" />
+                            </HBox>
+                            <CheckBox fx:id="chkZ88dkGgCreateApp" text="Usar -create-app" />
+                            <Label fx:id="lblZ88dkGameGearDefines" text="Defines (-D), separados por coma o espacio:" />
+                            <TextField fx:id="txtZ88dkGgDefines" prefWidth="420" promptText="DEBUG" />
+                            <Label fx:id="lblZ88dkGameGearIncludes" text="Includes (-I), separados por ; o coma:" />
+                            <TextField fx:id="txtZ88dkGgIncludes" prefWidth="420" promptText="include; libs/include" />
+                            <Label fx:id="lblZ88dkGameGearExtraArgs" text="Argumentos extra Z88DK:" />
+                            <TextField fx:id="txtZ88dkGgExtraArgs" prefWidth="420" promptText="-SO3 --max-allocs-per-node 50000" />
+                        </VBox>
+                        </content>
+                        </ScrollPane>
+                    </Tab>
+                    <Tab fx:id="tabCompilerZ88dkMsx" text="Z88DK - MSX">
+                        <ScrollPane fitToWidth="true" fitToHeight="false" prefHeight="340" hbarPolicy="NEVER" vbarPolicy="ALWAYS">
+                        <content>
+                        <VBox spacing="12" alignment="CENTER_LEFT" style="-fx-padding: 8 0 0 0;">
+                            <Label fx:id="lblZ88dkMsxBundled" wrapText="true" text="Z88DK se incluye con Samaruc (libs/devkits/z88dk/bin)" />
+                            <Label fx:id="lblZ88dkMsxBin" text="RUTA DE BIN DE Z88DK (MSX):" />
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <TextField fx:id="txtMsxBin" prefWidth="220" promptText="/ruta/a/Z88DK/bin" />
+                                <Button fx:id="btnSeleccionarMsxBin" text="..." onAction="#onSeleccionarMsxBin" />
+                            </HBox>
+                            <Label fx:id="lblZ88dkMsxOpts" text="Opciones de compilacion Z88DK (MSX):" />
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <Label fx:id="lblZ88dkMsxClib" text="Opcion -clib:" />
+                                <ComboBox fx:id="comboZ88dkMsxClib" prefWidth="120" />
+                            </HBox>
+                            <HBox spacing="6" alignment="CENTER_LEFT">
+                                <Label fx:id="lblZ88dkMsxTarget" text="Target Z88DK:" />
+                                <TextField fx:id="txtZ88dkMsxTarget" prefWidth="120" promptText="+msx" />
+                            </HBox>
+                            <CheckBox fx:id="chkZ88dkMsxCreateApp" text="Usar -create-app" />
+                            <Label fx:id="lblZ88dkMsxDefines" text="Defines (-D), separados por coma o espacio:" />
+                            <TextField fx:id="txtZ88dkMsxDefines" prefWidth="420" promptText="DEBUG" />
+                            <Label fx:id="lblZ88dkMsxIncludes" text="Includes (-I), separados por ; o coma:" />
+                            <TextField fx:id="txtZ88dkMsxIncludes" prefWidth="420" promptText="include; libs/include" />
+                            <Label fx:id="lblZ88dkMsxExtraArgs" text="Argumentos extra Z88DK:" />
+                            <TextField fx:id="txtZ88dkMsxExtraArgs" prefWidth="420" promptText="-SO3 --max-allocs-per-node 50000" />
                         </VBox>
                         </content>
                         </ScrollPane>
