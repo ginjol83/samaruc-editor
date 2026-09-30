@@ -2140,7 +2140,7 @@ public class ConfigController {
             comboZ88dkGgClib.getSelectionModel().select(selected);
         }
         if (txtZ88dkGgTarget != null) {
-            txtZ88dkGgTarget.setText(configModel.getConfigProperty("z88dk_gg_target", "+gg"));
+            txtZ88dkGgTarget.setText(configModel.getConfigProperty("z88dk_gg_target", ConfigModel.Z88DK_TARGET_GAME_GEAR_DEFAULT));
         }
         if (chkZ88dkGgCreateApp != null) {
             chkZ88dkGgCreateApp.setSelected(Boolean.parseBoolean(configModel.getConfigProperty("z88dk_gg_create_app", "true")));
@@ -2325,7 +2325,7 @@ public class ConfigController {
 
         String ggClibOption = comboZ88dkGgClib != null ? comboZ88dkGgClib.getValue() : ConfigModel.Z88DK_CLIB_DEFAULT;
         configModel.setConfigProperty("z88dk_gg_clib_option", ggClibOption != null ? ggClibOption : ConfigModel.Z88DK_CLIB_DEFAULT);
-        configModel.setConfigProperty("z88dk_gg_target", txtZ88dkGgTarget != null ? txtZ88dkGgTarget.getText().trim() : "+gg");
+        configModel.setConfigProperty("z88dk_gg_target", txtZ88dkGgTarget != null ? txtZ88dkGgTarget.getText().trim() : ConfigModel.Z88DK_TARGET_GAME_GEAR_DEFAULT);
         configModel.setConfigProperty("z88dk_gg_create_app", chkZ88dkGgCreateApp != null ? Boolean.toString(chkZ88dkGgCreateApp.isSelected()) : "true");
         configModel.setConfigProperty("z88dk_gg_defines", txtZ88dkGgDefines != null ? txtZ88dkGgDefines.getText().trim() : "");
         configModel.setConfigProperty("z88dk_gg_includes", txtZ88dkGgIncludes != null ? txtZ88dkGgIncludes.getText().trim() : "");

@@ -232,7 +232,7 @@
                             </HBox>
                             <HBox spacing="6" alignment="CENTER_LEFT">
                                 <Label fx:id="lblZ88dkGameGearTarget" text="Target Z88DK:" />
-                                <TextField fx:id="txtZ88dkGgTarget" prefWidth="120" promptText="+gg" />
+                                <TextField fx:id="txtZ88dkGgTarget" prefWidth="120" promptText="+sms" />
                             </HBox>
                             <CheckBox fx:id="chkZ88dkGgCreateApp" text="Usar -create-app" />
                             <Label fx:id="lblZ88dkGameGearDefines" text="Defines (-D), separados por coma o espacio:" />

@@ -258,4 +258,33 @@ class ConfigModelLegacyCompatibilityTest {
         workspace.setSetting("gcc_extra_args", null);
         Assertions.assertEquals("-Wall", model.getConfigProperty("gcc_extra_args", ""));
     }
+
+    @Test
+    void gameGearTargetDefaultsToSmsBecauseZ88dkHasNoGgTarget() {
+        ConfigModel model = new ConfigModel();
+
+        Assertions.assertEquals("+sms", model.getZ88dkGgTarget());
+        Assertions.assertEquals("+sms", ConfigModel.Z88DK_TARGET_GAME_GEAR_DEFAULT);
+    }
+
+    @Test
+    void legacyGameGearTargetPlusGgIsMigratedToSms() {
+        ConfigModel model = new ConfigModel();
+        Properties props = new Properties();
+        props.setProperty("z88dk_gg_target", "+gg");
+
+        model.applyProperties(props);
+
+        Assertions.assertEquals("+sms", model.getZ88dkGgTarget());
+        Assertions.assertEquals("+sms", model.getConfigProperty("z88dk_gg_target", ""));
+    }
+
+    @Test
+    void customGameGearTargetIsPreserved() {
+        ConfigModel model = new ConfigModel();
+
+        model.setZ88dkGgTarget("+sms -subtype=gamegear");
+
+        Assertions.assertEquals("+sms -subtype=gamegear", model.getZ88dkGgTarget());
+    }
 }

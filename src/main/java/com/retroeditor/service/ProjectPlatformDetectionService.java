@@ -234,8 +234,9 @@ public class ProjectPlatformDetectionService {
                     evidence.add("VIC-II");
                 }
 
-                boolean ggTarget = content.contains("+gg") || content.contains("-t gg");
-                boolean smsTarget = content.contains("+sms") || content.contains("-subtype=sms");
+                boolean ggTarget = content.contains("+gg") || content.contains("-t gg")
+                        || content.contains("-subtype=gamegear");
+                boolean smsTarget = !ggTarget && (content.contains("+sms") || content.contains("-subtype=sms"));
                 if (content.contains("#include <sms/sms.h>") || content.contains("#include <sms.h>")) {
                     if (ggTarget) {
                         gameGearScore += 6;
@@ -263,8 +264,8 @@ public class ProjectPlatformDetectionService {
                     evidence.add("+sms");
                 }
                 if (ggTarget) {
-                    gameGearScore += 5;
-                    evidence.add("+gg");
+                    gameGearScore += content.contains("-subtype=gamegear") ? 8 : 5;
+                    evidence.add(content.contains("-subtype=gamegear") ? "-subtype=gamegear" : "+gg");
                 }
                 if (content.contains("rgb15(")) {
                     if (ggTarget) {

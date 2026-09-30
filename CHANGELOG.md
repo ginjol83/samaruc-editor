@@ -16,6 +16,12 @@
   - `libs/emulators/` — emuladores: `Altirra`, `cap32`, `emulicious`, `jspeccy`, `mesen`, `openmsx`, `SDL2VICE`.
   Se actualizaron todas las referencias del código, la configuración, los bundles de i18n, el manual, las vistas FXML y la documentación. `build-release.ps1` no cambia: sigue copiando `libs/` completo de forma recursiva.
 
+### Corregido
+- **Master System y Game Gear no compilaban**: las plantillas usaban la API de SMSLib (`SMS_displayOff`, `RGB15`), que no viene con Z88DK, y el perfil de Game Gear usaba el target `+gg`, que Z88DK no define. Ahora ambas usan la API de `<sms.h>` del propio Z88DK (`clear_vram`, `load_palette`, `set_sprite`, `wait_vblank_noint`) y el Game Gear se compila como `+sms -subtype=gamegear` (el target guardado en configuraciones antiguas se migra al leerlo).
+- **CPC no enlazaba con `printf`**: la copia integrada de `cpc_clib.lib` no incluye el módulo `writebyte` que usa `stdio/fputc_callee.c`. El build de CPC compila ahora el fuente del propio toolchain (`libsrc/target/cpc/fcntl/writebyte.c`) junto al proyecto.
+- **NES no compilaba**: la plantilla llamaba a `ppu_*`/`pal_*`, que no existen en la copia de CC65 empaquetada. Ahora escribe el PPU directamente por `$2006`/`$2007`, que es el método del propio port.
+- **Detección de Game Gear**: `-subtype=gamegear` puntúa más que el `#include <sms.h>` de la propia plantilla y anula la pista `+sms` del mismo archivo.
+
 ### Eliminado
 - `libs/cpcbox-main/`: emulador CPC en WebView, sustituido por el emulador nativo Caprice32 (`libs/emulators/cap32`).
 - `libs/lib/` (DLLs de JInput): sin uso por el código.

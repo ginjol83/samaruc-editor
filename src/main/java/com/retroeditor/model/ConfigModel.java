@@ -104,7 +104,7 @@ public class ConfigModel {
     private final StringProperty z88dkSmsIncludes        = new SimpleStringProperty (this, "z88dk_sms_includes", "");
     private final StringProperty z88dkSmsExtraArgs       = new SimpleStringProperty (this, "z88dk_sms_extra_args", "");
     private final StringProperty z88dkGgClibOption       = new SimpleStringProperty (this, "z88dk_gg_clib_option", Z88DK_CLIB_DEFAULT);
-    private final StringProperty z88dkGgTarget           = new SimpleStringProperty (this, "z88dk_gg_target", "+gg");
+    private final StringProperty z88dkGgTarget           = new SimpleStringProperty (this, "z88dk_gg_target", Z88DK_TARGET_GAME_GEAR_DEFAULT);
     private final BooleanProperty z88dkGgCreateApp       = new SimpleBooleanProperty(this, "z88dk_gg_create_app", true);
     private final StringProperty z88dkGgDefines          = new SimpleStringProperty (this, "z88dk_gg_defines", "");
     private final StringProperty z88dkGgIncludes         = new SimpleStringProperty (this, "z88dk_gg_includes", "");
@@ -421,7 +421,7 @@ public class ConfigModel {
         z88dkSmsIncludes       .set(source.getProperty("z88dk_sms_includes", ""));
         z88dkSmsExtraArgs      .set(source.getProperty("z88dk_sms_extra_args", ""));
         z88dkGgClibOption      .set(normalizeZ88dkClibOption(source.getProperty("z88dk_gg_clib_option", Z88DK_CLIB_DEFAULT)));
-        z88dkGgTarget          .set(source.getProperty("z88dk_gg_target", "+gg"));
+        z88dkGgTarget          .set(normalizeGameGearTarget(source.getProperty("z88dk_gg_target", Z88DK_TARGET_GAME_GEAR_DEFAULT)));
         z88dkGgCreateApp       .set(Boolean.parseBoolean(source.getProperty("z88dk_gg_create_app", "true")));
         z88dkGgDefines         .set(source.getProperty("z88dk_gg_defines", ""));
         z88dkGgIncludes        .set(source.getProperty("z88dk_gg_includes", ""));
@@ -502,7 +502,7 @@ public class ConfigModel {
         p.setProperty("z88dk_sms_includes", getZ88dkSmsIncludes() != null ? getZ88dkSmsIncludes() : "");
         p.setProperty("z88dk_sms_extra_args", getZ88dkSmsExtraArgs() != null ? getZ88dkSmsExtraArgs() : "");
         p.setProperty("z88dk_gg_clib_option", normalizeZ88dkClibOption(getZ88dkGgClibOption()));
-        p.setProperty("z88dk_gg_target", getZ88dkGgTarget() != null ? getZ88dkGgTarget() : "+gg");
+        p.setProperty("z88dk_gg_target", getZ88dkGgTarget() != null ? getZ88dkGgTarget() : Z88DK_TARGET_GAME_GEAR_DEFAULT);
         p.setProperty("z88dk_gg_create_app", Boolean.toString(isZ88dkGgCreateApp()));
         p.setProperty("z88dk_gg_defines", getZ88dkGgDefines() != null ? getZ88dkGgDefines() : "");
         p.setProperty("z88dk_gg_includes", getZ88dkGgIncludes() != null ? getZ88dkGgIncludes() : "");
@@ -625,6 +625,21 @@ public class ConfigModel {
         return EMULATOR_CPCBOX_WEB_LEGACY.equalsIgnoreCase(normalized) ? EMULATOR_CAP32 : normalized;
     }
 
+    /**
+     * Target z88dk por defecto del Game Gear. z88dk no define el target
+     * {@code +gg}: el Game Gear se compila con el target del Master System y el
+     * subtipo {@code -subtype=gamegear}. Las configuraciones antiguas con
+     * {@code +gg} se migran al leerlas.
+     */
+    public static final String Z88DK_TARGET_GAME_GEAR_DEFAULT = "+sms";
+
+    /** Migra targets obsoletos del Game Gear al target que entiende zcc. */
+    public static String   normalizeGameGearTarget(String v) {
+        if (v == null || v.isBlank()) return Z88DK_TARGET_GAME_GEAR_DEFAULT;
+        String normalized = v.trim();
+        return "+gg".equalsIgnoreCase(normalized) ? Z88DK_TARGET_GAME_GEAR_DEFAULT : normalized;
+    }
+
     public StringProperty z88dkProfileProperty()              { return z88dkProfile; }
     public String         getZ88dkProfile()                   { return normalizeZ88dkProfile(z88dkProfile.get()); }
     public void           setZ88dkProfile(String v)           { z88dkProfile.set(normalizeZ88dkProfile(v)); }
@@ -709,7 +724,7 @@ public class ConfigModel {
     public void           setZ88dkGgClibOption(String v)    { z88dkGgClibOption.set(normalizeZ88dkClibOption(v)); }
     public StringProperty z88dkGgTargetProperty()           { return z88dkGgTarget; }
     public String         getZ88dkGgTarget()                { return z88dkGgTarget.get(); }
-    public void           setZ88dkGgTarget(String v)        { z88dkGgTarget.set(v != null && !v.isBlank() ? v.trim() : "+gg"); }
+    public void           setZ88dkGgTarget(String v)        { z88dkGgTarget.set(normalizeGameGearTarget(v)); }
     public BooleanProperty z88dkGgCreateAppProperty()       { return z88dkGgCreateApp; }
     public boolean        isZ88dkGgCreateApp()              { return z88dkGgCreateApp.get(); }
     public void           setZ88dkGgCreateApp(boolean v)    { z88dkGgCreateApp.set(v); }

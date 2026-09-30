@@ -56,6 +56,18 @@ public class BuildController {
     private static final String Z88DK_PROFILE_SMS = "sms";
     private static final String Z88DK_PROFILE_GAME_GEAR = "gg";
     private static final String Z88DK_PROFILE_MSX = "msx";
+    /**
+     * Target zcc del Master System. El Game Gear comparte toolchain y se
+     * distingue con {@code -subtype=gamegear}: z88dk no tiene target {@code +gg}.
+     */
+    private static final String Z88DK_TARGET_SMS = "+sms";
+    /**
+     * Fuente de apoyo del target CPC. La copia integrada de cpc_clib.lib no
+     * incluye el modulo fcntl/writebyte.c que invoca stdio/fputc_callee.c, asi
+     * que cualquier llamada a printf falla al enlazar con
+     * "undefined symbol: writebyte".
+     */
+    private static final String Z88DK_CPC_SUPPORT_SOURCE = "libsrc/target/cpc/fcntl/writebyte.c";
     private static final String EMULATOR_EMULICIOUS = "Emulicious";
     private static final String EMULATOR_JSPECCY    = "JSpeccy";
     private static final String EMULATOR_CAP32 = "Cap32";
@@ -236,6 +248,7 @@ public class BuildController {
             compilerArgs.addExtraArgs(spectrumCmd, z88dkExtraArgs);
             spectrumCmd.add("-o");
             spectrumCmd.add(spectrumOutputBase);
+            spectrumCmd.addAll(z88dkSupportSources(z88dkProfile, compiler));
             spectrumCmd.add(sourceFilePath);
             if (useCreateApp) spectrumCmd.add("-create-app");
             cmd = spectrumCmd.toArray(new String[0]);
@@ -2410,9 +2423,48 @@ public class BuildController {
         String z = normalizeZ88dkProfile(z88dkProfile);
         if (Z88DK_PROFILE_CPC.equals(z)) return "+cpc";
         if (Z88DK_PROFILE_SMS.equals(z)) return "+sms";
-        if (Z88DK_PROFILE_GAME_GEAR.equals(z)) return "+gg";
+        if (Z88DK_PROFILE_GAME_GEAR.equals(z)) return Z88DK_TARGET_SMS;
         if (Z88DK_PROFILE_MSX.equals(z)) return "+msx";
         return "+zx";
+    }
+
+    /**
+     * Fuentes de apoyo que hay que compilar junto al proyecto porque la libreria
+     * de C del toolchain va incompleta.
+     *
+     * Para CPC, la copia integrada de cpc_clib.lib no trae el modulo
+     * fcntl/writebyte.c que usa stdio/fputc_callee.c, de modo que cualquier
+     * llamada a printf deja el enlace con "undefined symbol: writebyte". El propio
+     * z88dk incluye ese fuente en libsrc/target/cpc/fcntl/writebyte.c y
+     * compilarlo junto al proyecto lo resuelve. No hay riesgo de simbolo
+     * duplicado: el enlazador solo extrae un miembro del archivo si el simbolo
+     * sigue sin definir cuando llega a el.
+     *
+     * Si el fuente no esta disponible se omite y el build fallara con el error
+     * original de la libreria.
+     */
+    private List<String> z88dkSupportSources(String z88dkProfile, String compilerExecutable) {
+        if (!Z88DK_PROFILE_CPC.equals(normalizeZ88dkProfile(z88dkProfile))) return Collections.emptyList();
+
+        File support = findZ88dkSupportSource(compilerExecutable, Z88DK_CPC_SUPPORT_SOURCE);
+
+        return support != null ? List.of(support.getAbsolutePath()) : Collections.emptyList();
+    }
+
+    /** Busca un fuente del toolchain subiendo hasta tres niveles desde zcc (bin -> raiz). */
+    private File findZ88dkSupportSource(String compilerExecutable, String relativePath) {
+        String configured = normalizeConfiguredPath(compilerExecutable);
+        if (configured.isEmpty()) return null;
+
+        File dir = new File(configured).getParentFile();
+
+        for (int level = 0; level < 3 && dir != null; level++) {
+            File candidate = new File(dir, relativePath);
+            if (candidate.isFile()) return candidate;
+            dir = dir.getParentFile();
+        }
+
+        return null;
     }
 
     private String z88dkDefaultClib(String z88dkProfile) {
@@ -2426,6 +2478,7 @@ public class BuildController {
         String z = normalizeZ88dkProfile(z88dkProfile);
         if (Z88DK_PROFILE_CPC.equals(z)) return "dsk";
         if (Z88DK_PROFILE_MSX.equals(z)) return "rom";
+        if (Z88DK_PROFILE_GAME_GEAR.equals(z)) return "gamegear";
         return null;
     }
 

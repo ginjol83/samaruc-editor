@@ -161,6 +161,16 @@ class ProjectPlatformDetectionServiceTest {
     }
 
     @Test
+    void detectGameGearBySmsSubtypeGamegear() throws IOException {
+        Files.writeString(tempDir.resolve("main.c"), "#include <sms.h>\nvoid main(void){ clear_vram(); }");
+        Files.writeString(tempDir.resolve("Makefile"), "main.gg: main.c\n\tzcc +sms -subtype=gamegear -clib=default -o main main.c");
+
+        ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
+
+        Assertions.assertEquals(ProjectPlatformDetectionService.Platform.GAME_GEAR, result.getPlatform());
+    }
+
+    @Test
     void detectMsxByMsxHeaderAndApi() throws IOException {
         Files.writeString(tempDir.resolve("main.c"), "#include <msx.h>\nvoid main(void){ msx_set_mode(0); msx_fill(0x1800, 32, 960); }");
 
