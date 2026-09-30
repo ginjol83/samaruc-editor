@@ -78,7 +78,6 @@ logs/
 /tmp-check-target/
 
 # Local extracted artifacts and build logs
-/libs/schema/
 jpackage.log
 jarlist.txt
 

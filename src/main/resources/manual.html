@@ -554,8 +554,8 @@ mvn javafx:run</code></pre>
 <p>Esta subpestaña reúne la configuración específica para proyectos de Game Boy compilados con <code>GBDK</code>.</p>
 
 <h4>Compilador integrado</h4>
-<p><strong>GBDK-2020 se distribuye integrado con Samaruc</strong> en la carpeta <code>libs/gbdk</code>. No es necesario descargarlo ni indicar ningún camino: Samaruc localiza automáticamente <code>libs/gbdk/bin</code> junto a la aplicación y compila directamente con <code>lcc</code>. No existe ningún campo de ruta de binarios en esta subpestaña.</p>
-<p class="nota">El compilador empaquetado es la distribución oficial de <strong>GBDK-2020 v4.2.0</strong> para Windows. Si además quieres actualizarlo o usar otra versión, puedes sustituir el contenido de <code>libs/gbdk</code> por la distribución que prefieras.</p>
+<p><strong>GBDK-2020 se distribuye integrado con Samaruc</strong> en la carpeta <code>libs/devkits/gbdk</code>. No es necesario descargarlo ni indicar ningún camino: Samaruc localiza automáticamente <code>libs/devkits/gbdk/bin</code> junto a la aplicación y compila directamente con <code>lcc</code>. No existe ningún campo de ruta de binarios en esta subpestaña.</p>
+<p class="nota">El compilador empaquetado es la distribución oficial de <strong>GBDK-2020 v4.2.0</strong> para Windows. Si además quieres actualizarlo o usar otra versión, puedes sustituir el contenido de <code>libs/devkits/gbdk</code> por la distribución que prefieras.</p>
 
 <h4>Nivel de optimización</h4>
 <p>El campo <strong>Nivel de optimización</strong> ofrece estos valores admitidos:</p>
@@ -585,11 +585,11 @@ mvn javafx:run</code></pre>
 
 <h3>Subpestaña <code>Z88DK - Spectrum</code></h3>
 <p>Esta subpestaña está pensada para proyectos de <strong>ZX Spectrum</strong> compilados con <code>z88dk</code>.</p>
-<p><strong>Z88DK se distribuye integrado con Samaruc</strong> en la carpeta <code>libs/z88dk</code>. Si dejas vacío el campo de ruta, Samaruc localiza automáticamente <code>libs/z88dk/bin</code> junto a la aplicación y compila directamente con <code>zcc</code>. Dispones de un campo de ruta por si prefieres usar una instalación externa de Z88DK: mientras la ruta indicada sea válida, tendrá prioridad sobre la copia integrada.</p>
+<p><strong>Z88DK se distribuye integrado con Samaruc</strong> en la carpeta <code>libs/devkits/z88dk</code>. Si dejas vacío el campo de ruta, Samaruc localiza automáticamente <code>libs/devkits/z88dk/bin</code> junto a la aplicación y compila directamente con <code>zcc</code>. Dispones de un campo de ruta por si prefieres usar una instalación externa de Z88DK: mientras la ruta indicada sea válida, tendrá prioridad sobre la copia integrada.</p>
 
 <h4>Ruta de binarios</h4>
 <p>La parte superior de esta subpestaña está definida por un campo de ruta, botón <code>...</code> y botón <strong>Guardar Z88DK</strong>.</p>
-<p>El campo de ruta es ahora opcional. Si lo dejas vacío, Samaruc usa la distribución de Z88DK integrada (<code>libs/z88dk/bin</code>). Si indicas una ruta, debe existir y apuntar a la carpeta <code>bin</code> (o a la raíz) de un Z88DK instalado; de lo contrario, el guardado global fallará.</p>
+<p>El campo de ruta es ahora opcional. Si lo dejas vacío, Samaruc usa la distribución de Z88DK integrada (<code>libs/devkits/z88dk/bin</code>). Si indicas una ruta, debe existir y apuntar a la carpeta <code>bin</code> (o a la raíz) de un Z88DK instalado; de lo contrario, el guardado global fallará.</p>
 
 <h4>Selector <code>-clib</code></h4>
 <p>La opción <strong><code>-clib</code></strong> permite elegir la variante de biblioteca o runtime que se pasará a <code>z88dk</code>. Las opciones soportadas por la configuración actual son:</p>

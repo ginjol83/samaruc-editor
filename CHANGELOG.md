@@ -1,5 +1,17 @@
 # Changelog
 
+## No publicado
+
+### Cambiado
+- **Reestructuración de `libs/`**: la carpeta pasó a organizarse por tipo de herramienta en dos subcarpetas:
+  - `libs/devkits/` — toolchains: `cc65`, `devkitSMS`, `gbdk`, `z88dk`.
+  - `libs/emulators/` — emuladores: `Altirra`, `cap32`, `emulicious`, `jspeccy`, `mesen`, `openmsx`, `SDL2VICE`.
+  Se actualizaron todas las referencias del código, la configuración, los bundles de i18n, el manual, las vistas FXML y la documentación. `build-release.ps1` no cambia: sigue copiando `libs/` completo de forma recursiva.
+
+### Eliminado
+- `libs/cpcbox-main/`: emulador CPC en WebView, sustituido por el emulador nativo Caprice32 (`libs/emulators/cap32`).
+- `libs/lib/` (DLLs de JInput): sin uso por el código.
+
 ## 1.3.2 - 2026-09-18
 
 ### Añadido

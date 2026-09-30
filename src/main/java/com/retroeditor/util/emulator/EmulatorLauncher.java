@@ -196,6 +196,104 @@ public class EmulatorLauncher {
     }
 
     /**
+     * Localiza el ejecutable de Caprice32 incluido en {@code libs/emulators/cap32}.
+     *
+     * @return El ejecutable, o null si no esta disponible.
+     */
+    public static File resolveBundledCap32Executable() {
+        return resolveBundledCap32Executable(new File(System.getProperty("user.dir"), "libs/emulators/cap32"));
+    }
+
+    static File resolveBundledCap32Executable(File cap32Dir) {
+        if (cap32Dir == null || !cap32Dir.isDirectory()) return null;
+
+        String osName = System.getProperty("os.name", "").toLowerCase();
+        boolean windows = osName.contains("win");
+        File exe = new File(cap32Dir, windows ? "cap32.exe" : "cap32");
+        return exe.isFile() ? exe : null;
+    }
+
+    /**
+     * Construye la linea de comandos de cap32.
+     *
+     * cap32 parsea las opciones antes de los ficheros de ranura, por lo que
+     * {@code extraArgs} debe preceder al medio; si se colocasen despues, cap32
+     * las interpretaria como ficheros de ranura adicionales.
+     *
+     * @param cap32Exe Ruta al ejecutable de Caprice32.
+     * @param romFile Medio a cargar; puede ser null.
+     * @param extraArgs Opciones adicionales (p.ej. {@code --autocmd=run}); puede ser null.
+     * @return Lista con el comando completo.
+     */
+    public static List<String> buildCap32Command(File cap32Exe, File romFile, List<String> extraArgs) {
+        List<String> cmd = new ArrayList<>();
+        cmd.add(cap32Exe.getAbsolutePath());
+
+        if (extraArgs != null) {
+            for (String arg : extraArgs) {
+                if (arg != null && !arg.isBlank()) cmd.add(arg);
+            }
+        }
+
+        if (romFile != null) cmd.add(romFile.getAbsolutePath());
+
+        return cmd;
+    }
+
+    /**
+     * Lanza Caprice32 (cap32.exe) con el medio CPC especificado.
+     *
+     * <p>Caprice32 no resuelve sus recursos (cap32.cfg, carpeta rom/, soundtracks)
+     * a partir del directorio de trabajo, sino a partir de la ubicación del propio
+     * ejecutable, y ademas escribe alli su configuracion. Por eso el proceso se
+     * arranca con el directorio del exe como working directory: si se heredase el
+     * del editor, cap32 no encontraria ni la configuracion ni las ROM de sistema.
+     *
+     * @param cap32Exe Ruta al ejecutable de Caprice32.
+     * @param romFile Medio a cargar (.dsk, .cdt, .voc, .cpr, .sna, .zip); puede ser null para abrir el emulador vacio.
+     * @param console Área de texto de consola.
+     * @param extraArgs Opciones adicionales, sin el ejecutable (p.ej. --autocmd=run).
+     * @return LaunchResult con el proceso.
+     */
+    public static LaunchResult launchCap32(File cap32Exe, File romFile, StyleClassedTextArea console, List<String> extraArgs) throws IOException {
+        if (cap32Exe == null || !cap32Exe.exists()) throw new IOException("Ruta de Caprice32 no válida: " + cap32Exe);
+        if (romFile != null && !romFile.exists()) throw new IOException("Medio CPC no encontrado: " + romFile);
+
+        ProcessBuilder pb = new ProcessBuilder(buildCap32Command(cap32Exe, romFile, extraArgs));
+        pb.redirectErrorStream(true);
+        File home = cap32Exe.getParentFile();
+        if (home != null) {
+            pb.directory(home);
+        }
+        Process proc = pb.start();
+
+        ExecutorService es = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "cap32-output");
+            t.setDaemon(true);
+            return t;
+        });
+
+        es.submit(() -> {
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    final String out = line;
+                    if (console != null) {
+                        Platform.runLater(() -> console.appendText(out + System.lineSeparator()));
+                    } else {
+                        System.out.println(out);
+                    }
+                }
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        });
+        es.shutdown();
+
+        return new LaunchResult(proc);
+    }
+
+    /**
      * Lanza Emulicious (que soporta nativamente Sega Master System y Game Gear además de Game Boy) con la ROM especificada.
      * @param emuliciousJar Ruta al JAR de Emulicious.
      * @param romFile Archivo ROM (.sms o .gg).
@@ -258,6 +356,142 @@ public class EmulatorLauncher {
         return new LaunchResult(proc);
     }
 
+
+    /**
+     * Localiza el ejecutable de openMSX incluido en {@code libs/emulators/openmsx}.
+     *
+     * @return El ejecutable, o null si no esta disponible.
+     */
+    public static File resolveBundledOpenMsxExecutable() {
+        File openMsxDir = new File(System.getProperty("user.dir"), "libs/emulators/openmsx");
+        if (openMsxDir == null || !openMsxDir.isDirectory()) return null;
+        File exe = new File(openMsxDir, "openmsx.exe");
+        return exe.isFile() ? exe : null;
+    }
+
+    /**
+     * Localiza el ejecutable de Mesen incluido en {@code libs/emulators/mesen}.
+     *
+     * @return El ejecutable, o null si no esta disponible.
+     */
+    public static File resolveBundledMesenExecutable() {
+        File mesenDir = new File(System.getProperty("user.dir"), "libs/emulators/mesen");
+        if (mesenDir == null || !mesenDir.isDirectory()) return null;
+        String osName = System.getProperty("os.name", "").toLowerCase();
+        boolean windows = osName.contains("win");
+        File exe = new File(mesenDir, windows ? "Mesen.exe" : "Mesen");
+        if (!exe.isFile()) exe = new File(mesenDir, "Mesen.exe");
+        return exe.isFile() ? exe : null;
+    }
+
+    /**
+     * Lanza openMSX (openmsx.exe) con la ROM MSX (.rom, .bin) o medio (.dsk) indicado.
+     *
+     * <p>openMSX recibe el fichero como argumento posicional; para discos flexibles se
+     * usa {@code -diska} porque openMSX no arranca un .dsk posicional como medio de arranque.
+     *
+     * @param openMsxExe Ruta al ejecutable de openMSX.
+     * @param romFile ROM/MSX o disco a cargar.
+     * @param console Área de texto de consola.
+     * @param extraArgs Argumentos adicionales (puede ser null).
+     * @return LaunchResult con el proceso.
+     */
+    public static LaunchResult launchOpenMsx(File openMsxExe, File romFile, StyleClassedTextArea console, List<String> extraArgs) throws IOException {
+        if (openMsxExe == null || !openMsxExe.exists()) throw new IOException("Ruta de openMSX no válida: " + openMsxExe);
+        if (romFile == null || !romFile.exists()) throw new IOException("Medio MSX no encontrado: " + romFile);
+
+        List<String> cmd = new ArrayList<>();
+        cmd.add(openMsxExe.getAbsolutePath());
+
+        boolean isDisk = romFile.getName().toLowerCase().endsWith(".dsk")
+            || romFile.getName().toLowerCase().endsWith(".ds2");
+        if (isDisk) {
+            cmd.add("-diska");
+            cmd.add(romFile.getAbsolutePath());
+        } else {
+            cmd.add(romFile.getAbsolutePath());
+        }
+
+        if (extraArgs != null) cmd.addAll(extraArgs);
+
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+
+        ExecutorService es = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "openmsx-output");
+            t.setDaemon(true);
+            return t;
+        });
+
+        es.submit(() -> {
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    final String out = line;
+                    if (console != null) {
+                        Platform.runLater(() -> console.appendText(out + System.lineSeparator()));
+                    } else {
+                        System.out.println(out);
+                    }
+                }
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        });
+        es.shutdown();
+
+        return new LaunchResult(proc);
+    }
+
+    /**
+     * Lanza Mesen (Mesen.exe) con la ROM de NES indicada.
+     *
+     * @param mesenExe Ruta al ejecutable de Mesen.
+     * @param romFile Archivo ROM NES (.nes) a cargar.
+     * @param console Área de texto de consola.
+     * @param extraArgs Argumentos adicionales (puede ser null).
+     * @return LaunchResult con el proceso.
+     */
+    public static LaunchResult launchMesen(File mesenExe, File romFile, StyleClassedTextArea console, List<String> extraArgs) throws IOException {
+        if (mesenExe == null || !mesenExe.exists()) throw new IOException("Ruta de Mesen no válida: " + mesenExe);
+        if (romFile == null || !romFile.exists()) throw new IOException("ROM NES no encontrada: " + romFile);
+
+        List<String> cmd = new ArrayList<>();
+        cmd.add(mesenExe.getAbsolutePath());
+        cmd.add(romFile.getAbsolutePath());
+
+        if (extraArgs != null) cmd.addAll(extraArgs);
+
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.redirectErrorStream(true);
+        Process proc = pb.start();
+
+        ExecutorService es = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "mesen-output");
+            t.setDaemon(true);
+            return t;
+        });
+
+        es.submit(() -> {
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                    final String out = line;
+                    if (console != null) {
+                        Platform.runLater(() -> console.appendText(out + System.lineSeparator()));
+                    } else {
+                        System.out.println(out);
+                    }
+                }
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        });
+        es.shutdown();
+
+        return new LaunchResult(proc);
+    }
 
     /** @deprecated Usar {@link #launchEmulicious} en su lugar. */
     @Deprecated

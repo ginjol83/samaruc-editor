@@ -22,8 +22,10 @@
   - [x] ZX Spectrum y Amstrad CPC (Z88DK), convertidores gráficos PNG a bitmap.
   - [x] Atari XE/XL (CC65).
   - [x] Commodore 64 (CC65 / VICE): plantillas, detección de plataforma, compilación y ejecución integrada con VICE.
-  - [x] Sega Master System / Game Gear: plantillas, detección y emulación integrada con Emulicious.
+  - [x] Sega Master System / Game Gear: plantillas, detección y compilación (`launchSmsEmulator` queda como alias sin uso; el flujo real reutiliza Emulicious).
   - [x] Opción independiente "Compilar y ejecutar" (Build & Run).
+  - [x] Emulador CPC nativo Caprice32 (`cap32`) en `libs/emulators/cap32`, con carga de medios y arranque automático con `--autocmd`.
+  - [x] Emuladores MSX y NES empaquetados e integrados: `openMSX` (`libs/emulators/openmsx`, carga de ROM y `.dsk` con `-diska`) y `Mesen` (`libs/emulators/mesen`, `.nes` posicional), con sus perfiles de plataforma y enlaces en el menú Ayuda.
 - [x] **Editores Gráficos y de Assets**:
   - [x] Editor de Mapas de Tiles (`TilemapEditorController`) con scroll, capas de colisión y generación de arreglos C.
 - [x] **Análisis y Refactorización**:
@@ -46,8 +48,15 @@
 - [ ] **Jerarquía de Llamadas (Call Hierarchy)**: Visualización de qué funciones llaman a una función seleccionada y a qué funciones llama esta.
 
 ### 3. Control de Versiones y Colaboración (Git)
-- [ ] **Panel Git Integrado (Source Control View)**: Vista lateral de archivos modificados, diff visual en línea y staging de cambios.
-- [ ] **Gestión de Ramas (Branch Manager)**: Selector y creador rápido de ramas Git directamente desde la barra de estado.
+- [x] **Panel Git Integrado (Source Control View)**: pestaña con archivos modificados (`git status --porcelain`), diff visual en línea coloreado por tipo de línea, historial, staging global, commit, pull, push, stash y restauración (`GitPanelController`, `GitService`, `GitCli`, `GitDiffViewer`).
+  - [ ] Staging y desstaging por archivo (hoy el staging es global vía `addAll`).
+  - [ ] Separar la vista "staged" de la vista "unstaged".
+  - [ ] Mover el panel a la barra lateral (`sidebarTabPane`, hoy sin uso desde el controlador).
+  - [ ] Generar diff de archivos *untracked* (`??`), hoy sin diff.
+- [x] **Gestión de Ramas (Branch Manager)**: selector de ramas y creación de ramas desde el panel Git y desde el menú contextual del explorador (`git checkout -b`).
+  - [ ] Interacción de la rama desde la barra de estado (`lblGitBranch` es solo un indicador de lectura).
+- [x] **Explorador de Repositorios GitHub**: búsqueda en la API, catálogo, clonación con `git clone` y fallback a ZIP, listado y borrado de repos clonados, releases e issues (`GitHubRepoBrowserController`, `GitHubCloneService`, `GitHubApiService`).
+  - [ ] Acción de "Actualizar" (pull) sobre un repositorio ya clonado.
 
 ### 4. Emulación y Depuración Avanzada (Retro Debugging)
 - [ ] **Depurador Fuente a Fuente Integrado (Source-level Debugger)**:
