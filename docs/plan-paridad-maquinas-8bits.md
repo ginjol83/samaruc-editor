@@ -8,7 +8,7 @@ Este documento desglosa en **pasos ejecutables** los puntos 2 y 3 del análisis 
 - Menú Ayuda: `CC65`, `openMSX`, `Mesen` (`HelpController` + `MainView.fxml` + `MainController` + claves `menu.help.*` en 6 bundles + command palette).
 - README/gitignore específicos de **CPC** (`FXUtils.getCpcReadmeContent`, `appendCpcGitignore`).
 
-Estado de ejecución: **P2.1–P2.9 HECHAS**, ver secciones. Suite actual: 676 tests, 0 fallos, 1 skipped. Antes de P2.6 se corrigieron los builds rotos de SMS/GG/CPC/NES (auditoría en `docs/analisis-sistemas-8-bits-soportados.md` §1.11).
+Estado de ejecución: **P2.1–P2.9 y P3.1 HECHAS**, ver secciones. Suite actual: 683 tests, 0 fallos, 1 skipped. Antes de P2.6 se corrigieron los builds rotos de SMS/GG/CPC/NES (auditoría en `docs/analisis-sistemas-8-bits-soportados.md` §1.11).
 
 Cada paso indica **qué añadir**, **dónde**, **cómo verificarlo** y **esfuerzo**. Orden de ejecución recomendado: de menor a mayor dependencia. No hay ninguna dependencia entre puntos 2 y 3, se pueden intercalar.
 
@@ -120,6 +120,7 @@ Cada paso indica **qué añadir**, **dónde**, **cómo verificarlo** y **esfuerz
   - **C64**: registros `vic_*`/`sid_*`.
 - **Dónde**: `service/syntax/SyntaxHighlighter.java` (+ su test si existe).
 - **Verificar**: `mvn -o -Dtest="com.retroeditor.service.syntax.*Test" test`. Esfuerzo **S**.
+- **Decisiones**: las cinco plataformas nuevas se reconocen por **prefijo** (`prefixedFunctionPattern`) en vez de nombre a nombre, porque no tienen una lista corta como ZX/GBDK/Atari; igual que las listas por nombre, el resaltado exige el paréntesis de llamada y no casa dentro de identificadores más largos (`my_ppu_wait_nmi_helper`). Cada grupo tiene su clase CSS (`.sms-function`, `.msx-function`, `.nes-function`, `.cpc-function`, `.c64-function`) en los dos temas; de paso se añadió la de Atari, que faltaba en el tema clásico. `set_vdp_` necesita su propio prefijo porque el `\b` no deja que `vdp_` case dentro de él.
 
 ### P3.2 Autocompletado por plataforma
 
@@ -153,7 +154,7 @@ Cada paso indica **qué añadir**, **dónde**, **cómo verificarlo** y **esfuerz
 - [x] **P2.7** editor de tiles NES (2026-10-01) — `PlatformMode.NES` + `generateNes` con los dos planos del PPU; de paso la casilla de pares 8×16 dejó de ser exclusiva del Game Boy.
 - [x] **P2.8** audio MSX (2026-10-01) — `SoundCodeGenerator.Platform.MSX` reutilizando el código AY: reloj del ZX (110838), puertos `$98`/`$99` y enmascarado del registro 7. De paso el `delay()` AY roto en las tres plataformas (no existía en z88dk y usaba `&FFFD`).
 - [x] **P2.9** audio NES (2026-10-01) - `SoundCodeGenerator.Platform.NES` y `SoundEngine.APU_RP2A03` con el LFSR de 15 bits de la APU. El generador escribe la struct `APU` de `<nes.h>` en vez de punteros crudos, y emite SFX y melodía con `waitvsync` como base de tiempos. Compilado y enlazado con `cl65 -t nes`. Dos bugs encontrados al compilar de verdad: las declaraciones de la melodía iban mezcladas con código (cc65 no lo permite) y los nombres de canal en español ("Pulso 2") no casaban con la búsqueda en inglés, así que el segundo pulso escribía sobre el primero.
-- [ ] **P3.1** funciones de sintaxis por plataforma
+- [x] **P3.1** funciones de sintaxis por plataforma (2026-10-01) - SMS/GG (`SMS_`), MSX (`msx_`, `vdp_`, `set_vdp_`), NES (`ppu_`, `pal_`, `set_vram_`, `oam_`), CPC (`cpc_`) y C64 (`vic_`, `sid_`) en el resaltador de C, más sus colores en los dos temas. El bug fue del propio patrón: `String.join("|", ...)` dejaba el sufijo `[A-Za-z0-9_]*` ligado solo a la última alternativa, así que de cada set solo casaba el último prefijo.
 - [ ] **P3.2** autocompletado por plataforma
 - [ ] **P3.3** editor de pantalla ZX
 - [ ] **P3.4** cierre transversal (AGENTS.md, informe, i18n)

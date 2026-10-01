@@ -51,6 +51,12 @@
 .code-area .operator { -fx-fill: #1d4ed8; }
 .code-area .zx-function { -fx-fill: #2563eb; -fx-font-weight: bold; }
 .code-area .gbdk-function { -fx-fill: #0284c7; -fx-font-weight: bold; }
+.code-area .atari-function { -fx-fill: #be185d; -fx-font-weight: bold; }
+.code-area .sms-function { -fx-fill: #15803d; -fx-font-weight: bold; }
+.code-area .msx-function { -fx-fill: #c2410c; -fx-font-weight: bold; }
+.code-area .nes-function { -fx-fill: #6d28d9; -fx-font-weight: bold; }
+.code-area .cpc-function { -fx-fill: #a16207; -fx-font-weight: bold; }
+.code-area .c64-function { -fx-fill: #475569; -fx-font-weight: bold; }
 .code-area .asm-label { -fx-fill: #7c2d12; -fx-font-weight: bold; }
 .code-area .asm-directive { -fx-fill: #7e22ce; }
 .code-area .asm-instruction { -fx-fill: #1d4ed8; -fx-font-weight: bold; }

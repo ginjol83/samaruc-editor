@@ -85,6 +85,31 @@
     -fx-font-weight: bold;
 }
 
+.code-area .sms-function {
+    -fx-fill: #4ade80;
+    -fx-font-weight: bold;
+}
+
+.code-area .msx-function {
+    -fx-fill: #fb923c;
+    -fx-font-weight: bold;
+}
+
+.code-area .nes-function {
+    -fx-fill: #a78bfa;
+    -fx-font-weight: bold;
+}
+
+.code-area .cpc-function {
+    -fx-fill: #facc15;
+    -fx-font-weight: bold;
+}
+
+.code-area .c64-function {
+    -fx-fill: #94a3b8;
+    -fx-font-weight: bold;
+}
+
 .code-area .asm-label {
     -fx-fill: #f97316;
     -fx-font-weight: bold;

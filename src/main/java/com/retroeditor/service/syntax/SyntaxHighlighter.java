@@ -39,6 +39,18 @@ public class SyntaxHighlighter {
         "ANTIC", "GTIA", "POKEY", "PMBASE", "PCOLR0", "PCOLR1", "PCOLR2", "PCOLR3"
     };
 
+    /**
+     * Master System / Game Gear (SMSlib, prefijo {@code SMS_}), MSX (VDP de cc65), NES
+     * (PPU, paletas, VRAM y OAM de cc65), CPC (Z88DK) y C64 (registros VIC y SID de cc65).
+     * Estas plataformas no tienen una lista corta de funciones como ZX, GBDK o Atari, así que
+     * se reconocen por prefijo en lugar de nombre a nombre.
+     */
+    private static final String SMS_FUNCTION_PATTERN = prefixedFunctionPattern("SMS_");
+    private static final String MSX_FUNCTION_PATTERN = prefixedFunctionPattern("msx_", "vdp_", "set_vdp_");
+    private static final String NES_FUNCTION_PATTERN = prefixedFunctionPattern("ppu_", "pal_", "set_vram_", "oam_");
+    private static final String CPC_FUNCTION_PATTERN = prefixedFunctionPattern("cpc_");
+    private static final String C64_FUNCTION_PATTERN = prefixedFunctionPattern("vic_", "sid_");
+
     private static final String[] ASM_INSTRUCTIONS = new String[] {
         "adc", "add", "and", "bit", "call", "ccf", "cp", "cpl", "daa", "dec",
         "di", "ei", "ex", "exx", "halt", "inc", "in", "jp", "jr", "ld", "ldd",
@@ -61,6 +73,21 @@ public class SyntaxHighlighter {
     private static final String  ZX_FUNCTION_PATTERN  = "\\b(" + String.join("|", ZX_FUNCTIONS) + ")\\b(?=\\s*\\()";
     private static final String  GBDK_FUNCTION_PATTERN = "\\b(" + String.join("|", GBDK_FUNCTIONS) + ")\\b(?=\\s*\\()";
     private static final String  ATARI_FUNCTION_PATTERN = "\\b(" + String.join("|", ATARI_FUNCTIONS) + ")\\b(?=\\s*\\()";
+
+    /**
+     * Construye el patron de las funciones de una plataforma a partir de sus prefijos. Exige el
+     * parentesis de llamada, igual que las listas por nombre, para no resaltar el prefijo cuando
+     * se usa como un identificador suelto.
+     */
+    private static String prefixedFunctionPattern(String... prefixes) {
+        // El sufijo tiene que aplicarse a cada prefijo por separado: si se deja fuera del
+        // agrupamiento la alternacion solo se lo aplicaria al ultimo (msx_|vdp_|set_vdp_[A-Za-z0-9_]*).
+        String[] alternatives = new String[prefixes.length];
+        for (int i = 0; i < prefixes.length; i++) {
+            alternatives[i] = "(?:" + prefixes[i] + "[A-Za-z0-9_]*)";
+        }
+        return "\\b(" + String.join("|", alternatives) + ")\\b(?=\\s*\\()";
+    }
     private static final String  ASM_INSTRUCTION_PATTERN = "\\b(" + String.join("|", ASM_INSTRUCTIONS) + ")\\b";
     private static final String  ASM_DIRECTIVE_PATTERN   = "\\b(" + String.join("|", ASM_DIRECTIVES) + ")\\b";
     private static final String  ASM_REGISTER_PATTERN    = "\\b(" + String.join("|", ASM_REGISTERS) + ")\\b";
@@ -101,6 +128,11 @@ public class SyntaxHighlighter {
 + "|(?<ZXFUNCTION>" + ZX_FUNCTION_PATTERN + ")"
                                                           + "|(?<GBDKFUNCTION>" + GBDK_FUNCTION_PATTERN + ")"
                                                           + "|(?<ATARIFUNCTION>" + ATARI_FUNCTION_PATTERN + ")"
+                                                          + "|(?<SMSFUNCTION>" + SMS_FUNCTION_PATTERN + ")"
+                                                          + "|(?<MSXFUNCTION>" + MSX_FUNCTION_PATTERN + ")"
+                                                          + "|(?<NESFUNCTION>" + NES_FUNCTION_PATTERN + ")"
+                                                          + "|(?<CPCFUNCTION>" + CPC_FUNCTION_PATTERN + ")"
+                                                          + "|(?<C64FUNCTION>" + C64_FUNCTION_PATTERN + ")"
                                                           + "|(?<KEYWORD>" + KEYWORD_PATTERN + ")",
                                                      Pattern.MULTILINE
                                                      );
@@ -187,6 +219,11 @@ public class SyntaxHighlighter {
                     matcher.group("ZXFUNCTION")    != null ? "zx-function"  :
                     matcher.group("GBDKFUNCTION")  != null ? "gbdk-function":
                     matcher.group("ATARIFUNCTION") != null ? "atari-function":
+                    matcher.group("SMSFUNCTION")  != null ? "sms-function"  :
+                    matcher.group("MSXFUNCTION")  != null ? "msx-function"  :
+                    matcher.group("NESFUNCTION")  != null ? "nes-function"  :
+                    matcher.group("CPCFUNCTION")  != null ? "cpc-function"  :
+                    matcher.group("C64FUNCTION")  != null ? "c64-function"  :
                     matcher.group("KEYWORD")       != null ? "keyword"      :
                     null;
 

@@ -154,6 +154,131 @@ class SyntaxHighlighterTest {
     }
 
     @Test
+    void highlightsSmsLibFunctions() {
+        String text = "void main(void) {\n"
+            + "    SMS_displayOff();\n"
+            + "    SMS_setBackColor(0);\n"
+            + "}\n";
+
+        StyleSpans<Collection<String>> spans = highlighter.computeHighlighting(text);
+
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("SMS_displayOff"), "sms-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("SMS_setBackColor"), "sms-function"));
+    }
+
+    @Test
+    void highlightsMsxVdpFunctions() {
+        String text = "void main(void) {\n"
+            + "    msx_init_vdp();\n"
+            + "    vdp_set_reg(0);\n"
+            + "    set_vdp_addr(0x1800);\n"
+            + "}\n";
+
+        StyleSpans<Collection<String>> spans = highlighter.computeHighlighting(text);
+
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("msx_init_vdp"), "msx-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("vdp_set_reg"), "msx-function"));
+        // set_vdp_ empieza por "set_", asi que necesita su propio prefijo: el \b no
+        // deja que "vdp_" case dentro de "set_vdp_".
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("set_vdp_addr"), "msx-function"));
+    }
+
+    @Test
+    void everyPrefixOfAMultiPlatformSetMatches() {
+        // El sufijo del nombre tiene que aplicarse a cada prefijo del set: si se deja fuera del
+        // agrupamiento la alternacion se lo aplica solo al ultimo y el resto no casa nunca.
+        String text = "void main(void) {\n"
+            + "    vdp_set_reg(0);\n"
+            + "    set_vdp_addr(0);\n"
+            + "    pal_set_bg_color(0);\n"
+            + "    set_vram_ptr(0);\n"
+            + "    vic_set_col(0);\n"
+            + "    sid_set_volume(0);\n"
+            + "}\n";
+
+        StyleSpans<Collection<String>> spans = highlighter.computeHighlighting(text);
+
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("vdp_set_reg"), "msx-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("set_vdp_addr"), "msx-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("pal_set_bg_color"), "nes-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("set_vram_ptr"), "nes-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("vic_set_col"), "c64-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("sid_set_volume"), "c64-function"));
+    }
+
+    @Test
+    void highlightsNesPpuFunctions() {
+        String text = "void main(void) {\n"
+            + "    ppu_wait_nmi();\n"
+            + "    pal_set_bg_color(0);\n"
+            + "    set_vram_ptr(0x2000);\n"
+            + "    oam_write(0, 0);\n"
+            + "}\n";
+
+        StyleSpans<Collection<String>> spans = highlighter.computeHighlighting(text);
+
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("ppu_wait_nmi"), "nes-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("pal_set_bg_color"), "nes-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("set_vram_ptr"), "nes-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("oam_write"), "nes-function"));
+    }
+
+    @Test
+    void highlightsCpcAndC64Functions() {
+        String text = "void main(void) {\n"
+            + "    cpc_disable_interrupts();\n"
+            + "    vic_set_col(0);\n"
+            + "    sid_set_volume(15);\n"
+            + "}\n";
+
+        StyleSpans<Collection<String>> spans = highlighter.computeHighlighting(text);
+
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("cpc_disable_interrupts"), "cpc-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("vic_set_col"), "c64-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("sid_set_volume"), "c64-function"));
+    }
+
+    @Test
+    void doesNotHighlightPlatformPrefixesInCommentsStringsOrSubIdentifiers() {
+        String text = "// ppu_wait_nmi() en un comentario\n"
+            + "const char* s = \"SMS_displayOff()\";\n"
+            + "    my_ppu_wait_nmi_helper();\n"
+            + "    oam_shadow;\n";
+
+        StyleSpans<Collection<String>> spans = highlighter.computeHighlighting(text);
+
+        Assertions.assertFalse(hasStyleAt(spans, text.indexOf("ppu_wait_nmi"), "nes-function"));
+        Assertions.assertFalse(hasStyleAt(spans, text.indexOf("SMS_displayOff"), "sms-function"));
+        Assertions.assertFalse(hasStyleAt(spans, text.indexOf("my_ppu_wait_nmi_helper"), "nes-function"));
+        // Sin parentesis de llamada el prefijo queda como identificador normal
+        Assertions.assertFalse(hasStyleAt(spans, text.indexOf("oam_shadow"), "nes-function"));
+    }
+
+    @Test
+    void highlightsFunctionsOfEveryPlatformInOneBuffer() {
+        String text = "void main() {\n"
+            + "    gotoxy(1,1);\n"
+            + "    wait_vbl_done();\n"
+            + "    SMS_displayOff();\n"
+            + "    msx_init_vdp();\n"
+            + "    ppu_wait_nmi();\n"
+            + "    cpc_disable_interrupts();\n"
+            + "    sid_set_volume(15);\n"
+            + "}\n";
+
+        StyleSpans<Collection<String>> spans = highlighter.computeHighlighting(text);
+
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("gotoxy"), "zx-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("wait_vbl_done"), "gbdk-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("SMS_displayOff"), "sms-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("msx_init_vdp"), "msx-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("ppu_wait_nmi"), "nes-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("cpc_disable_interrupts"), "cpc-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("sid_set_volume"), "c64-function"));
+        Assertions.assertEquals(text.length(), totalLength(spans));
+    }
+
+    @Test
     void tildeOperatorDoesNotBreakHighlighting() {
         String text = "int flags = 3;\n"
             + "int mask = ~flags;\n"
