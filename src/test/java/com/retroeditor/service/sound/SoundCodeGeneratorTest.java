@@ -135,7 +135,7 @@ class SoundCodeGeneratorTest {
     void cpcSfxToneEmitsAyRegisters() {
         String code = gen.generateSfx(SoundCodeGenerator.Platform.CPC, "Tono 1", 440, 6, "50%", 300, false);
 
-        assertTrue(code.contains("#include <time.h>"));
+        assertTrue(code.contains("#include <stdlib.h>"));
         assertTrue(code.contains("static void ay_write(unsigned char reg, unsigned char val) {"));
         assertTrue(code.contains("#asm\n"));
         assertTrue(code.contains("ld a, %11000000"));
@@ -179,7 +179,7 @@ class SoundCodeGeneratorTest {
 
         String code = gen.generateMelody(SoundCodeGenerator.Platform.CPC, "bgm", steps, true);
 
-        assertTrue(code.contains("#include <time.h>"));
+        assertTrue(code.contains("#include <stdlib.h>"));
         assertTrue(code.contains("const unsigned char bgm_melody_ch[] = {1, 0, 3};"));
         assertTrue(code.contains("const unsigned int bgm_melody_freqs[] = {330, 262, 0};"));
         assertTrue(code.contains("const unsigned char bgm_melody_vols[] = {10, 12, 12};"));
@@ -201,10 +201,10 @@ class SoundCodeGeneratorTest {
     void zxSfxToneUsesFffdBffdPorts() {
         String code = gen.generateSfx(SoundCodeGenerator.Platform.ZX_SPECTRUM, "Tono 1", 440, 6, "50%", 300, false);
 
-        assertTrue(code.contains("#include <time.h>"));
+        assertTrue(code.contains("#include <stdlib.h>"));
         assertTrue(code.contains("static void ay_write(unsigned char reg, unsigned char val) {"));
-        assertTrue(code.contains("ld bc, &fffd"));
-        assertTrue(code.contains("ld bc, &bffd"));
+        assertTrue(code.contains("ld bc, 0xFFFD"));
+        assertTrue(code.contains("ld bc, 0xBFFD"));
         // TP = 110838 / 440 = 252 (0xFC); mezclador tono canal A = 0x3E
         assertTrue(code.contains("ay_write(0, 0xFC);        // tono A, byte bajo"));
         assertTrue(code.contains("ay_write(1, 0x00);        // tono A, byte alto"));
@@ -218,7 +218,7 @@ class SoundCodeGeneratorTest {
     void zxNoiseSfxRoutesViaChannelA() {
         String code = gen.generateSfx(SoundCodeGenerator.Platform.ZX_SPECTRUM, "Ruido", 0, 6, "50%", 200, false);
 
-        assertTrue(code.contains("ld bc, &fffd"));
+        assertTrue(code.contains("ld bc, 0xFFFD"));
         assertTrue(code.contains("ay_write(6, 8);               // periodo de ruido (0-31)"));
         assertTrue(code.contains("ay_write(7, 0x37);            // mezclador: ruido en canal A"));
         assertTrue(code.contains("ay_write(8, 6);"));
@@ -233,8 +233,8 @@ class SoundCodeGeneratorTest {
 
         String code = gen.generateMelody(SoundCodeGenerator.Platform.ZX_SPECTRUM, "bgm", steps, true);
 
-        assertTrue(code.contains("#include <time.h>"));
-        assertTrue(code.contains("ld bc, &fffd"));
+        assertTrue(code.contains("#include <stdlib.h>"));
+        assertTrue(code.contains("ld bc, 0xFFFD"));
         assertTrue(code.contains("const unsigned char bgm_melody_ch[] = {1, 0, 3};"));
         assertTrue(code.contains("const unsigned int bgm_melody_freqs[] = {330, 262, 0};"));
         assertTrue(code.contains("const unsigned int bgm_melody_starts[] = {0, 200, 400};"));
@@ -242,6 +242,172 @@ class SoundCodeGeneratorTest {
         assertTrue(code.contains("unsigned int tp = 110838U / f;"));
         assertTrue(code.contains("ay_write(6, 8);                    // periodo de ruido"));
         assertTrue(code.contains("ay_write((unsigned char)(8 + m), 0);"));
+    }
+
+    // ======================================================================
+    // MSX (AY-3-8910 / z88dk)
+    // ======================================================================
+
+    @Test
+    void msxSfxToneUsesPsgPortsAndMasksRegister7() {
+        String code = gen.generateSfx(SoundCodeGenerator.Platform.MSX, "Tono 1", 440, 6, "50%", 300, false);
+
+        assertTrue(code.contains("#include <stdlib.h>"));
+        assertTrue(code.contains("static void ay_write(unsigned char reg, unsigned char val) {"));
+        // Los puertos del PSG del MSX son $98 (registro) y $99 (dato)
+        assertTrue(code.contains("out (0x98), a"));
+        assertTrue(code.contains("out (0x99), a"));
+        // El registro 7 hay que enmascararlo: los bits 6-7 son control del bus, no mezclador
+        assertTrue(code.contains("and %00111111"));
+        assertTrue(code.contains("or  %10000000"));
+        // Las escrituras van con las interrupciones off (el PSG comparte bus con el VDP)
+        assertTrue(code.contains("di\n"));
+        assertTrue(code.contains("ei\n"));
+        // TP = 110838 / 440 = 252 (0xFC): el MSX usa el reloj del ZX, no el de 1 MHz del CPC
+        assertTrue(code.contains("ay_write(0, 0xFC);        // tono A, byte bajo"));
+        assertTrue(code.contains("ay_write(1, 0x00);        // tono A, byte alto"));
+        assertTrue(code.contains("ay_write(7, 0x3E);         // mezclador: tono canal A, resto off"));
+        assertTrue(code.contains("ay_write(8, 6);            // volumen canal A = 6 (0-15)"));
+        assertTrue(code.contains("delay(300);"));
+        assertTrue(code.contains("ay_write(8, 0);            // silencio"));
+    }
+
+    @Test
+    void msxSfxDoesNotUseCpcPortsOrClock() {
+        String code = gen.generateSfx(SoundCodeGenerator.Platform.MSX, "Tono 1", 440, 6, "50%", 300, false);
+
+        // La secuencia PPI 8255 (0xF400 / 0xF600) es exclusiva del CPC
+        assertFalse(code.contains("ld bc, 0xF400"));
+        assertFalse(code.contains("ld bc, 0xF600"));
+        // Tampoco los puertos $FFFD / $BFFD del ZX
+        assertFalse(code.contains("ld bc, 0xFFFD"));
+        assertFalse(code.contains("ld bc, 0xBFFD"));
+        // Con el reloj del CPC (62500) el tono saldria TP 142 en vez de 252
+        assertFalse(code.contains("62500"));
+        assertTrue(code.contains("AY-3-8910 del MSX"));
+        assertTrue(code.contains("MSX SFX (AY-3-8910 / z88dk)"));
+    }
+
+    @Test
+    void ayAsmUsesHexPrefixAcceptedBySjasmplus() {
+        // sjasmplus no acepta la notacion "&FFFD": con ella el ensamblado falla con
+        // "syntax error", asi que los immediatos deben llevar el prefijo 0x.
+        List<SoundCodeGenerator.Platform> ayTargets = List.of(
+                SoundCodeGenerator.Platform.CPC,
+                SoundCodeGenerator.Platform.ZX_SPECTRUM,
+                SoundCodeGenerator.Platform.MSX);
+
+        for (SoundCodeGenerator.Platform platform : ayTargets) {
+            String code = gen.generateSfx(platform, "Tono 1", 440, 6, "50%", 300, false);
+            for (String line : code.split("\n")) {
+                String trimmed = line.trim();
+                if (!trimmed.startsWith("ld ") && !trimmed.startsWith("out ") && !trimmed.startsWith("in ")) {
+                    continue;
+                }
+                assertFalse(trimmed.matches(".*[\\s,(]&[0-9A-Fa-f]+.*"),
+                        platform + ": notacion '&' no soportada por sjasmplus en -> " + trimmed);
+            }
+            // Los tres targets deben llevar su puerto con prefijo 0x
+            assertFalse(code.contains("&fffd"), platform + " usa la forma &fffd");
+        }
+    }
+
+    @Test
+    void zxAndCpcPortsUseTheHexPrefix() {
+        String zx = gen.generateSfx(SoundCodeGenerator.Platform.ZX_SPECTRUM, "Tono 1", 440, 6, "50%", 300, false);
+        String cpc = gen.generateSfx(SoundCodeGenerator.Platform.CPC, "Tono 1", 440, 6, "50%", 300, false);
+
+        assertTrue(zx.contains("ld bc, 0xFFFD"));
+        assertTrue(zx.contains("ld bc, 0xBFFD"));
+        assertTrue(cpc.contains("ld bc, 0xF400"));
+        assertTrue(cpc.contains("ld bc, 0xF600"));
+        assertTrue(cpc.contains("ld a, %11000000"));
+    }
+
+    @Test
+    void msxMelodyHeaderNamesTheAyVariant() {
+        String code = gen.generateMelody(SoundCodeGenerator.Platform.MSX, "bgm",
+                List.of(step("Tono 1", 262, 200, 0, 12)), false);
+
+        assertTrue(code.contains("MSX Timeline Melody Composer (AY-3-8910 / z88dk)"));
+    }
+
+    @Test
+    void msxNoiseSfxRoutesViaChannelA() {
+        String code = gen.generateSfx(SoundCodeGenerator.Platform.MSX, "Ruido", 0, 6, "50%", 200, false);
+
+        assertTrue(code.contains("ay_write(6, 8);               // periodo de ruido (0-31)"));
+        assertTrue(code.contains("ay_write(7, 0x37);            // mezclador: ruido en canal A"));
+        assertTrue(code.contains("ay_write(8, 6);"));
+        assertTrue(code.contains("out (0x98), a"));
+    }
+
+    @Test
+    void msxMelodyEmitsAyPlayerWith110838() {
+        List<GameBoyAudioPlayer.NoteStep> steps = List.of(
+                step("Tono 2", 330, 200, 0, 10),
+                step("Tono 1", 262, 200, 200, 12),
+                step("Ruido", 0, 100, 400, 12));
+
+        String code = gen.generateMelody(SoundCodeGenerator.Platform.MSX, "bgm", steps, true);
+
+        assertTrue(code.contains("#include <stdlib.h>"));
+        assertTrue(code.contains("out (0x98), a"));
+        assertTrue(code.contains("const unsigned char bgm_melody_ch[] = {1, 0, 3};"));
+        assertTrue(code.contains("const unsigned int bgm_melody_freqs[] = {330, 262, 0};"));
+        assertTrue(code.contains("const unsigned int bgm_melody_starts[] = {0, 200, 400};"));
+        assertTrue(code.contains("void play_bgm_melody(void) {"));
+        assertTrue(code.contains("unsigned int tp = 110838U / f;"));
+        assertTrue(code.contains("ay_write(6, 8);                    // periodo de ruido"));
+        assertTrue(code.contains("ay_write((unsigned char)(8 + m), 0);"));
+    }
+
+    @Test
+    void msxAsmLabelsAreUniquePerSymbol() {
+        String first = gen.generateSfx(SoundCodeGenerator.Platform.MSX, "Tono 1", 440, 6, "50%", 300, false);
+        String second = gen.generateSfx(SoundCodeGenerator.Platform.MSX, "Tono 2", 220, 6, "50%", 300, false);
+
+        assertTrue(first.contains("msx_write_data_Tono_1:"));
+        assertTrue(second.contains("msx_write_data_Tono_2:"));
+    }
+
+    // ======================================================================
+    // delay() propio: z88dk no trae delay() para CPC, ZX ni MSX
+    // ======================================================================
+
+    @Test
+    void ayDelayUsesTstatesAndNeverExceeds16Bits() {
+        String msx = gen.generateSfx(SoundCodeGenerator.Platform.MSX, "Tono 1", 440, 6, "50%", 300, false);
+
+        // El argumento de t_delay es un unsigned int de 16 bits, asi que el
+        // helper trocea la espera: 15 ms x 3580 = 53700 tstates, sin desbordar.
+        assertTrue(msx.contains("static void delay(unsigned int ms) {"));
+        assertTrue(msx.contains("t_delay(53700U);"));
+        assertTrue(msx.contains("t_delay((unsigned int)(pending * 3580U));"));
+        // No debe quedar ninguna llamada a delay() de la librería
+        assertFalse(msx.contains("t_delay(300)"));
+        assertTrue(msx.contains("delay(300);"));
+    }
+
+    @Test
+    void ayDelayTstatesMatchTheCpuClockOfEachPlatform() {
+        String cpc = gen.generateSfx(SoundCodeGenerator.Platform.CPC, "Tono 1", 440, 6, "50%", 300, false);
+        String zx = gen.generateSfx(SoundCodeGenerator.Platform.ZX_SPECTRUM, "Tono 1", 440, 6, "50%", 300, false);
+
+        // Z80 del CPC a 4 MHz y del ZX a 3,5 MHz
+        assertTrue(cpc.contains("t_delay(60000U);"));
+        assertTrue(cpc.contains("t_delay((unsigned int)(pending * 4000U));"));
+        assertTrue(zx.contains("t_delay(52500U);"));
+        assertTrue(zx.contains("t_delay((unsigned int)(pending * 3500U));"));
+    }
+
+    @Test
+    void ayMelodyAlsoEmitsTheLocalDelay() {
+        List<GameBoyAudioPlayer.NoteStep> steps = List.of(step("Tono 1", 262, 200, 0, 12));
+        String code = gen.generateMelody(SoundCodeGenerator.Platform.MSX, "bgm", steps, true);
+
+        assertTrue(code.contains("static void delay(unsigned int ms) {"));
+        assertTrue(code.contains("t_delay(53700U);"));
     }
 
     // ======================================================================

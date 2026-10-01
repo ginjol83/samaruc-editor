@@ -8,7 +8,7 @@ Este documento desglosa en **pasos ejecutables** los puntos 2 y 3 del análisis 
 - Menú Ayuda: `CC65`, `openMSX`, `Mesen` (`HelpController` + `MainView.fxml` + `MainController` + claves `menu.help.*` en 6 bundles + command palette).
 - README/gitignore específicos de **CPC** (`FXUtils.getCpcReadmeContent`, `appendCpcGitignore`).
 
-Estado de ejecución: **P2.1–P2.7 HECHAS**, ver secciones. Suite actual: 657 tests, 0 fallos, 1 skipped. Antes de P2.6 se corrigieron los builds rotos de SMS/GG/CPC/NES (auditoría en `docs/analisis-sistemas-8-bits-soportados.md` §1.11).
+Estado de ejecución: **P2.1–P2.8 HECHAS**, ver secciones. Suite actual: 668 tests, 0 fallos, 1 skipped. Antes de P2.6 se corrigieron los builds rotos de SMS/GG/CPC/NES (auditoría en `docs/analisis-sistemas-8-bits-soportados.md` §1.11).
 
 Cada paso indica **qué añadir**, **dónde**, **cómo verificarlo** y **esfuerzo**. Orden de ejecución recomendado: de menor a mayor dependencia. No hay ninguna dependencia entre puntos 2 y 3, se pueden intercalar.
 
@@ -90,9 +90,14 @@ Cada paso indica **qué añadir**, **dónde**, **cómo verificarlo** y **esfuerz
 
 ### P2.8 Editor de audio MSX
 
-- **Qué**: entrada `MSX (AY-3-8910)` en `GameBoyAudioEditorController` — **reutiliza el motor `SoundEngine.AY_3_8912`** (mismo PSG que CPC/ZX) y el generador de código AY de `SoundCodeGenerator`; solo cambia el driver z88dk (`msx_.*` para control de frecuencia/noise) y los textos.
+- **Qué**: entrada `MSX (AY-3-8910)` en `GameBoyAudioEditorController` — **reutiliza el motor `SoundEngine.AY_3_8912`** (mismo PSG que CPC/ZX) y el generador de código AY de `SoundCodeGenerator`.
 - **Dónde**: `GameBoyAudioEditorController.java` (constantes `PLATFORM_MSX`, combo, canales), `SoundCodeGenerator.java`, `GameBoyAudioPlayer` (sin cambios de motor), i18n.
-- **Verificar**: build windows del generador + preview; tests del generador AY existentes. Esfuerzo **M**.
+- **Decisiones al implementarlo**:
+  - El MSX comparte reloj con el ZX (1,7734 MHz = 3,579545 / 2), **no** el de 1 MHz del CPC: `ayClockDiv` devuelve 110838 para MSX. Con 62500 los tonos salían un 43 % graves.
+  - El driver va directo a los puertos `$98` (registro) y `$99` (dato). El registro 7 se enmascara con `%00111111` y se fija el bit 7 porque en el MSX esos dos bits son control del bus del PSG, no mezclador; la escritura va con `di`/`ei` porque el PSG comparte líneas con el VDP. Es el mismo criterio que `libsrc/target/msx/psg/set_psg_callee.asm`.
+  - Las etiquetas del asm se prefijan con el símbolo (`msx_write_data_<sym>`) para que dos efectos en el mismo `.c` no colisionen.
+  - **Bug preexistente corregido**: la salida AY usaba `delay()` de `<time.h>`, que z88dk no trae para CPC/ZX/MSX (solo `t_delay()` en tstates), y usaba notación `&FFFD`, que sjasmplus rechaza. Ahora se emite un `delay()` propio en tstates troceados a 16 bits (4000/ms CPC, 3500/ms ZX, 3580/ms MSX) y los inmediatos llevan `0x`.
+- **Verificar**: generado con `zcc +msx` (SFX tono, SFX ruido y melodía) y también `+cpc`/`+zx` para no romper lo anterior; tests del generador AY. Esfuerzo **M**.
 
 ### P2.9 Editor de audio NES
 
@@ -145,7 +150,7 @@ Cada paso indica **qué añadir**, **dónde**, **cómo verificarlo** y **esfuerz
 - [x] **Auditoría de builds** — SMS/GG con la API de `<sms.h>`, GG con `-subtype=gamegear` en vez del inexistente `+gg`, CPC compilando el `writebyte.c` que falta en `cpc_clib.lib`, NES con acceso directo al PPU (2026-09-30).
 - [x] **P2.6** editor de tiles MSX (2026-09-30) — `PlatformMode.MSX` + `generateMsx`; de paso se corrigió el formato de MSX del conversor (las tres tablas de SCREEN 1, no 4bpp) y la paleta (la real del TMS9918).
 - [x] **P2.7** editor de tiles NES (2026-10-01) — `PlatformMode.NES` + `generateNes` con los dos planos del PPU; de paso la casilla de pares 8×16 dejó de ser exclusiva del Game Boy.
-- [ ] **P2.8** audio MSX (reusa AY)
+- [x] **P2.8** audio MSX (2026-10-01) — `SoundCodeGenerator.Platform.MSX` reutilizando el código AY: reloj del ZX (110838), puertos `$98`/`$99` y enmascarado del registro 7. De paso el `delay()` AY roto en las tres plataformas (no existía en z88dk y usaba `&FFFD`).
 - [ ] **P2.9** audio NES (APU nueva)
 - [ ] **P3.1** funciones de sintaxis por plataforma
 - [ ] **P3.2** autocompletado por plataforma
