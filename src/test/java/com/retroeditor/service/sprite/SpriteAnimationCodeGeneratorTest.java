@@ -244,6 +244,63 @@ class SpriteAnimationCodeGeneratorTest {
     }
 
     @Test
+    void nesEmitsTwoPlaneTilesAndPpuUsage() {
+        String code = gen.generate(SpriteAnimationCodeGenerator.Platform.NES,
+                frames(16, 8, 2), List.of(4, 6), "nes_spr", CONST_DEFINES);
+
+        assertTrue(code.contains("#define NES_SPR_TILES_PER_FRAME 2"));
+        assertTrue(code.contains("#define NES_SPR_BYTES_PER_FRAME 32"));
+        assertTrue(code.contains("const unsigned char nes_spr_frame_0[] = {"));
+        assertTrue(code.contains("nes_spr_frames[NES_SPR_FRAME_COUNT] = {nes_spr_frame_0"));
+        assertTrue(code.contains("ppuWrite(0x1000, nes_spr_frames[anim_i], NES_SPR_BYTES_PER_FRAME);"));
+        assertTrue(code.contains("// plano 0, fila 0"));
+        assertTrue(code.contains("// plano 1, fila 7"));
+        assertCommonShape(code, "NES_SPR");
+    }
+
+    @Test
+    void nesPpuValuesAreTwoBitSlotsNotPaletteIndices() {
+        int[][] f = new int[8][8];
+        f[0][0] = 3;
+        f[1][0] = 2;
+        f[2][0] = 1;
+
+        String code = gen.generate(SpriteAnimationCodeGenerator.Platform.NES,
+                List.<int[][]>of(f), null, "nes_bits", CONST_DEFINES);
+
+        // El slot va en los dos planos: 3 activa ambos, 2 solo el plano 1 y 1 solo el 0.
+        // El pixel de la izquierda va en el bit alto, asi que cada fila vale 0x80.
+        assertTrue(code.contains("0x80, // plano 0, fila 0"));
+        assertTrue(code.contains("0x80, // plano 1, fila 0"));
+        assertTrue(code.contains("0x00, // plano 0, fila 1"));
+        assertTrue(code.contains("0x80, // plano 1, fila 1"));
+        assertTrue(code.contains("0x80, // plano 0, fila 2"));
+        assertTrue(code.contains("0x00, // plano 1, fila 2"));
+    }
+
+    @Test
+    void nesEightBySixteenPairsTilesByColumn() {
+        int[][] f = new int[16][16];
+        for (int y = 0; y < 8; y++) {
+            for (int x = 0; x < 8; x++) f[y][x] = 1;
+        }
+        for (int y = 8; y < 16; y++) {
+            for (int x = 0; x < 8; x++) f[y][x] = 2;
+        }
+
+        String columnOrder = gen.generate(SpriteAnimationCodeGenerator.Platform.NES,
+                List.<int[][]>of(f), null, "nes_tall",
+                new SpriteAnimationCodeGenerator.Options(true, true, true));
+
+        int topLeft = columnOrder.indexOf("// Tile at (0, 0) [frame 0, tile 0]");
+        int bottomLeft = columnOrder.indexOf("// Tile at (0, 1) [frame 0, tile 1]");
+        int topRight = columnOrder.indexOf("// Tile at (1, 0) [frame 0, tile 2]");
+
+        assertTrue(topLeft >= 0 && bottomLeft > topLeft && topRight > bottomLeft,
+                "El PPU empareja los tiles por columna, asi que el par de la izquierda va contiguo");
+    }
+
+    @Test
     void gameBoyIncludesStdintAndUsesUint8Tables() {
         String code = gen.generate(SpriteAnimationCodeGenerator.Platform.GAMEBOY,
                 frames(8, 8, 1), null, "spr", CONST_DEFINES);

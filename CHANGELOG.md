@@ -11,8 +11,10 @@
 - **Test de paridad de bundles de i18n** (`MessagesBundleParityTest`): falla si una clave existe en un bundle y falta en otro.
 - **MSX en el editor de tiles y sprites** (`PlatformMode.MSX` y `SpriteAnimationCodeGenerator.Platform.MSX`): paleta de los 16 colores fijos del TMS9918, patrón 1bpp con color por bloque 8x8 (marcando en rojo los bloques con tonos mezclados), manual de uso con las direcciones de la VRAM y los datos de sprites 8x8/16x16, y `generateMsx` para el exportado.
 - **Sprites de MSX en TMS9918**: los tiles 8x8 de los frames se generan en 1bpp y el color por tile es un único índice de 4 bits (el byte de atributo, donde el 0 es transparente), no un par de nibbles. El ejemplo generado usa `set_mode(1)`, `set_sprite_8` y `put_sprite_8`, con el aviso de los 4 sprites por línea.
+- **NES en el editor de tiles y sprites** (`PlatformMode.NES` y `SpriteAnimationCodeGenerator.Platform.NES`): paleta de la subpaleta 0 del PPU (`$0F`, `$01`, `$21`, `$31`), tiles 2bpp de 16 bytes (8 del plano 0 y 8 del plano 1) y `generateNes` para el exportado. El manual recuerda que la copia de CC65 empaquetada no trae `ppu_*` ni `pal_*` y que hay que escribir la VRAM por `$2006`/`$2007` y el OAM por `$2003`/`$2004`, con la subpaleta en los bits 0-2 del byte de atributos.
 
 ### Cambiado
+- **La casilla de pares 8x16 también sirve para NES**: `SpriteAnimationCodeGenerator.Options.gameboy8x16Pairs` pasa a llamarse `tallSpritePairs` y se habilita en el editor para las dos plataformas, porque el PPU empareja igual los dos tiles de un sprite 8x16 (el índice apunta al par top/bottom desde un índice par).
 - **Reestructuración de `libs/`**: la carpeta pasó a organizarse por tipo de herramienta en dos subcarpetas:
   - `libs/devkits/` — toolchains: `cc65`, `devkitSMS`, `gbdk`, `z88dk`.
   - `libs/emulators/` — emuladores: `Altirra`, `cap32`, `emulicious`, `jspeccy`, `mesen`, `openmsx`, `SDL2VICE`.

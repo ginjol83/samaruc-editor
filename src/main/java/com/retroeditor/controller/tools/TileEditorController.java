@@ -80,7 +80,8 @@ public class TileEditorController {
         CPC("Amstrad CPC (modo 0 - 4 colores)"),
         MASTER_SYSTEM("Sega Master System (2bpp - 4 colores)"),
         GAME_GEAR("Game Gear (4bpp - 16 colores)"),
-        MSX("MSX / TMS9918 (1bpp + tabla de color - 16 colores)");
+        MSX("MSX / TMS9918 (1bpp + tabla de color - 16 colores)"),
+        NES("Nintendo NES (2bpp - 4 colores por subpaleta)");
 
         private final String label;
         PlatformMode(String label) { this.label = label; }
@@ -282,6 +283,15 @@ public class TileEditorController {
         Color.web("#5455ed"), Color.web("#7d76fc"), Color.web("#d4524d"), Color.web("#42ebf5"),
         Color.web("#fc5554"), Color.web("#ff7978"), Color.web("#d4c154"), Color.web("#e6ce80"),
         Color.web("#21b03b"), Color.web("#c95bba"), Color.web("#cccccc"), Color.WHITE
+    };
+
+    /**
+     * Subpaleta 0 del PPU ($0F, $01, $21, $31), la que usa la plantilla NES. Los
+     * indices del editor son los slots dentro de la subpaleta: el 0 es el
+     * transparente del sprite.
+     */
+    private final Color[] nesPalette = new Color[] {
+        Color.web("#000000"), Color.web("#0000fc"), Color.web("#3cbcfc"), Color.web("#a4e4fc")
     };
 
     public Node createNode(File currentProjectDir, ResourceBundle bundle, Consumer<File> onExported) {
@@ -582,9 +592,9 @@ public class TileEditorController {
         CheckBox chkDefines = new CheckBox(msg(bundle, "tool.tileEditor.includeDefines", "Incluir #defines"));
         chkDefines.setSelected(true);
         CheckBox chk8x16 = new CheckBox(msg(bundle, "tool.tileEditor.pairs8x16", "Tiles 8x16 por columna"));
-        chk8x16.setTooltip(new Tooltip(msg(bundle, "tool.tileEditor.pairs8x16Tip", "Game Boy: ordena los tiles en pares contiguos (top, bottom) por columna, listos para sprites 8x16")));
+        chk8x16.setTooltip(new Tooltip(msg(bundle, "tool.tileEditor.pairs8x16Tip", "Game Boy y NES: ordena los tiles en pares contiguos (top, bottom) por columna, listos para sprites 8x16")));
         chk8x16.setSelected(false);
-        chk8x16.setDisable(currentPlatform != PlatformMode.GAMEBOY);
+        chk8x16.setDisable(!supportsTallSpritePairs(currentPlatform));
 
         colorStrip = new HBox(4);
         colorStrip.setAlignment(Pos.CENTER_LEFT);
@@ -600,7 +610,7 @@ public class TileEditorController {
 
         updateAction = () -> updateCode(outputArea, symbolField.getText(),
                 new SpriteAnimationCodeGenerator.Options(chkConst.isSelected(), chkDefines.isSelected(),
-                        chk8x16.isSelected() && currentPlatform == PlatformMode.GAMEBOY));
+                        chk8x16.isSelected() && supportsTallSpritePairs(currentPlatform)));
 
         Runnable applyCustomSize = () -> {
             snapshotPixels();
@@ -697,7 +707,7 @@ public class TileEditorController {
             if (newV != null) {
                 savePrefs();
                 currentPlatform = newV;
-                chk8x16.setDisable(currentPlatform != PlatformMode.GAMEBOY);
+                chk8x16.setDisable(!supportsTallSpritePairs(currentPlatform));
                 rebuildColorStrip();
                 loadPrefs();
                 redrawCanvas(canvas);
@@ -1760,6 +1770,7 @@ redrawCanvas(canvas);
         if (platform == PlatformMode.MASTER_SYSTEM) return smsPalette;
         if (platform == PlatformMode.GAME_GEAR) return ggPalette;
         if (platform == PlatformMode.MSX) return msxPalette;
+        if (platform == PlatformMode.NES) return nesPalette;
         return gbPalette;
     }
 
@@ -2206,6 +2217,15 @@ redrawCanvas(canvas);
         durationInfoLabel.setText(fmt(msg(bundle, "tool.tileEditor.durationMs", "≈ {0} ms ({1} Hz)"), ms, fps));
     }
 
+    /**
+     * Plataformas cuyo hardware empareja dos tiles contiguos (top, bottom) para un
+     * sprite 8x16: el Game Boy y el NES. Solo en ellas tiene sentido el checkbox
+     * de pares por columna.
+     */
+    private boolean supportsTallSpritePairs(PlatformMode platform) {
+        return platform == PlatformMode.GAMEBOY || platform == PlatformMode.NES;
+    }
+
     private int refreshRateFor(PlatformMode platform) {
         if (platform == PlatformMode.ZX_SPECTRUM) return 50;
         if (platform == PlatformMode.CPC) return 50;
@@ -2237,6 +2257,7 @@ redrawCanvas(canvas);
             case MASTER_SYSTEM: platform = SpriteAnimationCodeGenerator.Platform.MASTER_SYSTEM; break;
             case GAME_GEAR: platform = SpriteAnimationCodeGenerator.Platform.GAME_GEAR; break;
             case MSX: platform = SpriteAnimationCodeGenerator.Platform.MSX; break;
+            case NES: platform = SpriteAnimationCodeGenerator.Platform.NES; break;
             default: platform = SpriteAnimationCodeGenerator.Platform.GAMEBOY;
         }
         outputArea.setText(animCodeGenerator.generate(platform, framePixels, durations, symbolName, options));
@@ -2325,6 +2346,7 @@ redrawCanvas(canvas);
         if (platform == PlatformMode.MASTER_SYSTEM) return helpMasterSystem(symbol, up);
         if (platform == PlatformMode.GAME_GEAR) return helpGameGear(symbol, up);
         if (platform == PlatformMode.MSX) return helpMsx(symbol, up);
+        if (platform == PlatformMode.NES) return helpNes(symbol, up);
         return helpGameBoy(symbol, up);
     }
 
@@ -2575,6 +2597,55 @@ redrawCanvas(canvas);
                 Limitacion real (un color por bloque 8x8): el editor recolorea el
                 bloque al pintar con otro color y marca en rojo los tiles con tonos
                 mezclados.
+                """.replace("__SYMBOL__", symbol).replace("__UP__", up);
+    }
+
+    private String helpNes(String symbol, String up) {
+        return """
+                JUEGO - NES / PPU 2C02 (cc65 -t nes, 2bpp)
+
+                Cada tile 8x8 son 16 bytes: los 8 primeros del plano 0 y los 8
+                siguientes del plano 1, pixel izquierdo en el bit alto (_frame_N).
+                El valor de un pixel (0-3) es el SLOT dentro de la subpaleta del
+                sprite, no un indice de la paleta del PPU: la subpaleta la elige el
+                byte de atributos del OAM (bits 0-2) y el slot 0 es el transparente,
+                por eso no se ve el sprite.
+
+                Un sprite usa UNA subpaleta para todo, no una por tile como el
+                fondo (que es por celda de 16x16, 2 bits por cuadrante de 8x8).
+                Por eso cambiar de color aqui es cambiar el color al que apunta el
+                slot, y no hace falta tocar los bytes del tile.
+
+                La copia de cc65 que trae el editor no tiene funciones ppu_* ni
+                pal_*: <nes.h> solo expone waitvsync() y la estructura __ppu, asi
+                que la VRAM se escribe por $2006/$2007 y el OAM por $2003/$2004
+                (o con SPRITE_DMA, $4014, copiando la pagina $0200).
+
+                1) Volcar el frame a la tabla de patrones de sprites ($1000, la de
+                   fondo en $0000):
+                     ppuWrite(0x1000, __SYMBOL___frames[anim_i], __UP___BYTES_PER_FRAME);
+
+                2) Paleta RAM. Los sprites usan $3F11-$3F13, $3F15-$3F17, $3F19-$3F1B
+                   y $3F1D-$3F1F; $3F10/$3F14/$3F18/$3F1C replican el color de fondo
+                   universal y no los usan los sprites.
+
+                3) OAM: 4 bytes por sprite (Y, X, tile, atributos), 64 sprites en
+                   total y 8 por linea. La Y se guarda con una unidad menos que la
+                   de pantalla, y los atributos son bits 0-2 = subpaleta (0-3),
+                   bit 4 = espejo X, bit 5 = espejo Y, bit 7 = detras del fondo.
+
+                Sprites 8x16: con el bit 5 de PPU.control el alto pasa a 16 y el
+                indice de tile apunta al par (top, bottom) desde un indice par, que
+                es justo lo que hace la casilla "tiles 8x16 por columna".
+
+                4) Avanzar la animación:
+                     if (++anim_ticks >= __SYMBOL___durations[anim_i]) {
+                         anim_ticks = 0;
+                         anim_i = (anim_i + 1) % __UP___FRAME_COUNT;
+                     }
+
+                Paleta (slot -> indice del PPU): 0 transparente, 1 = $01, 2 = $21,
+                3 = $31, que es la subpaleta 0 de la plantilla NES.
                 """.replace("__SYMBOL__", symbol).replace("__UP__", up);
     }
 

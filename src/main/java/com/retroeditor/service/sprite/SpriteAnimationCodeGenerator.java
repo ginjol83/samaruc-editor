@@ -16,17 +16,18 @@ import java.util.List;
  */
 public class SpriteAnimationCodeGenerator {
 
-    public enum Platform { GAMEBOY, ZX_SPECTRUM, ATARI, C64, CPC, MASTER_SYSTEM, GAME_GEAR, MSX }
+    public enum Platform { GAMEBOY, ZX_SPECTRUM, ATARI, C64, CPC, MASTER_SYSTEM, GAME_GEAR, MSX, NES }
 
     /**
      * Opciones de generación.
      *
      * @param includeConst      emite los arrays de datos con {@code const}
      * @param includeDefines    emite los {@code #define} de tamaño y los usa en las tablas
-     * @param gameboy8x16Pairs  (solo Game Boy) ordena los tiles por columnas en pares
-     *                          contiguos (top, bottom), listos para sprites 8x16
+     * @param tallSpritePairs   (Game Boy y NES) ordena los tiles por columnas en pares
+     *                          contiguos (top, bottom), que es como el hardware
+     *                          empareja los dos tiles de un sprite 8x16
      */
-    public record Options(boolean includeConst, boolean includeDefines, boolean gameboy8x16Pairs) {
+    public record Options(boolean includeConst, boolean includeDefines, boolean tallSpritePairs) {
         public static final Options DEFAULT = new Options(true, true, false);
     }
 
@@ -58,6 +59,7 @@ public class SpriteAnimationCodeGenerator {
             case MASTER_SYSTEM: return generateSms(frames, durationsVbls, symbol, opts);
             case GAME_GEAR:     return generateGameGear(frames, durationsVbls, symbol, opts);
             case MSX:           return generateMsx(frames, durationsVbls, symbol, opts);
+            case NES:           return generateNes(frames, durationsVbls, symbol, opts);
             default:            throw new IllegalArgumentException("Plataforma no soportada: " + platform);
         }
     }
@@ -90,12 +92,12 @@ public class SpriteAnimationCodeGenerator {
         int tileIndex = 0;
         for (int fi = 0; fi < frames.size(); fi++) {
             int[][] px = frames.get(fi);
-            int outer = options.gameboy8x16Pairs() ? tileCols : tileRows;
-            int inner = options.gameboy8x16Pairs() ? tileRows : tileCols;
+            int outer = options.tallSpritePairs() ? tileCols : tileRows;
+            int inner = options.tallSpritePairs() ? tileRows : tileCols;
             for (int a = 0; a < outer; a++) {
                 for (int b = 0; b < inner; b++) {
-                    int tr = options.gameboy8x16Pairs() ? b : a;
-                    int tc = options.gameboy8x16Pairs() ? a : b;
+                    int tr = options.tallSpritePairs() ? b : a;
+                    int tc = options.tallSpritePairs() ? a : b;
                     for (int r = 0; r < 8; r++) {
                         int low = 0;
                         int high = 0;
@@ -130,7 +132,7 @@ public class SpriteAnimationCodeGenerator {
           .append("   // cargar todos los tiles de la animacion una sola vez\n")
           .append("   set_sprite_data(0, ").append(up).append("_TOTAL_TILES, ").append(symbol).append(");\n")
           .append("   SHOW_SPRITES;\n");
-        if (options.gameboy8x16Pairs()) {
+        if (options.tallSpritePairs()) {
             sb.append("   // sprite 8x16: cada columna ocupa un par contiguo (top, bottom)\n")
               .append("   set_sprite_tile(0, ").append(symbol).append("_frames[anim_i]);\n")
               .append("   set_sprite_tile(1, ").append(symbol).append("_frames[anim_i] + 1);\n");
@@ -493,6 +495,126 @@ public class SpriteAnimationCodeGenerator {
           .append("   // 0x1800. La tabla de generadores 0x0000 admite 256 patrones.\n")
           .append("   // set_sprite_8 ya copia los patrones en el generador de sprites, asi\n")
           .append("   // que para el fondo habria que escribir ahi con vwrite().\n")
+          .append("   if (++anim_ticks >= ").append(symbol).append("_durations[anim_i]) {\n")
+          .append("       anim_ticks = 0; anim_i = (anim_i + 1) % ").append(up).append("_FRAME_COUNT;\n")
+          .append("   }\n")
+          .append("*/\n");
+        return sb.toString();
+    }
+
+    // ------------------------------------------------------------------
+    // NES (PPU 2C02, 2bpp: 16 bytes por tile 8x8)
+    // ------------------------------------------------------------------
+
+    /**
+     * Genera los datos de los sprites del NES: por frame, un array con los tiles
+     * 2bpp del PPU (16 bytes por tile 8x8: los 8 primeros del plano 0 y los 8
+     * siguientes del plano 1, pixel izquierdo en el bit alto).
+     *
+     * <p>El valor de un pixel (0-3) es el <b>slot dentro de la subpaleta</b> que
+     * elige el byte de atributos del sprite, no un indice de la paleta del PPU. El
+     * slot 0 es el transparente del sprite: se ve el fondo. Cambiar de color en
+     * el editor no cambia el indice de hardware, cambia el color al que apunta el
+     * slot en la RAM de paleta.</p>
+     *
+     * <p>Un sprite usa una sola subpaleta, no una por tile: el PPU escoge los
+     * colores por sprite entero, a diferencia del fondo, que es por celda de
+     * 16x16 (2 bits de atributo por cuadrante de 8x8).</p>
+     */
+    public String generateNes(List<int[][]> frames, List<Integer> durationsVbls, String symbol, Options options) {
+        int w = frames.get(0)[0].length;
+        int h = frames.get(0).length;
+        int tileCols = w / 8;
+        int tileRows = h / 8;
+        int tilesPerFrame = tileCols * tileRows;
+        int bytesPerFrame = tilesPerFrame * 16;
+        String up = symbol.toUpperCase();
+        String frameCountSize = sizeExpr(options.includeDefines(), up + "_FRAME_COUNT", frames.size());
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("// Generated by Samaruc Sprite Editor - Animation (NES 2bpp, PPU 2C02)\n");
+        if (options.includeDefines()) {
+            sb.append("#define ").append(up).append("_FRAME_COUNT ").append(frames.size()).append("\n");
+            sb.append("#define ").append(up).append("_TILES_PER_FRAME ").append(tilesPerFrame).append("\n");
+            sb.append("#define ").append(up).append("_BYTES_PER_FRAME ").append(bytesPerFrame).append("\n\n");
+        }
+
+        for (int fi = 0; fi < frames.size(); fi++) {
+            int[][] px = frames.get(fi);
+            if (options.includeConst()) sb.append("const ");
+            sb.append("unsigned char ").append(symbol).append("_frame_").append(fi).append("[] = {\n");
+            int tileIndex = 0;
+            int outer = options.tallSpritePairs() ? tileCols : tileRows;
+            int inner = options.tallSpritePairs() ? tileRows : tileCols;
+            for (int a = 0; a < outer; a++) {
+                for (int b = 0; b < inner; b++) {
+                    int tr = options.tallSpritePairs() ? b : a;
+                    int tc = options.tallSpritePairs() ? a : b;
+                    sb.append("    // Tile at (").append(tc).append(", ").append(tr)
+                      .append(") [frame ").append(fi).append(", tile ").append(tileIndex).append("]\n");
+                    for (int plane = 0; plane < 2; plane++) {
+                        for (int row = 0; row < 8; row++) {
+                            int bits = 0;
+                            for (int col = 0; col < 8; col++) {
+                                int value = px[tr * 8 + row][tc * 8 + col] & 0x03;
+                                if (((value >> plane) & 1) != 0) bits |= (1 << (7 - col));
+                            }
+                            sb.append(String.format("    0x%02X, // plano %d, fila %d%n", bits & 0xFF, plane, row));
+                        }
+                    }
+                    tileIndex++;
+                }
+            }
+            sb.append("};\n\n");
+        }
+
+        sb.append("const unsigned char * const ").append(symbol).append("_frames[").append(frameCountSize)
+          .append("] = {");
+        for (int fi = 0; fi < frames.size(); fi++) {
+            sb.append(fi == 0 ? "" : ", ").append(symbol).append("_frame_").append(fi);
+        }
+        sb.append("};\n\n");
+
+        sb.append("static const unsigned char ").append(symbol).append("_durations[").append(frameCountSize)
+          .append("] = {");
+        appendDurations(sb, frames.size(), durationsVbls);
+        sb.append("};\n\n");
+
+        sb.append("/* Uso (cc65 -t nes):\n")
+          .append("   // La copia de cc65 que trae el editor solo expone waitvsync() y la\n")
+          .append("   // estructura __ppu de <nes.h>: no hay funciones ppu_* ni pal_*, asi\n")
+          .append("   // que la VRAM y el OAM se escriben por $2006/$2007 y $2003/$2004.\n")
+          .append("   #include <nes.h>\n")
+          .append("   static const unsigned char sprite_palette[16] = {\n")
+          .append("       0x0F, 0x01, 0x21, 0x31,   0x0F, 0x06, 0x16, 0x26,\n")
+          .append("       0x0F, 0x09, 0x19, 0x29,   0x0F, 0x00, 0x10, 0x20\n")
+          .append("   };\n")
+          .append("   static void ppuWrite(unsigned int addr, const unsigned char* data, unsigned int len) {\n")
+          .append("       unsigned int i;\n")
+          .append("       PPU.vram.address = (unsigned char)(addr >> 8);\n")
+          .append("       PPU.vram.address = (unsigned char)(addr & 0xFF);\n")
+          .append("       for (i = 0; i < len; i++) {\n")
+          .append("           PPU.vram.data = data[i];\n")
+          .append("       }\n")
+          .append("   }\n")
+          .append("   // Tabla de patrones de sprites en $1000 (la de fondo en $0000);\n")
+          .append("   // con sprites 8x16 el bit 5 de PPU.control selecciona el alto y el\n")
+          .append("   // indice de tile apunta al par (top, bottom) desde un indice par.\n")
+          .append("   PPU.control = 0x20;\n")
+          .append("   // Paleta RAM: los sprites usan $3F11-$3F1F en 4 subpaletas de 3\n")
+          .append("   // colores, y $3F10/$3F14/$3F18/$3F1C replican el fondo universal.\n")
+          .append("   ppuWrite(0x3F00, sprite_palette, sizeof(sprite_palette));\n")
+          .append("   // Escribir el frame activo en la tabla de patrones:\n")
+          .append("   ppuWrite(0x1000, ").append(symbol).append("_frames[anim_i], ").append(up).append("_BYTES_PER_FRAME);\n")
+          .append("   // OAM: 4 bytes por sprite (Y, X, tile, atributos). La Y se guarda\n")
+          .append("   // con una unidad menos que la de pantalla y los atributos son\n")
+          .append("   // bits 0-2 = subpaleta (0-3), bit 4 = espejo X, bit 5 = espejo Y,\n")
+          .append("   // bit 7 = detras del fondo. Maximo 64 sprites, 8 por linea.\n")
+          .append("   PPU.sprite.address = 0;   // $2003\n")
+          .append("   PPU.sprite.data = y - 1;\n")
+          .append("   PPU.sprite.data = x;\n")
+          .append("   PPU.sprite.data = 0;\n")
+          .append("   PPU.sprite.data = 0x00;\n")
           .append("   if (++anim_ticks >= ").append(symbol).append("_durations[anim_i]) {\n")
           .append("       anim_ticks = 0; anim_i = (anim_i + 1) % ").append(up).append("_FRAME_COUNT;\n")
           .append("   }\n")
