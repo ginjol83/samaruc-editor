@@ -76,7 +76,7 @@ class RetroPackingRoundTripTest {
     @DisplayName("Master System y Game Gear: los dos planos de cada columna")
     void tilePlanarIsLossless() throws IOException {
         for (RetroImageMode mode : new RetroImageMode[] {RetroImageMode.MASTER_SYSTEM_TILES,
-                RetroImageMode.GAME_GEAR_TILES, RetroImageMode.MSX_TILES}) {
+                RetroImageMode.GAME_GEAR_TILES}) {
             RetroImageConversion conversion = convert(mode, patronRico(mode));
 
             byte[] data = conversion.layers().get(0).data();
@@ -130,6 +130,28 @@ class RetroPackingRoundTripTest {
                         >> (7 - x % RetroImageMode.TILE_SIZE)) & 1;
                 int colorRam = colors[charIndex] & 0xFF;
                 assertHardware(conversion, x, y, bit == 1 ? colorRam >> 4 : colorRam & 0x0F, mode);
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("MSX SCREEN 1: el color sale del grupo de 8 caracteres al que pertenece el patron")
+    void msxScreen1IsLossless() throws IOException {
+        RetroImageMode mode = RetroImageMode.MSX_TILES;
+        RetroImageConversion conversion = convert(mode, mismoColorEnCadaCelda(mode));
+
+        byte[] patterns = conversion.layers().get(0).data();
+        byte[] map = conversion.layers().get(1).data();
+        byte[] colors = conversion.layers().get(2).data();
+        int charsX = WIDTH / RetroImageMode.TILE_SIZE;
+        assertEquals(1, colors.length, "Los dos patrones caben en un unico grupo de 8 caracteres");
+        for (int y = 0; y < HEIGHT; y++) {
+            for (int x = 0; x < WIDTH; x++) {
+                int character = map[(y / RetroImageMode.TILE_SIZE) * charsX + x / RetroImageMode.TILE_SIZE] & 0xFF;
+                int bit = (patterns[character * RetroImageMode.TILE_SIZE + y % RetroImageMode.TILE_SIZE]
+                        >> (7 - x % RetroImageMode.TILE_SIZE)) & 1;
+                int group = colors[character / RetroImageMode.MSX_SCREEN1_CHARS_PER_COLOUR] & 0xFF;
+                assertHardware(conversion, x, y, bit == 1 ? group >> 4 : group & 0x0F, mode);
             }
         }
     }
@@ -259,6 +281,25 @@ class RetroPackingRoundTripTest {
                 int other = x < 8 ? palette[1] : palette[3];
                 boolean otherPixel = (x < 8 ? (x % 2 == 1) : (x % 2 == 0)) && (y % 4 != 3);
                 image.setRGB(x, y, (otherPixel ? other : dominant) | 0xFF000000);
+            }
+        }
+        return image;
+    }
+
+    /**
+     * Dos celdas con el mismo par de colores pero distinto patron, para el MSX1:
+     * SCREEN 1 solo tiene un byte de color por cada 8 caracteres, asi que dos
+     * celdas con colores distintos no podrian ir en la misma tabla de color.
+     * Se usan los indices 0 y 2 de la paleta TMS9918 porque el indice 1 tambien
+     * es negro.
+     */
+    private BufferedImage mismoColorEnCadaCelda(RetroImageMode mode) {
+        BufferedImage image = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_ARGB);
+        int[] palette = mode.palette();
+        for (int y = 0; y < HEIGHT; y++) {
+            for (int x = 0; x < WIDTH; x++) {
+                boolean otherPixel = (x < 8 ? x % 2 == 1 : x % 2 == 0) && (y % 4 != 3);
+                image.setRGB(x, y, (otherPixel ? palette[2] : palette[0]) | 0xFF000000);
             }
         }
         return image;

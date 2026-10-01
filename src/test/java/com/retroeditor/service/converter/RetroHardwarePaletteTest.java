@@ -1,5 +1,6 @@
 package com.retroeditor.service.converter;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -67,25 +68,29 @@ class RetroHardwarePaletteTest {
         int[] palette = RetroHardwarePalette.msx();
 
         assertEquals(16, palette.length);
-        assertEquals(0xFF000000, palette[0], "transparente de sprites = negro");
-        assertEquals(0xFF00AA00, palette[2], "verde medio");
-        assertEquals(0xFF0000FF, palette[5], "azul claro");
-        assertEquals(0xFF00FF00, palette[3], "verde claro");
+        assertEquals(0xFF000000, palette[0], "transparente");
+        assertEquals(0xFF000000, palette[1], "negro");
+        assertEquals(0xFF21C842, palette[2], "verde medio");
+        assertEquals(0xFF5EDC78, palette[3], "verde claro");
+        assertEquals(0xFF5455ED, palette[4], "azul oscuro");
+        assertEquals(0xFF42EBF5, palette[7], "cyan");
+        assertEquals(0xFFC95BBA, palette[13], "magenta");
         assertEquals(0xFFFFFFFF, palette[15], "blanco");
         assertEquals(15, distinctColours(palette), "solo se repiten el 0 y el 1 (negro)");
     }
 
     @Test
-    void msxCramByte_UsesTheSameSixBitLayoutAsTheVdp() {
+    void msxPalette_MatchesTheTileEditorPalette() {
         int[] palette = RetroHardwarePalette.msx();
+        int[] editor = new int[] {
+            0xFF000000, 0xFF000000, 0xFF21C842, 0xFF5EDC78,
+            0xFF5455ED, 0xFF7D76FC, 0xFFD4524D, 0xFF42EBF5,
+            0xFFFC5554, 0xFFFF7978, 0xFFD4C154, 0xFFE6CE80,
+            0xFF21B03B, 0xFFC95BBA, 0xFFCCCCCC, 0xFFFFFFFF
+        };
 
-        assertEquals(0x03, RetroHardwarePalette.msxCramByte(palette[9]), "rojo 255 = %11");
-        assertEquals(0x30, RetroHardwarePalette.msxCramByte(palette[5]), "azul 255 = %11");
-        assertEquals(0x3F, RetroHardwarePalette.msxCramByte(palette[15]), "blanco = %111111");
-        for (int i = 0; i < palette.length; i++) {
-            assertEquals(palette[i], fromCram2(RetroHardwarePalette.msxCramByte(palette[i])),
-                    "El byte de CRAM del color " + i + " no devuelve el mismo color");
-        }
+        assertArrayEquals(editor, palette,
+                "El editor de tiles y el conversor tienen que pintar los mismos colores del TMS9918");
     }
 
     @Test

@@ -143,15 +143,38 @@ public final class RetroHardwarePalette {
     }
 
     /**
-     * MSX: 16 colores del TMS9918.
+     * MSX1: los 16 colores fijos del TMS9918.
      *
-     * La tabla de 2 bits por canal es la misma que la del Master System (el
-     * MSX1 comparte el VDP), asi que se reutiliza para el preview. La CRAM
-     * MSX1 guarda cada entrada como un byte de 6 bits con el mismo layout
-     * {@code %00BBGGRR} del Master System (ver {@link #msxCramByte(int)}).
+     * Es la tabla del datasheet del TI reproducida en la documentacion del
+     * TMS9918A (colores en valores de 8 bits derivados del voltaje de la
+     * salida, NTSC). El indice 0 es el color transparente: el TMS9918 lo
+     * dibuja como el fondo del borde, y en la tabla de color de SCREEN 1 un
+     * nibble a 0 hace transparente ese plano del caracter.
+     *
+     * <p>La numeracion es la que espera el hardware (el byte de la tabla de
+     * color de un caracter guarda dos de estos indices, no colores RGB), por
+     * lo que no se puede sustituir por la paleta de 3 bits por canal del
+     * Master System: ambos VDP comparten familia, pero no los colores.</p>
      */
     public static int[] msx() {
-        return masterSystem();
+        return new int[] {
+            rgb(0x000000), // 0  transparente
+            rgb(0x000000), // 1  negro
+            rgb(0x21C842), // 2  verde medio
+            rgb(0x5EDC78), // 3  verde claro
+            rgb(0x5455ED), // 4  azul oscuro
+            rgb(0x7D76FC), // 5  azul claro
+            rgb(0xD4524D), // 6  rojo oscuro
+            rgb(0x42EBF5), // 7  cyan
+            rgb(0xFC5554), // 8  rojo medio
+            rgb(0xFF7978), // 9  rojo claro
+            rgb(0xD4C154), // 10 amarillo oscuro
+            rgb(0xE6CE80), // 11 amarillo claro
+            rgb(0x21B03B), // 12 verde oscuro
+            rgb(0xC95BBA), // 13 magenta
+            rgb(0xCCCCCC), // 14 gris
+            rgb(0xFFFFFF)  // 15 blanco
+        };
     }
 
     /**
@@ -201,16 +224,6 @@ public final class RetroHardwarePalette {
     /** Cuantiza un canal de 0-255 a los 4 niveles de 2 bits del TMS9918. */
     private static int level2(int component) {
         return Math.min(3, (component + 42) / 85);
-    }
-
-    /**
-     * Byte de CRAM del MSX1 para un color de la paleta.
-     *
-     * El TMS9918 guarda 6 bits por entrada con el mismo layout que el Master
-     * System: {@code %00BBGGRR}.
-     */
-    public static int msxCramByte(int argb) {
-        return masterSystemCramByte(argb);
     }
 
     /**

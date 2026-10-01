@@ -225,6 +225,117 @@ class RetroImagePackerTest {
         assertEquals((byte) ((6 << 4) | 2), layers.get(1).data()[0], "Nibble alto = primer plano 6, bajo = fondo 2");
     }
 
+    @Test
+    void packMsxTiles_SplitsPatternsNameTableAndColourTable() {
+        int[] hardwareIndices = identity(16);
+        int[] indices = new int[8 * 8];
+        for (int i = 0; i < indices.length; i++) {
+            indices[i] = 3;
+        }
+        indices[0] = 11;
+
+        List<RetroImageLayer> layers = RetroImagePacker.packMsxTiles(indices, hardwareIndices, 8, 8);
+
+        assertEquals(3, layers.size());
+        assertEquals("patterns", layers.get(0).name());
+        assertEquals(8, layers.get(0).data().length, "SCREEN 1: 8 bytes de 1bpp por patron");
+        assertEquals((byte) 0x80, layers.get(0).data()[0], "Solo el pixel raro es primer plano");
+        assertEquals("map", layers.get(1).name());
+        assertEquals(1, layers.get(1).data().length, "Un byte por celda de la tabla de nombres");
+        assertEquals((byte) 0, layers.get(1).data()[0], "La unica celda usa el patron 0");
+        assertEquals("colors", layers.get(2).name());
+        assertEquals(1, layers.get(2).data().length, "Un byte por cada 8 caracteres, no uno por celda");
+        assertEquals((byte) ((11 << 4) | 3), layers.get(2).data()[0],
+                "Nibble alto = primer plano 11, bajo = fondo 3");
+    }
+
+    @Test
+    void packMsxTiles_SharesThePatternOfRepeatedBlocks() {
+        int[] hardwareIndices = identity(16);
+        int[] indices = new int[16 * 8];
+        java.util.Arrays.fill(indices, 2);
+        // La segunda celda lleva el pixel en otro sitio, asi que es otro patron.
+        indices[8] = 5;
+
+        List<RetroImageLayer> layers = RetroImagePacker.packMsxTiles(indices, hardwareIndices, 16, 8);
+
+        assertEquals(16, layers.get(0).data().length, "Dos celdas pero dos patrones distintos de 8 bytes");
+        assertEquals(2, layers.get(1).data().length, "La tabla de nombres tiene una entrada por celda");
+        assertEquals(1, layers.get(2).data().length, "Los dos patrones caben en un grupo de 8");
+    }
+
+    @Test
+    void packMsxTiles_PutsTheCharactersOfOneColourInTheSameColourByte() {
+        int[] hardwareIndices = identity(16);
+        int cells = 16;
+        int width = cells * 8;
+        int[] indices = new int[width * 8];
+        java.util.Arrays.fill(indices, 1);
+        for (int cell = 0; cell < cells; cell++) {
+            // 8 patrones con un pixel de color 6 y 8 con un pixel de color 3:
+            // 16 patrones distintos repartidos en dos colores.
+            int row = cell % 8;
+            int column = cell < 8 ? 0 : 1;
+            indices[row * width + cell * 8 + column] = cell < 8 ? 6 : 3;
+        }
+
+        List<RetroImageLayer> layers = RetroImagePacker.packMsxTiles(indices, hardwareIndices, width, 8);
+
+        assertEquals(cells * 8, layers.get(0).data().length, "16 patrones distintos de 8 bytes");
+        assertEquals(cells, layers.get(1).data().length, "Una entrada de la tabla de nombres por celda");
+        assertEquals(2, layers.get(2).data().length, "16 caracteres = 2 bytes de tabla de color");
+        assertEquals((byte) ((3 << 4) | 1), layers.get(2).data()[0],
+                "Los patrones se reordenan por color, asi que el grupo 0 es el del color mas bajo");
+        assertEquals((byte) ((6 << 4) | 1), layers.get(2).data()[1]);
+    }
+
+    @Test
+    void packMsxTiles_RejectsImagesWithMoreThan256Patterns() {
+        int[] hardwareIndices = identity(16);
+
+        int fits = RetroImageMode.MSX_SCREEN1_PATTERNS;
+        assertEquals(fits, RetroImagePacker.packMsxTiles(distinctCells(fits), hardwareIndices, fits * 8, 8)
+                .get(0).data().length / 8, "Con 256 patrones distintos todavia cabe");
+
+        int overflows = fits + 1;
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> RetroImagePacker.packMsxTiles(distinctCells(overflows), hardwareIndices, overflows * 8, 8));
+
+        assertTrue(error.getMessage().contains("256 patrones"), error.getMessage());
+    }
+
+    /**
+     * Fila de celdas 8x8 en la que ninguna se repite: los 8 bits del numero de
+     * celda se ponen en las 8 filas del patron (un solo pixel por fila, para no
+     * empatar con el fondo), y la celda 256, que no cabe en 8 bits, lleva un
+     * unico pixel en la fila 0.
+     */
+    private static int[] distinctCells(int cells) {
+        int width = cells * 8;
+        int[] pixels = new int[width * 8];
+        java.util.Arrays.fill(pixels, 1);
+        for (int cell = 0; cell < cells; cell++) {
+            for (int row = 0; row < 8; row++) {
+                for (int column = 0; column < 8; column++) {
+                    boolean on = cell < RetroImageMode.MSX_SCREEN1_PATTERNS
+                            ? ((cell >> row) & 1) == 1 && column == 4
+                            : row == 0 && column == 0;
+                    pixels[row * width + cell * 8 + column] = on ? 2 : 1;
+                }
+            }
+        }
+        return pixels;
+    }
+
+    @Test
+    void msxColourTableLength_IsOneBytePerEightCharacters() {
+        assertEquals(0, RetroImagePacker.msxColourTableLength(0));
+        assertEquals(1, RetroImagePacker.msxColourTableLength(1));
+        assertEquals(1, RetroImagePacker.msxColourTableLength(8));
+        assertEquals(2, RetroImagePacker.msxColourTableLength(9));
+        assertEquals(32, RetroImagePacker.msxColourTableLength(256));
+    }
+
     private static int[] identity(int length) {
         int[] values = new int[length];
         for (int i = 0; i < length; i++) {
@@ -273,6 +384,8 @@ class RetroImagePackerTest {
                 RetroImagePacker.layerNames(RetroImageMode.C64_CHARSET, "hero"));
         assertEquals(List.of("hero_bitmap", "hero_screen", "hero_colors"),
                 RetroImagePacker.layerNames(RetroImageMode.C64_BITMAP, "hero"));
+        assertEquals(List.of("hero_patterns", "hero_map", "hero_colors"),
+                RetroImagePacker.layerNames(RetroImageMode.MSX_TILES, "hero"));
         assertEquals(List.of("hero", "hero_attributes", "hero_palette"),
                 RetroImagePacker.layerNames(RetroImageMode.NES_TILES, "hero"));
         assertEquals(List.of("hero"),

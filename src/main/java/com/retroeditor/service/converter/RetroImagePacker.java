@@ -1,6 +1,8 @@
 package com.retroeditor.service.converter;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -56,6 +58,7 @@ public final class RetroImagePacker {
             case NES_2BPP -> packNES(indices, palette, hardwareIndices, width, height);
             case C64_CHARSET -> packC64Charset(indices, hardwareIndices, width, height);
             case C64_BITMAP -> packC64Bitmap(indices, hardwareIndices, width, height);
+            case MSX_TILES -> packMsxTiles(indices, hardwareIndices, width, height);
         };
     }
 
@@ -451,6 +454,196 @@ public final class RetroImagePacker {
      * bajo. Los dos colores se eligen por caracter usando los mas usados.
      */
     public static List<RetroImageLayer> packC64Charset(int[] indices, int[] hardwareIndices, int width, int height) {
+        return packCharset1bpp(indices, hardwareIndices, width, height,
+                "chars", "caracteres 8x8 en 1bpp",
+                "colors", "color RAM por caracter: nibble alto = primer plano, bajo = fondo");
+    }
+
+    /**
+     * MSX1 SCREEN 1 (el TMS9918 en modo 0, 32x24). El VDP no guarda la
+     * pantalla como una foto: la reconstruye con tres tablas y por eso el
+     * resultado no puede ser un byte por celda.
+     *
+     * <ul>
+     *   <li><b>patterns</b>: tabla de generadores, 256 patrones de 8 bytes en
+     *       1bpp (un byte por fila, pixel izquierdo en el bit alto). Como solo
+     *       caben 256, los bloques iguales de la imagen se repiten una sola vez
+     *       y el mapa decide donde se usa cada uno.</li>
+     *   <li><b>map</b>: tabla de nombres, un byte por celda de 8x8 con el
+     *       numero de patron (0-255).</li>
+     *   <li><b>colors</b>: tabla de color, <b>un byte por cada 8
+     *       caracteres</b>: el VDP divide el numero de caracter por 8, asi que
+     *       los 256 patrones caben en 32 bytes. Nibble alto = primer plano,
+     *       nibble bajo = fondo, y un nibble a 0 es transparente.</li>
+     * </ul>
+     *
+     * <p>Como la tabla de color es por grupos de 8, los numeros de caracter se
+     * reordenan por color antes de repartirlos: asi los que comparten color caen
+     * en el mismo grupo y el byte de color les sirve a los ocho. Solo el ultimo
+     * grupo de cada color puede mezclarlo con el color siguiente, y ahi se
+     * lleva el color que mas se repite.</p>
+     *
+     * <p>El TMS9918 solo tiene dos colores por bloque 8x8, asi que se eligen
+     * los dos mas usados del bloque.</p>
+     */
+    public static List<RetroImageLayer> packMsxTiles(int[] indices, int[] hardwareIndices, int width, int height) {
+        int tileSize = RetroImageMode.TILE_SIZE;
+        int charsX = width / tileSize;
+        int charsY = height / tileSize;
+        int cells = charsX * charsY;
+        int paletteSize = hardwareIndices.length;
+
+        List<byte[]> uniquePatterns = new ArrayList<>();
+        List<Integer> uniqueColours = new ArrayList<>();
+        int[] cellPattern = new int[cells];
+
+        for (int cell = 0; cell < cells; cell++) {
+            int charX = cell % charsX;
+            int charY = cell / charsX;
+            int[] charIndices = extractCell(indices, width, charX * tileSize, charY * tileSize, tileSize);
+            int[] selected = RetroQuantizer.mostUsedOrdered(charIndices, paletteSize, Math.min(2, paletteSize));
+            int background = valueAt(selected, 0);
+            int foreground = valueAt(selected, 1);
+            int[] remapped = RetroQuantizer.remap(charIndices, selected);
+
+            byte[] pattern = new byte[tileSize];
+            for (int row = 0; row < tileSize; row++) {
+                int value = 0;
+                for (int column = 0; column < tileSize; column++) {
+                    if (remapped[row * tileSize + column] == 1) {
+                        value |= 1 << (7 - column);
+                    }
+                }
+                pattern[row] = (byte) value;
+            }
+            int colour = (hardwareIndex(hardwareIndices, foreground) << 4)
+                    | hardwareIndex(hardwareIndices, background);
+
+            int existing = indexOfPattern(uniquePatterns, pattern);
+            if (existing < 0) {
+                if (uniquePatterns.size() >= RetroImageMode.MSX_SCREEN1_PATTERNS) {
+                    throw new IllegalArgumentException("SCREEN 1 del MSX1 solo tiene "
+                            + RetroImageMode.MSX_SCREEN1_PATTERNS
+                            + " patrones de 8 bytes (2048 bytes de VRAM) y la imagen necesita mas: "
+                            + "usa una imagen mas pequena.");
+                }
+                existing = uniquePatterns.size();
+                uniquePatterns.add(pattern);
+                uniqueColours.add(colour);
+            }
+            cellPattern[cell] = existing;
+        }
+
+        MsxCharset charset = groupByColour(uniqueColours);
+        byte[] patterns = new byte[uniquePatterns.size() * tileSize];
+        for (int pattern = 0; pattern < uniquePatterns.size(); pattern++) {
+            System.arraycopy(uniquePatterns.get(pattern), 0, patterns,
+                    charset.newCharacter()[pattern] * tileSize, tileSize);
+        }
+
+        byte[] map = new byte[cells];
+        for (int cell = 0; cell < cells; cell++) {
+            map[cell] = (byte) charset.newCharacter()[cellPattern[cell]];
+        }
+
+        return List.of(
+                new RetroImageLayer("patterns", "tabla de generadores: 8 bytes de 1bpp por patron (un byte por "
+                        + "fila, pixel izquierdo en el bit alto), " + patterns.length + " bytes", patterns),
+                new RetroImageLayer("map", "tabla de nombres: un byte por celda de 8x8 con el numero de patron", map),
+                new RetroImageLayer("colors", "tabla de color: un byte por cada 8 caracteres (el VDP divide el "
+                        + "numero de caracter por 8), nibble alto = primer plano, bajo = fondo, 0 = transparente",
+                        charset.colours()));
+    }
+
+    /**
+     * Reparte los patrones en los grupos de la tabla de color, que son de 8
+     * caracteres: el numero de caracter de un patron es su posicion, y el byte
+     * del grupo se lleva el color que mas usan los miembros del grupo.
+     *
+     * <p>Ordenando antes los patrones por color, los del mismo color caen
+     * juntos y cada grupo es de un solo color salvo, como mucho, en el ultimo
+     * grupo de cada color. Asi el color de lamayoria de los bloques es exacto y
+     * el numero de grupos siempre es el minimo,ceil(patrones / 8), que es lo que
+     * hace que los datos quepan en los 32 bytes de la tabla.</p>
+     *
+     * @param colours color (nibble alto = primer plano, bajo = fondo) de cada
+     *        patron, en el orden en que se han ido encontrando
+     * @return el numero de caracter final de cada patron y el color de cada
+     *         grupo de la tabla de color
+     */
+    private static MsxCharset groupByColour(List<Integer> colours) {
+        int patterns = colours.size();
+        int perGroup = RetroImageMode.MSX_SCREEN1_CHARS_PER_COLOUR;
+        List<Integer> sorted = new ArrayList<>(patterns);
+        for (int pattern = 0; pattern < patterns; pattern++) {
+            sorted.add(pattern);
+        }
+        sorted.sort(Comparator.comparingInt(colours::get));
+
+        int[] newCharacter = new int[patterns];
+        for (int character = 0; character < patterns; character++) {
+            newCharacter[sorted.get(character)] = character;
+        }
+        byte[] groups = new byte[msxColourTableLength(patterns)];
+        for (int group = 0; group < groups.length; group++) {
+            groups[group] = (byte) dominantColour(colours, sorted, group * perGroup, perGroup, patterns);
+        }
+        return new MsxCharset(newCharacter, groups);
+    }
+
+    /** Color que mas se repite en un grupo de la tabla de color. */
+    private static int dominantColour(List<Integer> colours, List<Integer> sorted, int from, int perGroup, int patterns) {
+        int end = Math.min(from + perGroup, patterns);
+        int best = colours.get(sorted.get(from));
+        int bestCount = 0;
+        for (int position = from; position < end; position++) {
+            int colour = colours.get(sorted.get(position));
+            int count = 0;
+            for (int other = from; other < end; other++) {
+                if (colours.get(sorted.get(other)) == colour) {
+                    count++;
+                }
+            }
+            if (count > bestCount) {
+                bestCount = count;
+                best = colour;
+            }
+        }
+        return best;
+    }
+
+    /** Bytes de la tabla de color de SCREEN 1: uno por cada 8 caracteres. */
+    public static int msxColourTableLength(int patterns) {
+        return (patterns + RetroImageMode.MSX_SCREEN1_CHARS_PER_COLOUR - 1)
+                / RetroImageMode.MSX_SCREEN1_CHARS_PER_COLOUR;
+    }
+
+    /**
+     * Numeros de caracter de los patrones de MSX ya agrupados por color.
+     *
+     * @param newCharacter numero de caracter final de cada patron original
+     * @param colours color de cada grupo de la tabla de color
+     */
+    private record MsxCharset(int[] newCharacter, byte[] colours) {
+    }
+
+    private static int indexOfPattern(List<byte[]> patterns, byte[] pattern) {
+        for (int i = 0; i < patterns.size(); i++) {
+            if (Arrays.equals(patterns.get(i), pattern)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Caracteres de 8x8 en 1bpp con un byte de color por caracter. Lo usa el
+     * charset del C64, que guarda el color en el color RAM con el primer plano
+     * en el nibble alto y el fondo en el bajo.
+     */
+    private static List<RetroImageLayer> packCharset1bpp(int[] indices, int[] hardwareIndices, int width, int height,
+                                                          String patternsName, String patternsDescription,
+                                                          String colorsName, String colorsDescription) {
         int tileSize = RetroImageMode.TILE_SIZE;
         int charsX = width / tileSize;
         int charsY = height / tileSize;
@@ -482,8 +675,8 @@ public final class RetroImagePacker {
             }
         }
         return List.of(
-                new RetroImageLayer("chars", "caracteres 8x8 en 1bpp", chars),
-                new RetroImageLayer("colors", "color RAM por caracter: nibble alto = primer plano, bajo = fondo", colors));
+                new RetroImageLayer(patternsName, patternsDescription, chars),
+                new RetroImageLayer(colorsName, colorsDescription, colors));
     }
 
     /**
@@ -536,6 +729,7 @@ public final class RetroImagePacker {
         return switch (mode.getLayout()) {
             case C64_CHARSET -> List.of(baseName + "_chars", baseName + "_colors");
             case C64_BITMAP -> List.of(baseName + "_bitmap", baseName + "_screen", baseName + "_colors");
+            case MSX_TILES -> List.of(baseName + "_patterns", baseName + "_map", baseName + "_colors");
             case NES_2BPP -> List.of(baseName, baseName + "_attributes", baseName + "_palette");
             default -> List.of(baseName);
         };

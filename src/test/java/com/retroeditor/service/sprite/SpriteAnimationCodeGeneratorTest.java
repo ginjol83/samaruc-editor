@@ -199,6 +199,51 @@ class SpriteAnimationCodeGeneratorTest {
     }
 
     @Test
+    void msxEmitsOneBitPatternsAndTheSpriteColours() {
+        String code = gen.generate(SpriteAnimationCodeGenerator.Platform.MSX,
+                frames(16, 8, 2), List.of(4, 6), "msx_spr", CONST_DEFINES);
+
+        assertTrue(code.contains("#define MSX_SPR_BYTES_PER_FRAME 16"));
+        assertTrue(code.contains("#define MSX_SPR_COLOR_BYTES_PER_FRAME 2"));
+        assertTrue(code.contains("const unsigned char msx_spr_frame_0[] = {"));
+        assertTrue(code.contains("const unsigned char msx_spr_colors_0[] = {"));
+        assertTrue(code.contains("msx_spr_colors[MSX_SPR_FRAME_COUNT] = {msx_spr_colors_0"));
+        assertTrue(code.contains("set_sprite_8(tile, msx_spr_frames[anim_i] + tile * 8);"));
+        assertTrue(code.contains("put_sprite_8(id, x, y, tile, msx_spr_colors[anim_i][tile]);"));
+        assertFalse(code.contains("vwrite(msx_spr"),
+                "set_sprite_8 ya copia los patrones al generador de sprites, no hay que volcar a 0x0000");
+        assertCommonShape(code, "MSX_SPR");
+    }
+
+    @Test
+    void msxSpriteColourIsASingleFourBitTmsIndex() {
+        int[][] f = new int[8][8];
+        for (int y = 0; y < 8; y++) {
+            for (int x = 0; x < 8; x++) f[y][x] = x < 5 ? 7 : 2;
+        }
+
+        String code = gen.generate(SpriteAnimationCodeGenerator.Platform.MSX,
+                List.<int[][]>of(f), null, "msx_dom", CONST_DEFINES);
+
+        assertTrue(code.contains("0x07, // color del sprite (0, 0) [frame 0]"),
+                "El atributo de sprite del TMS9918 es un unico indice de 4 bits, no dos nibbles");
+    }
+
+    @Test
+    void msxPatternsAreOneBitPerPixel() {
+        int[][] f = new int[8][8];
+        f[0][0] = 1;
+        f[0][7] = 1;
+
+        String code = gen.generate(SpriteAnimationCodeGenerator.Platform.MSX,
+                List.<int[][]>of(f), null, "msx_bits", CONST_DEFINES);
+
+        assertTrue(code.contains("0x81,"), "Un byte por fila con el pixel de la izquierda en el bit alto");
+        assertTrue(code.indexOf("0x81,") < code.indexOf("0x00,"),
+                "La unica fila con pixeles del tile es la primera");
+    }
+
+    @Test
     void gameBoyIncludesStdintAndUsesUint8Tables() {
         String code = gen.generate(SpriteAnimationCodeGenerator.Platform.GAMEBOY,
                 frames(8, 8, 1), null, "spr", CONST_DEFINES);

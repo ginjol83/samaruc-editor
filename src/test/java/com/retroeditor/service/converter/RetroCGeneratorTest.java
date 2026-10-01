@@ -59,12 +59,12 @@ class RetroCGeneratorTest {
         String code = generator.generate(conversion, RetroExportOptions.defaults("tiles"));
 
         assertTrue(code.contains("Bytes de CRAM para escribir en $C000: 0x00 0x03"));
-        assertTrue(code.contains("(transparente en sprites)"));
+        assertTrue(code.contains("(transparente)"));
         assertTrue(code.contains("const unsigned char tiles[] = {"));
     }
 
     @Test
-    void generate_ForMsx_EmitsSmsIncludeAndCommentsVdpCram() {
+    void generate_ForMsx_EmitsTheScreenOneMapsAndNoCram() {
         int[] pixels = new int[8 * 8];
         Arrays.fill(pixels, 0xFFFF0000);
         pixels[0] = 0x00FFFFFF;
@@ -74,9 +74,14 @@ class RetroCGeneratorTest {
         String code = generator.generate(conversion, RetroExportOptions.defaults("tiles"));
 
         assertTrue(code.contains("#include <msx.h>"), "El codigo MSX incluye la cabecera de MSX-C");
-        assertTrue(code.contains("Paleta MSX1 (%00BBGGRR"), "EL comentario explica el layout de 6 bits");
-        assertTrue(code.contains("0x00 0x03"), "Transparente y rojo claro en la tabla CRAM");
-        assertTrue(code.contains("const unsigned char tiles[] = {"));
+        assertTrue(code.contains("#include <msx/gfx.h>"), "set_mode y los sprites viven en msx/gfx.h");
+        assertTrue(code.contains("tabla de nombres 0x1800"), "El comentario indica donde va cada capa");
+        assertTrue(code.contains("tabla de color 0x2000"),
+                "La tabla de color de SCREEN 1 va a 0x2000, no a 0x1800");
+        assertFalse(code.contains("CRAM"), "El MSX1 no escribe la CRAM: los colores van por caracter");
+        assertTrue(code.contains("const unsigned char tiles_patterns[] = {"));
+        assertTrue(code.contains("const unsigned char tiles_map[] = {"));
+        assertTrue(code.contains("const unsigned char tiles_colors[] = {"));
     }
 
     @Test

@@ -11,7 +11,7 @@ import java.util.List;
  *   <li>la paleta de destino,</li>
  *   <li>el numero de colores simultaneos,</li>
  *   <li>las capas de datos que hay que generar (algunas maquinas, como el
- *       C64, separan el pixel del color en dos arrays).</li>
+ *       C64 y el MSX, separan el pixel del color en dos arrays).</li>
  * </ul>
  */
 public enum RetroImageMode {
@@ -61,12 +61,24 @@ public enum RetroImageMode {
     GAME_GEAR_TILES(RetroImagePlatform.GAME_GEAR, "Game Gear modo 4 (tiles 4bpp)", 4, 256, 224, 16, Layout.TILE_PLANAR),
 
     /**
-     * MSX: 256x192 de tiles 8x8 a 4bpp, mismo empaquetado planar por columnas
-     * que el Master System (el MSX1 comparte el TMS9918 y su CRAM de 6 bits).
-     * La imagen se puede pintar por software en SCREEN 1/2 desde los dos
-     * planos, como hace la plantilla {@code msx-c}.
+     * MSX1 SCREEN 1 (el TMS9918 en modo 0): 256x192 de 32x24 caracteres 8x8 en
+     * 1bpp, con el pixel de la izquierda en el bit alto y dos colores por
+     * caracter (nibble alto = primer plano, nibble bajo = fondo; un nibble a 0
+     * es transparente).
+     *
+     * <p>El VDP reconstruye la pantalla con tres tablas, no con un byte por
+     * celda: la de generadores (256 patrones de 8 bytes, 2048 bytes en total,
+     * con los repetidos escritos una sola vez), la de nombres (un byte por
+     * celda con el numero de patron) y la de color, que lleva <b>un byte por
+     * cada 8 caracteres</b> porque el VDP divide el numero de caracter por 8.
+     * Por eso el color de un bloque depende del grupo de 8 en el que caiga su
+     * numero de patron.</p>
+     *
+     * <p>El TMS9918 no tiene ningun modo de tiles a 4bpp: sus dos planos de
+     * bits por pixel solo existen en SCREEN 3, donde cada caracter son 8 bytes
+     * de color por bloques de 4x4.</p>
      */
-    MSX_TILES(RetroImagePlatform.MSX, "MSX tiles 4bpp (TMS9918)", 4, 256, 192, 16, Layout.TILE_PLANAR),
+    MSX_TILES(RetroImagePlatform.MSX, "MSX SCREEN 1 (1bpp + tabla de color)", 1, 256, 192, 16, Layout.MSX_TILES),
 
     /**
      * NES: 256x240 de tiles 8x8 a 2bpp, 16 bytes por tile (los 8 primeros
@@ -78,6 +90,20 @@ public enum RetroImageMode {
 
     /** Tamano de tile en pixeles de los modos basados en tiles. */
     public static final int TILE_SIZE = 8;
+
+    /**
+     * Patrones que caben en la tabla de generadores de SCREEN 1 del MSX1:
+     * 2048 bytes de VRAM a 8 bytes por patron. Los bloques repetidos de la
+     * imagen comparten patron, asi que una imagen puede tener mas celdas que
+     * patrones, pero no mas patrones que este numero.
+     */
+    public static final int MSX_SCREEN1_PATTERNS = 2048 / TILE_SIZE;
+
+    /**
+     * Caracteres que comparten un byte de la tabla de color de SCREEN 1 del
+     * MSX1: el hardware obtiene el byte dividiendo el numero de caracter por 8.
+     */
+    public static final int MSX_SCREEN1_CHARS_PER_COLOUR = 8;
 
     /** Formato en el que se guardan los pixeles de cada modo. */
     public enum Layout {
@@ -91,6 +117,8 @@ public enum RetroImageMode {
         C64_BITMAP,
         /** Tiles 8x8 de 4bpp: por columna, byte del plano bajo y byte del plano alto. */
         TILE_PLANAR,
+        /** TMS9918: 1bpp por caracter 8x8 (8 bytes) + 1 byte de tabla de color por caracter. */
+        MSX_TILES,
         /** NES: tiles 8x8 de 2bpp (16 bytes por tile, plano 0 y plano 1) + atributos por celda de 16x16. */
         NES_2BPP
     }
@@ -164,6 +192,10 @@ public enum RetroImageMode {
      * {@code $C000}; en el Game Gear es la palabra de 12 bits
      * {@code 0BBBBBGGG GGGRRRRR}, que se escribe en little endian.
      *
+     * <p>El MSX1 no entra aqui: su tabla de color de SCREEN 1 guarda indices de
+     * 4 bits, no los 6 bits de la CRAM, y el registro 7 del TMS9918 solo define
+     * el color de texto y el del borde.</p>
+     *
      * @param colors colores ARGB que se han usado en la conversion, en el mismo
      *        orden que los indices de los pixeles
      */
@@ -171,7 +203,6 @@ public enum RetroImageMode {
         return switch (this) {
             case MASTER_SYSTEM_TILES -> cram(colors, RetroHardwarePalette::masterSystemCramByte);
             case GAME_GEAR_TILES -> cram(colors, RetroHardwarePalette::gameGearCramValue);
-            case MSX_TILES -> cram(colors, RetroHardwarePalette::msxCramByte);
             case NES_TILES -> null;
             default -> null;
         };
@@ -189,21 +220,20 @@ public enum RetroImageMode {
     public int pixelsPerByte() {
         return switch (layout) {
             case LINEAR, GTIA_MODE_7 -> 8 / bitsPerPixel;
-            case C64_CHARSET -> 8;
-            case C64_BITMAP -> 8;
+            case C64_CHARSET, C64_BITMAP, MSX_TILES -> 8;
             case TILE_PLANAR -> 2;
             case NES_2BPP -> 4;
         };
     }
 
     /**
-     * Bytes por linea de la capa de pixeles. En los modos por celda (C64) una
-     * linea son los bytes de todos los caracteres o celdas de la fila.
+     * Bytes por linea de la capa de pixeles. En los modos por celda (C64, MSX)
+     * una linea son los bytes de todos los caracteres o celdas de la fila.
      */
     public int bytesPerRow(int width) {
         return switch (layout) {
             case LINEAR, GTIA_MODE_7 -> width * bitsPerPixel / 8;
-            case C64_CHARSET -> width / TILE_SIZE * TILE_SIZE;
+            case C64_CHARSET, MSX_TILES -> width / TILE_SIZE * TILE_SIZE;
             case C64_BITMAP -> width / 4;
             case TILE_PLANAR -> width / TILE_SIZE * (TILE_SIZE * 4);
             case NES_2BPP -> width / TILE_SIZE * (TILE_SIZE * 2);
@@ -213,7 +243,8 @@ public enum RetroImageMode {
     /** El modo obliga a que el alto y el ancho sean multiplos de 8. */
     public boolean requiresTileAligned() {
         return layout == Layout.TILE_PLANAR || layout == Layout.C64_CHARSET
-                || layout == Layout.C64_BITMAP || layout == Layout.NES_2BPP;
+                || layout == Layout.C64_BITMAP || layout == Layout.MSX_TILES
+                || layout == Layout.NES_2BPP;
     }
 
     /** Valida las dimensiones para este modo. */
@@ -231,7 +262,13 @@ public enum RetroImageMode {
         }
     }
 
-    /** Modos que usan paleta de sprites con el color 0 transparente. */
+    /**
+     * Modos en los que el indice 0 de la paleta no es un color mas, sino el
+     * transparente: en el Master System y el Game Gear es el color de sprite
+     * transparente y en el MSX el nibble a 0 de la tabla de color, que deja ver
+     * el fondo del borde. Sirve para que los pixeles transparentes de la imagen
+     * se queden en esa posicion.
+     */
     public boolean hasTransparentFirstColor() {
         return this == MASTER_SYSTEM_TILES || this == GAME_GEAR_TILES || this == MSX_TILES;
     }

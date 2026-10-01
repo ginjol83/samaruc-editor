@@ -44,7 +44,7 @@ public final class RetroCGenerator {
            .append(conversion.totalBytes()).append(" bytes en total\n");
 
         if (mode.getPlatform() == RetroImagePlatform.MSX) {
-            out.append("\n#include <msx.h>\n\n");
+            out.append("\n#include <msx.h>\n#include <msx/gfx.h>\n\n");
         } else if (mode.getPlatform() == RetroImagePlatform.NES) {
             out.append("\n#include <nes.h>\n\n");
         }
@@ -77,9 +77,13 @@ public final class RetroCGenerator {
             out.append(String.format(Locale.ROOT, "//  %2d: #%06X", i, palette[i] & 0xFFFFFF));
             if (mode.getPlatform() == RetroImagePlatform.C64) {
                 out.append(String.format(Locale.ROOT, "  (VIC-II %d)", conversion.hardwareIndex(i)));
+            } else if (mode.getPlatform() == RetroImagePlatform.MSX) {
+                // En la tabla de color de SCREEN 1 lo que se escribe es el indice
+                // del TMS9918, no la posicion de la paleta efectiva.
+                out.append(String.format(Locale.ROOT, "  (TMS9918 %d)", conversion.hardwareIndex(i)));
             }
-            if (i == 0 && mode.hasTransparentFirstColor()) {
-                out.append("  (transparente en sprites)");
+            if (i == 0 && mode.hasTransparentFirstColor() && conversion.hardwareIndex(0) == 0) {
+                out.append("  (transparente)");
             }
             out.append('\n');
         }
@@ -96,6 +100,25 @@ public final class RetroCGenerator {
         }
         if (mode == RetroImageMode.C64_CHARSET) {
             out.append("// En el color RAM el nibble alto es el primer plano y el bajo el fondo\n");
+        }
+        if (mode == RetroImageMode.MSX_TILES) {
+            out.append("// SCREEN 1 del TMS9918 (32x24, el VDP en modo 0). El VDP no guarda la\n");
+            out.append("// pantalla: la reconstruye con estas tres tablas de la VRAM.\n");
+            out.append("//   *_patterns  tabla de generadores 0x0000, 8 bytes de 1bpp por patron\n");
+            out.append("//                (un byte por fila, pixel izquierdo en el bit alto). Solo\n");
+            out.append("//                hay 256 patrones, por eso los bloques iguales se repiten\n");
+            out.append("//                una vez y el mapa decide donde se usa cada uno.\n");
+            out.append("//   *_map       tabla de nombres 0x1800, un byte por celda de 8x8 con el\n");
+            out.append("//                numero de patron, en orden de izquierda a derecha y de\n");
+            out.append("//                arriba abajo.\n");
+            out.append("//   *_colors    tabla de color 0x2000, un byte por cada 8 caracteres\n");
+            out.append("//                (el hardware divide el numero de caracter por 8), asi que\n");
+            out.append("//                los 256 patrones caben en 32 bytes. Nibble alto = primer\n");
+            out.append("//                plano, nibble bajo = fondo; un nibble a 0 es transparente y\n");
+            out.append("//                se ve el color del borde (registro 7 del VDP).\n");
+            out.append("//   vwrite(<origen RAM>, <destino VRAM>, <bytes>) escribe en la VRAM\n");
+            out.append("//   Sprites: generadores 0x3800 (8 bytes por patron 8x8) y atributos\n");
+            out.append("//   0x1B00 (Y, X, patron y color), maximo 4 sprites por linea.\n");
         }
         if (mode == RetroImageMode.ATARI_MODE_7) {
             out.append("// Nibble alto = PRIOR 3, nibble bajo = color del playfield\n");
@@ -120,15 +143,6 @@ public final class RetroCGenerator {
             for (int i = 0; i < cram.length; i++) {
                 out.append(String.format(Locale.ROOT, "0x%02X%02X%s", (cram[i] >> 8) & 0xFF, cram[i] & 0xFF,
                         i == cram.length - 1 ? "" : " "));
-            }
-            out.append('\n');
-            return;
-        }
-        if (conversion.mode() == RetroImageMode.MSX_TILES) {
-            out.append("// Paleta MSX1 (%00BBGGRR, 6 bits) para escribir por el VDP (puerto #99/#98,\n");
-            out.append("// escritura en modo reg 7: set_vdp). Tabla CRAM: ");
-            for (int i = 0; i < cram.length; i++) {
-                out.append(String.format(Locale.ROOT, "0x%02X%s", cram[i] & 0xFF, i == cram.length - 1 ? "" : " "));
             }
             out.append('\n');
             return;

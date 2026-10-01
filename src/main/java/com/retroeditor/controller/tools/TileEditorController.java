@@ -79,7 +79,8 @@ public class TileEditorController {
         C64("Commodore 64 (1bpp + color RAM - 16 colores)"),
         CPC("Amstrad CPC (modo 0 - 4 colores)"),
         MASTER_SYSTEM("Sega Master System (2bpp - 4 colores)"),
-        GAME_GEAR("Game Gear (4bpp - 16 colores)");
+        GAME_GEAR("Game Gear (4bpp - 16 colores)"),
+        MSX("MSX / TMS9918 (1bpp + tabla de color - 16 colores)");
 
         private final String label;
         PlatformMode(String label) { this.label = label; }
@@ -273,6 +274,14 @@ public class TileEditorController {
         Color.web("#cc0000"), Color.web("#ff4444"), Color.web("#ff8800"), Color.web("#ffcc00"),
         Color.web("#00cc00"), Color.web("#44ff44"), Color.web("#00cccc"), Color.web("#44ffff"),
         Color.web("#0000cc"), Color.web("#4444ff"), Color.web("#cc00cc"), Color.web("#ff44ff")
+    };
+
+    /** Los 16 colores fijos del TMS9918; el 0 es el transparente. */
+    private final Color[] msxPalette = new Color[] {
+        Color.BLACK, Color.BLACK, Color.web("#21c842"), Color.web("#5edc78"),
+        Color.web("#5455ed"), Color.web("#7d76fc"), Color.web("#d4524d"), Color.web("#42ebf5"),
+        Color.web("#fc5554"), Color.web("#ff7978"), Color.web("#d4c154"), Color.web("#e6ce80"),
+        Color.web("#21b03b"), Color.web("#c95bba"), Color.web("#cccccc"), Color.WHITE
     };
 
     public Node createNode(File currentProjectDir, ResourceBundle bundle, Consumer<File> onExported) {
@@ -1723,10 +1732,14 @@ redrawCanvas(canvas);
                 if (countNonZeroColors(pixels, by, bx) > 1) clashes++;
             }
         }
-        if (clashes == 0 || currentPlatform == PlatformMode.ZX_SPECTRUM) {
-            zxClashLabel.setText(clashes > 0
-                    ? fmt(msg(bundle, "tool.tileEditor.clash", "{0} bloque(s) con más de 1 INK (limitación 8x8 del ZX Spectrum)"), clashes)
-                    : "");
+        if (clashes == 0) {
+            zxClashLabel.setText("");
+        } else if (currentPlatform == PlatformMode.ZX_SPECTRUM) {
+            zxClashLabel.setText(fmt(msg(bundle, "tool.tileEditor.clash",
+                    "{0} bloque(s) con más de 1 INK (limitación 8x8 del ZX Spectrum)"), clashes));
+        } else if (currentPlatform == PlatformMode.MSX) {
+            zxClashLabel.setText(fmt(msg(bundle, "tool.tileEditor.clashMsx",
+                    "{0} tile(s) con más de un color activo (el TMS9918 pinta cada bloque 8x8 con un único color)"), clashes));
         } else {
             zxClashLabel.setText(fmt(msg(bundle, "tool.tileEditor.clashC64",
                     "{0} tile(s) con más de un color activo (el C64 solo admite un tono por bloque 8x8)"), clashes));
@@ -1746,6 +1759,7 @@ redrawCanvas(canvas);
         if (platform == PlatformMode.CPC) return cpcPalette;
         if (platform == PlatformMode.MASTER_SYSTEM) return smsPalette;
         if (platform == PlatformMode.GAME_GEAR) return ggPalette;
+        if (platform == PlatformMode.MSX) return msxPalette;
         return gbPalette;
     }
 
@@ -1756,12 +1770,14 @@ redrawCanvas(canvas);
     }
 
     /**
-     * Plataformas con un único tono por bloque 8x8: ZX Spectrum (1 INK) y
-     * C64 (memoria de color por tile). Pintar sobre un bloque con otro color
+     * Plataformas con un único tono por bloque 8x8: ZX Spectrum (1 INK),
+     * C64 (memoria de color por tile) y MSX (el byte de atributo del sprite
+     * solo lleva un indice de color). Pintar sobre un bloque con otro color
      * recolorea el bloque completo; el índice 0 borra.
      */
     private boolean blockColorMode() {
-        return currentPlatform == PlatformMode.ZX_SPECTRUM || currentPlatform == PlatformMode.C64;
+        return currentPlatform == PlatformMode.ZX_SPECTRUM || currentPlatform == PlatformMode.C64
+                || currentPlatform == PlatformMode.MSX;
     }
 
     private void rebuildColorStrip() {
@@ -2220,6 +2236,7 @@ redrawCanvas(canvas);
             case CPC: platform = SpriteAnimationCodeGenerator.Platform.CPC; break;
             case MASTER_SYSTEM: platform = SpriteAnimationCodeGenerator.Platform.MASTER_SYSTEM; break;
             case GAME_GEAR: platform = SpriteAnimationCodeGenerator.Platform.GAME_GEAR; break;
+            case MSX: platform = SpriteAnimationCodeGenerator.Platform.MSX; break;
             default: platform = SpriteAnimationCodeGenerator.Platform.GAMEBOY;
         }
         outputArea.setText(animCodeGenerator.generate(platform, framePixels, durations, symbolName, options));
@@ -2307,6 +2324,7 @@ redrawCanvas(canvas);
         if (platform == PlatformMode.CPC) return helpCpc(symbol, up);
         if (platform == PlatformMode.MASTER_SYSTEM) return helpMasterSystem(symbol, up);
         if (platform == PlatformMode.GAME_GEAR) return helpGameGear(symbol, up);
+        if (platform == PlatformMode.MSX) return helpMsx(symbol, up);
         return helpGameBoy(symbol, up);
     }
 
@@ -2492,6 +2510,71 @@ redrawCanvas(canvas);
 
                 Notas: 16 colores por píxel desde la paleta 4096 de Game Gear.
                 Color 0 = transparente.
+                """.replace("__SYMBOL__", symbol).replace("__UP__", up);
+    }
+
+    private String helpMsx(String symbol, String up) {
+        return """
+                JUEGO - MSX1 / TMS9918 (z88dk, sprites 8x8 en 1bpp)
+
+                El TMS9918 no tiene tiles a 4bpp: cada tile 8x8 son 8 bytes de 1bpp
+                (un byte por fila, pixel izquierdo en el bit alto) y un byte de color.
+                El indice 0 del plano de pixeles es el que se pinta con el color del
+                sprite, asi que el indice 0 del editor es el fondo del bloque.
+
+                Ojo con el color: en un sprite es un indice del TMS9918 del 0 al 15 en
+                el byte de atributo (un nibble, no dos) y si vale 0 el sprite no se ve.
+                Los dos nibbles (primer plano y fondo) solo existen en la tabla de
+                color de SCREEN 1, y ademas es un byte por cada 8 caracteres.
+
+                Por frame se exportan los patrones (_frame_N), los colores por tile
+                (_colors_N) y las tablas _frames, _colors y _durations.
+
+                1) Ponerse en SCREEN 1 y usar los tiles como sprites. set_mode(1) es
+                   SCREEN 1 (32x24) en z88dk; set_mode(0) seria el texto de 40 columnas.
+                   (set_mode, vwrite y los sprites viven en msx/gfx.h, no en msx.h):
+                     #include <msx.h>
+                     #include <msx/gfx.h>
+                     set_mode(1);
+                     set_sprite_8(tile, __SYMBOL___frames[anim_i] + tile * 8);
+                     put_sprite_8(id, x, y, tile, __SYMBOL___colors[anim_i][tile]);
+
+                   El generador de sprites esta en 0x3800 (8 bytes por patron, la
+                   direccion es el numero de patron por 8) y los atributos en 0x1B00
+                   (Y, X, patron y color, 4 bytes por sprite). Solo se ven 4 sprites
+                   por linea horizontal.
+
+                2) Usarlos como fondo. Los patrones son los mismos, pero el color va
+                   en la tabla de 0x2000, que es un byte por cada 8 caracteres, y el
+                   mapa de nombres (un byte por celda con el numero de patron) en
+                   0x1800. La tabla de generadores 0x0000 solo admite 256 patrones:
+                     vwrite(__SYMBOL___frames[anim_i], 0x0000, __UP___BYTES_PER_FRAME);
+                   Asi que un frame con mas de 32 tiles no cabe entero como fondo, y
+                   los bytes de _colors no son utilizables tal cual: habria que
+                   agrupar los tiles de 8 en 8 por color. El exportado del conversor
+                   de PNG si hace esa agrupacion.
+
+                3) Avanzar la animación:
+                     if (++anim_ticks >= __SYMBOL___durations[anim_i]) {
+                         anim_ticks = 0;
+                         anim_i = (anim_i + 1) % __UP___FRAME_COUNT;
+                     }
+
+                Sprites 16x16: el TMS9918 usa 32 bytes por patron y los ordena por
+                columnas, los 8 pixeles de la izquierda primero y despues los de la
+                derecha (direccion = (patron AND 252) * 8). El editor exporta los
+                tiles en su orden normal, asi que para 16x16 hay que copiar cada
+                bloque como los dos tiles de la izquierda seguidos de los de la
+                derecha. El bit 1 del registro 1 del VDP elige el formato 16x16.
+
+                Paleta (indice -> color): 1 negro, 2 verde medio, 3 verde claro,
+                4 azul oscuro, 5 azul claro, 6 rojo oscuro, 7 cyan, 8 rojo medio,
+                9 rojo claro, 10 amarillo oscuro, 11 amarillo claro, 12 verde oscuro,
+                13 magenta, 14 gris, 15 blanco. 0 = transparente (fondo del borde).
+
+                Limitacion real (un color por bloque 8x8): el editor recolorea el
+                bloque al pintar con otro color y marca en rojo los tiles con tonos
+                mezclados.
                 """.replace("__SYMBOL__", symbol).replace("__UP__", up);
     }
 

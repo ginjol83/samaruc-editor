@@ -3,6 +3,7 @@ package com.retroeditor.service.converter;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -123,7 +124,7 @@ class PngToRetroImageConverterTest {
     }
 
     @Test
-    void convertPixels_ForMsx_EmitsSixBitCramLikeTheSharedVdp() {
+    void convertPixels_ForMsx_SplitsPatternsNameTableAndColourTable() {
         int[] pixels = new int[8 * 8];
         Arrays.fill(pixels, 0xFFFF0000);
         pixels[0] = 0x00FFFFFF;
@@ -132,11 +133,21 @@ class PngToRetroImageConverterTest {
                 converter.convertPixels(pixels, RetroImageMode.MSX_TILES, 8, 8);
 
         assertEquals(0, conversion.indexAt(0, 0), "El pixel transparente se queda en el indice 0");
-        assertNotNull(conversion.cram());
-        assertEquals(2, conversion.cram().length, "Solo se exportan los colores usados");
-        assertEquals(0x00, conversion.cram()[0] & 0xFF, "El color 0 del TMS9918 es transparente");
-        assertEquals(0x03, conversion.cram()[1] & 0xFF, "Rojo claro = %000011");
-        assertEquals(32, conversion.totalBytes(), "Un tile 8x8 de 4bpp ocupa 32 bytes");
+        assertNull(conversion.cram(), "El MSX1 elige dos colores por caracter, no una CRAM global");
+        assertEquals(3, conversion.layers().size());
+        assertEquals("patterns", conversion.layers().get(0).name());
+        assertEquals(8, conversion.layers().get(0).data().length, "SCREEN 1 guarda 8 bytes por patron en 1bpp");
+        assertEquals((byte) 0x80, conversion.layers().get(0).data()[0],
+                "Un byte por fila con el pixel de la izquierda en el bit alto");
+        assertEquals("map", conversion.layers().get(1).name());
+        assertEquals(1, conversion.layers().get(1).data().length, "Un byte por celda en la tabla de nombres");
+        assertEquals((byte) 0, conversion.layers().get(1).data()[0], "La celda usa el patron 0");
+        assertEquals("colors", conversion.layers().get(2).name());
+        assertEquals(1, conversion.layers().get(2).data().length, "Un byte de color por cada 8 caracteres");
+        assertEquals(0, conversion.layers().get(2).data()[0] >> 4, "Nibble alto = primer plano transparente");
+        assertEquals(conversion.hardwareIndex(conversion.indexAt(1, 0)),
+                conversion.layers().get(2).data()[0] & 0x0F, "Nibble bajo = fondo, con el indice del TMS9918");
+        assertEquals(10, conversion.totalBytes(), "8 de patron + 1 del mapa + 1 de color");
     }
 
     @Test
