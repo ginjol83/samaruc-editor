@@ -16,8 +16,13 @@ import java.util.List;
 public class GameBoyAudioPlayer {
     private static final float SAMPLE_RATE = 44100f;
 
-    /** Motor de sonido usado en la síntesis del preview. */
-    public enum SoundEngine { GAMEBOY, AY_3_8912, POKEY, SN76489, SID6581 }
+    /**
+     * Motor de sonido usado en la síntesis del preview.
+     * <p>La APU del NES (RP2A03) comparte con la de Game Boy el LFSR de ruido de 15 bits y el
+     * DAC no lineal de 4 bits, pero no el barrido del canal 1 ni el control de volumen del
+     * canal triangular, así que se distingue solo por su nombre.
+     */
+    public enum SoundEngine { GAMEBOY, APU_RP2A03, AY_3_8912, POKEY, SN76489, SID6581 }
 
     /**
      * Ruido del AY/YM: LFSR de 17 bits con retroalimentación XOR de las posiciones 16 y 13;
@@ -187,7 +192,8 @@ public class GameBoyAudioPlayer {
 
     /**
      * Onda cuadrada: el AY, el SN76489 y el POKEY (tono puro $A0) fijan el duty al 50 %; la APU
-     * de GB y el pulso del SID (ancho de pulso) lo ajustan al valor del tracker.
+     * de GB, la del NES (RP2A03) y el pulso del SID (ancho de pulso) lo ajustan al valor del
+     * tracker. El canal triangular del NES no es una cuadrada, el generador lo trata aparte.
      */
     private static double toneDuty(SoundEngine engine, String dutyCycle) {
         if (engine == SoundEngine.AY_3_8912 || engine == SoundEngine.SN76489 || engine == SoundEngine.POKEY) {
@@ -201,15 +207,18 @@ public class GameBoyAudioPlayer {
     }
 
     /**
-     * Amplitud por volumen: DAC lineales del AY, POKEY y SID (v/15); DAC no lineal de la APU de
-     * GB (raíz, para que las notas bajas no decaigan tanto) y atenuación logarítmica del SN76489
-     * (~2 dB por paso, 30 dB entre volumen 15 y 0).
+     * Amplitud por volumen: DAC lineales del AY, POKEY y SID (v/15); DAC no lineal de las APU
+     * de GB y NES (raíz, para que las notas bajas no decaigan tanto) y atenuación logarítmica
+     * del SN76489 (~2 dB por paso, 30 dB entre volumen 15 y 0).
      */
     private static double amplitude(SoundEngine engine, int volume, double max) {
         double v = (volume & 0x0F) / 15.0;
         double rel;
         switch (engine) {
-            case GAMEBOY: rel = Math.sqrt(v); break;
+            case GAMEBOY:
+            case APU_RP2A03:
+                rel = Math.sqrt(v);
+                break;
             case SN76489: rel = Math.pow(10.0, -(15.0 - v * 15.0) / 10.0); break;
             default: rel = v;
         }
@@ -221,6 +230,8 @@ public class GameBoyAudioPlayer {
      * con distinta textura "metálica": GB 15 bits, SN76489 16 bits, AY/POKEY 17 bits y SID 23 bits.
      * <ul>
      *   <li>GB: LFSR de 15 bits (XOR de bits 0 y 1, realimentado al bit 14) de la APU.</li>
+     *   <li>NES (RP2A03): el mismo LFSR de 15 bits que la APU de GB; el bit 5 de $400C elige
+     *       entre el modo corto (93 pasos) y el largo (32767 pasos).</li>
      *   <li>SN76489: LFSR de 16 bits en modo "ruido blanco" (XOR de bits 0 y 1, realimentado al bit 15).</li>
      *   <li>AY-3-8912: LFSR de 17 bits (XOR de bits 0 y 3, realimentado al bit 16), a ~12,3 kHz con R6=8.</li>
      *   <li>POKEY: aproximación al poly counter de 17 bits (LFSR maximal); el tracker Atari solo usa tono puro.</li>
@@ -230,6 +241,21 @@ public class GameBoyAudioPlayer {
     private static double[] noiseSamples(int count, SoundEngine engine, double amp) {
         double[] out = new double[count];
         switch (engine) {
+            case APU_RP2A03: {
+                // La APU del NES reutiliza el LFSR de 15 bits de la de Game Boy
+                // (XOR de bits 0 y 1 realimentado al bit 14). El tracker solo
+                // expone el modo largo, así que el bit 5 de $400C se deja a 0.
+                int lfsr = 0x7FFF;
+                for (int i = 0; i < count; i++) {
+                    int bit = lfsr & 1;
+                    lfsr >>= 1;
+                    if ((bit ^ (lfsr & 1)) != 0) {
+                        lfsr |= 0x4000;
+                    }
+                    out[i] = (lfsr & 1) == 0 ? amp : -amp;
+                }
+                break;
+            }
             case SN76489: {
                 int lfsr = 0x8000; // 16 bits
                 for (int i = 0; i < count; i++) {

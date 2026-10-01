@@ -8,7 +8,7 @@ Este documento desglosa en **pasos ejecutables** los puntos 2 y 3 del análisis 
 - Menú Ayuda: `CC65`, `openMSX`, `Mesen` (`HelpController` + `MainView.fxml` + `MainController` + claves `menu.help.*` en 6 bundles + command palette).
 - README/gitignore específicos de **CPC** (`FXUtils.getCpcReadmeContent`, `appendCpcGitignore`).
 
-Estado de ejecución: **P2.1–P2.8 HECHAS**, ver secciones. Suite actual: 668 tests, 0 fallos, 1 skipped. Antes de P2.6 se corrigieron los builds rotos de SMS/GG/CPC/NES (auditoría en `docs/analisis-sistemas-8-bits-soportados.md` §1.11).
+Estado de ejecución: **P2.1–P2.9 HECHAS**, ver secciones. Suite actual: 676 tests, 0 fallos, 1 skipped. Antes de P2.6 se corrigieron los builds rotos de SMS/GG/CPC/NES (auditoría en `docs/analisis-sistemas-8-bits-soportados.md` §1.11).
 
 Cada paso indica **qué añadir**, **dónde**, **cómo verificarlo** y **esfuerzo**. Orden de ejecución recomendado: de menor a mayor dependencia. No hay ninguna dependencia entre puntos 2 y 3, se pueden intercalar.
 
@@ -101,9 +101,10 @@ Cada paso indica **qué añadir**, **dónde**, **cómo verificarlo** y **esfuerz
 
 ### P2.9 Editor de audio NES
 
-- **Qué**: nuevo `SoundEngine.APU_RP2A03` en `GameBoyAudioPlayer` (2× pulse con duty, triangle, noise, DPCM) + `SoundCodeGenerator.Platform.NES` (registros `$4000–$4017`, driver de frames) + entrada en la UI.
+- **Qué**: nuevo `SoundEngine.APU_RP2A03` en `GameBoyAudioPlayer` (2× pulse con duty, triangle y noise; DPCM se omite porque es reproducción de muestras, no síntesis) + `SoundCodeGenerator.Platform.NES` (registros `$4000–$4017` vía la struct `APU` de `<nes.h>` y `waitvsync` como base de tiempos) + entrada en la UI.
 - **Dónde**: `GameBoyAudioEditorController.java`, `GameBoyAudioPlayer.java`, `SoundCodeGenerator.java`, i18n.
 - **Verificar**: preview auditivo test con swing de frecuencias + build de código. Esfuerzo **M** (motor nuevo, parecido al del GB).
+- **Decisiones**: reloj NTSC `1789773` Hz, pulso `f = reloj / (16·(t+1))` y triangular `f = reloj / (32·(t+1))`; el barrido del pulso 1 se deja desactivado para que el tono no se desvíe de la afinación pedida; el triangular se controla vía `$4008` porque su DAC es fija (no hay volumen); los tiempos usan frames de vblank (`60,098 Hz`) en lugar de milisegundos reales.
 
 ---
 
@@ -151,7 +152,7 @@ Cada paso indica **qué añadir**, **dónde**, **cómo verificarlo** y **esfuerz
 - [x] **P2.6** editor de tiles MSX (2026-09-30) — `PlatformMode.MSX` + `generateMsx`; de paso se corrigió el formato de MSX del conversor (las tres tablas de SCREEN 1, no 4bpp) y la paleta (la real del TMS9918).
 - [x] **P2.7** editor de tiles NES (2026-10-01) — `PlatformMode.NES` + `generateNes` con los dos planos del PPU; de paso la casilla de pares 8×16 dejó de ser exclusiva del Game Boy.
 - [x] **P2.8** audio MSX (2026-10-01) — `SoundCodeGenerator.Platform.MSX` reutilizando el código AY: reloj del ZX (110838), puertos `$98`/`$99` y enmascarado del registro 7. De paso el `delay()` AY roto en las tres plataformas (no existía en z88dk y usaba `&FFFD`).
-- [ ] **P2.9** audio NES (APU nueva)
+- [x] **P2.9** audio NES (2026-10-01) - `SoundCodeGenerator.Platform.NES` y `SoundEngine.APU_RP2A03` con el LFSR de 15 bits de la APU. El generador escribe la struct `APU` de `<nes.h>` en vez de punteros crudos, y emite SFX y melodía con `waitvsync` como base de tiempos. Compilado y enlazado con `cl65 -t nes`. Dos bugs encontrados al compilar de verdad: las declaraciones de la melodía iban mezcladas con código (cc65 no lo permite) y los nombres de canal en español ("Pulso 2") no casaban con la búsqueda en inglés, así que el segundo pulso escribía sobre el primero.
 - [ ] **P3.1** funciones de sintaxis por plataforma
 - [ ] **P3.2** autocompletado por plataforma
 - [ ] **P3.3** editor de pantalla ZX

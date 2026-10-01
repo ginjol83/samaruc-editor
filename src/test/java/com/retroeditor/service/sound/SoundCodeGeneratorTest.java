@@ -411,6 +411,143 @@ class SoundCodeGeneratorTest {
     }
 
     // ======================================================================
+    // NES (APU RP2A03 / cc65)
+    // ======================================================================
+
+    @Test
+    void nesSfxToneUsesPulse1RegistersOfTheApuStruct() {
+        String code = gen.generateSfx(SoundCodeGenerator.Platform.NES, "Pulso 1", 440, 6, "50%", 300, false);
+
+        assertTrue(code.contains("#include <nes.h>"));
+        assertTrue(code.contains("void play_Pulso_1_effect(void) {"));
+        // $4015 habilita solo el pulso 1 (bit 0)
+        assertTrue(code.contains("APU.status = 0x01;"));
+        // t = 1789773 / (16 * 441) - 1 = 252, redondeado a 253 (0xFD); el byte bajo va en $4002
+        assertTrue(code.contains("APU.pulse[0].period_low = 0xFD;"));
+        assertTrue(code.contains("APU.pulse[0].len_period_high = 0x00;"));
+        assertTrue(code.contains("// Timer de 11 bits: f = 1789773 / (16 * (t + 1)) => t = 253"));
+        // duty 50 % = 2 (bits 7-6) | volumen constante (bit 4) | volumen 6
+        assertTrue(code.contains("APU.pulse[0].control = 0x96;"));
+        // El barrido se deja off: con sweep on el tono se desvía de la afinación pedida
+        assertTrue(code.contains("APU.pulse[0].ramp = 0x00;"));
+        assertTrue(code.contains("delay(300);"));
+        // Silencio: volumen a 0 conservando el duty, y $4015 a 0
+        assertTrue(code.contains("APU.pulse[0].control &= 0xF0;"));
+        assertTrue(code.contains("APU.status = 0x00;"));
+    }
+
+    @Test
+    void nesPulseTwoUsesTheSecondRegisterBlock() {
+        String code = gen.generateSfx(SoundCodeGenerator.Platform.NES, "Pulso 2", 440, 6, "50%", 200, false);
+
+        // $4015 bit 1 y el bloque de registros en $4004-$4007
+        assertTrue(code.contains("APU.status = 0x02;"));
+        assertTrue(code.contains("APU.pulse[1].period_low = 0xFD;"));
+        assertTrue(code.contains("APU.pulse[1].ramp = 0x00;"));
+        assertTrue(code.contains("APU.pulse[1].control = 0x96;"));
+        // Ninguna escritura debe tocar el bloque del pulso 1
+        assertFalse(code.contains("APU.pulse[0]."));
+        // La UI llama al canal "Pulso 2" en español: la busqueda es case-insensitive
+        assertTrue(code.contains("// Canal 2 (bit 1 de $4015)"));
+    }
+
+    @Test
+    void nesDutyMapsToTheThreeRegisterBits() {
+        // bits 7-6: 0 = 12.5 %, 1 = 25 %, 2 = 50 %, 3 = 75 %
+        String twelve = gen.generateSfx(SoundCodeGenerator.Platform.NES, "Pulso 1", 440, 6, "12.5%", 100, false);
+        String twentyFive = gen.generateSfx(SoundCodeGenerator.Platform.NES, "Pulso 1", 440, 6, "25%", 100, false);
+        String fifty = gen.generateSfx(SoundCodeGenerator.Platform.NES, "Pulso 1", 440, 6, "50%", 100, false);
+        String seventyFive = gen.generateSfx(SoundCodeGenerator.Platform.NES, "Pulso 1", 440, 6, "75%", 100, false);
+
+        assertTrue(twelve.contains("APU.pulse[0].control = 0x16;"));
+        assertTrue(twentyFive.contains("APU.pulse[0].control = 0x56;"));
+        assertTrue(fifty.contains("APU.pulse[0].control = 0x96;"));
+        assertTrue(seventyFive.contains("APU.pulse[0].control = 0xD6;"));
+    }
+
+    @Test
+    void nesTriangleUsesDiv32AndHasNoVolumeRegister() {
+        String code = gen.generateSfx(SoundCodeGenerator.Platform.NES, "Triangular", 440, 6, "50%", 300, false);
+
+        // $4015 bit 2
+        assertTrue(code.contains("APU.status = 0x04;"));
+        // t = 1789773 / (32 * 441) - 1 = 126 (0x7E); el byte bajo va en $400A
+        assertTrue(code.contains("APU.triangle.counter = 0x80;"));
+        assertTrue(code.contains("APU.triangle.period_low = 0x7E;"));
+        assertTrue(code.contains("APU.triangle.len_period_high = 0x00;"));
+        // El triangular no tiene volumen ni barrido, asi que no toca los registros del pulso
+        // ni escribe en $400C/$400E/$400F, que son los del ruido.
+        assertFalse(code.contains("APU.noise."));
+        assertFalse(code.contains("APU.pulse["));
+        assertFalse(code.contains("duty 50%"));
+    }
+
+    @Test
+    void nesNoiseUsesNoiseRegistersOnly() {
+        String code = gen.generateSfx(SoundCodeGenerator.Platform.NES, "Ruido", 0, 6, "50%", 200, false);
+
+        assertTrue(code.contains("APU.status = 0x08;"));
+        // $400C: modo largo (bit 5 a 0) + volumen constante
+        assertTrue(code.contains("APU.noise.control = 0x06;"));
+        // El ruido no emite un timer de tono: el periodo de $400E se elige por frecuencia
+        assertTrue(code.contains("APU.noise.period = 0x00;"));
+        assertTrue(code.contains("APU.noise.len = 0x00;") || code.contains("APU.noise.control = 0x00;"));
+    }
+
+    @Test
+    void nesMelodyEmitsApuPlayerWithPulseTables() {
+        List<GameBoyAudioPlayer.NoteStep> steps = List.of(
+                step("Pulso 1", 262, 200, 0, 12),
+                step("Triangular", 330, 200, 200, 12),
+                step("Ruido", 0, 100, 400, 12));
+
+        String code = gen.generateMelody(SoundCodeGenerator.Platform.NES, "bgm", steps, true);
+
+        assertTrue(code.contains("#include <nes.h>"));
+        assertTrue(code.contains("const unsigned char bgm_melody_ch[] = {0, 2, 3};"));
+        assertTrue(code.contains("const unsigned int bgm_melody_freqs[] = {262, 330, 0};"));
+        assertTrue(code.contains("const unsigned char bgm_melody_vols[] = {12, 12, 12};"));
+        assertTrue(code.contains("const unsigned char bgm_melody_duty[] = {2, 2, 2};"));
+        assertTrue(code.contains("void play_bgm_melody(void) {"));
+        // El triangular divide por 32, el resto de canales por 16
+        assertTrue(code.contains("(ch == 2) ? 1789773UL / (32UL * f) - 1UL"));
+        assertTrue(code.contains("APU.triangle.counter = 0x80;"));
+        assertTrue(code.contains("APU.pulse[ch].control = (unsigned char)((duty << 6) | 0x10 | vol);"));
+    }
+
+    @Test
+    void nesMelodyDeclaresEveryVariableBeforeAnyStatement() {
+        // cc65 no admite declaraciones mezcladas con codigo: el jugador no debe emitir
+        // ninguna declaracion despues de la primera sentencia.
+        List<GameBoyAudioPlayer.NoteStep> steps = List.of(step("Pulso 1", 262, 200, 0, 12));
+        String code = gen.generateMelody(SoundCodeGenerator.Platform.NES, "bgm", steps, true);
+
+        String body = code.substring(code.indexOf("void play_bgm_melody(void) {"));
+        int firstStatement = body.indexOf("for (i = 0;");
+        String declarations = body.substring(0, firstStatement);
+        for (String variable : List.of("start", "f", "t", "i", "ch", "vol", "duty")) {
+            assertTrue(declarations.contains("unsigned int " + variable + ";")
+                            || declarations.contains("unsigned char " + variable + ";"),
+                    "La variable " + variable + " debe declararse antes del bucle");
+        }
+        assertFalse(body.contains("unsigned int start = "), "No debe haber declaraciones con valor inicial dentro del bucle");
+    }
+
+    @Test
+    void nesSfxAcceptsGameBoyChannelNames() {
+        // Un proyecto puede mezclar efectos de GB y NES: el nombre del canal decide el indice.
+        String square1 = gen.generateSfx(SoundCodeGenerator.Platform.NES, "Square 1 (Sweep)", 440, 6, "50%", 100, false);
+        String square2 = gen.generateSfx(SoundCodeGenerator.Platform.NES, "Square 2", 440, 6, "50%", 100, false);
+        String wave = gen.generateSfx(SoundCodeGenerator.Platform.NES, "Wave Channel", 440, 6, "50%", 100, false);
+        String noise = gen.generateSfx(SoundCodeGenerator.Platform.NES, "Noise Channel", 0, 6, "50%", 100, false);
+
+        assertTrue(square1.contains("APU.pulse[0].period_low"));
+        assertTrue(square2.contains("APU.pulse[1].period_low"));
+        assertTrue(wave.contains("APU.triangle.period_low"));
+        assertTrue(noise.contains("APU.noise.period"));
+    }
+
+    // ======================================================================
     // Commodore 64 (SID 6581 / cc65)
     // ======================================================================
 

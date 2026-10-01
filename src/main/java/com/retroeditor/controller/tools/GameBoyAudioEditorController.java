@@ -56,6 +56,7 @@ public class GameBoyAudioEditorController {
     private static final String PLATFORM_CPC = "Amstrad CPC (AY-3-8912)";
     private static final String PLATFORM_ZX = "ZX Spectrum 128 (AY)";
     private static final String PLATFORM_MSX = "MSX (AY-3-8910)";
+    private static final String PLATFORM_NES = "NES (APU RP2A03)";
     private static final String PLATFORM_C64 = "Commodore 64 (SID 6581)";
 
     private static final Map<String, Integer> NOTE_FREQS = new LinkedHashMap<>();
@@ -82,6 +83,8 @@ public class GameBoyAudioEditorController {
     private static final String[] ATARI_SFX_CHANNELS = {"Canal 1 (Tono)", "Canal 2 (Tono)", "Canal 3 (Tono)", "Canal 4 (Tono)"};
     private static final String[] SMS_GG_CHANNELS = {"Tono 1", "Tono 2", "Tono 3", "Ruido"};
     private static final String[] PSG_CHANNELS = SMS_GG_CHANNELS;
+    private static final String[] NES_CHANNELS = {"Pulso 1", "Pulso 2", "Triangular", "Ruido"};
+    private static final String[] NES_SFX_CHANNELS = {"Pulso 1 (Sweep)", "Pulso 2", "Triangular", "Ruido"};
 
     private static final double TRACKER_LABEL_WIDTH = 90.0;
     private static final double TRACKER_BASE_SCALE = (680.0 - TRACKER_LABEL_WIDTH) / 4000.0;
@@ -95,6 +98,7 @@ public class GameBoyAudioEditorController {
     private boolean cpcMode = false;
     private boolean zxMode = false;
     private boolean msxMode = false;
+    private boolean nesMode = false;
     private boolean c64Mode = false;
 
     /**
@@ -126,6 +130,9 @@ public class GameBoyAudioEditorController {
         if (msxMode) {
             return SoundCodeGenerator.Platform.MSX;
         }
+        if (nesMode) {
+            return SoundCodeGenerator.Platform.NES;
+        }
         if (c64Mode) {
             return SoundCodeGenerator.Platform.C64;
         }
@@ -134,7 +141,7 @@ public class GameBoyAudioEditorController {
 
     /**
      * Motor del preview según la plataforma: CPC, ZX Spectrum y MSX usan el AY; Atari el POKEY;
-     * SMS/Game Gear el SN76489; C64 el SID 6581; el resto, la APU de Game Boy.
+     * SMS/Game Gear el SN76489; NES la APU RP2A03; C64 el SID 6581; el resto, la APU de Game Boy.
      */
     private GameBoyAudioPlayer.SoundEngine previewEngine() {
         switch (selectedPlatform()) {
@@ -142,6 +149,8 @@ public class GameBoyAudioEditorController {
             case ZX_SPECTRUM:
             case MSX:
                 return GameBoyAudioPlayer.SoundEngine.AY_3_8912;
+            case NES:
+                return GameBoyAudioPlayer.SoundEngine.APU_RP2A03;
             case ATARI:
                 return GameBoyAudioPlayer.SoundEngine.POKEY;
             case SMS_GAME_GEAR:
@@ -166,7 +175,7 @@ public class GameBoyAudioEditorController {
 
         ComboBox<String> comboPlatform = new ComboBox<>();
         comboPlatform.getItems().addAll(PLATFORM_GB, PLATFORM_ATARI, PLATFORM_SMS_GG, PLATFORM_CPC, PLATFORM_ZX,
-                PLATFORM_MSX, PLATFORM_C64);
+                PLATFORM_MSX, PLATFORM_NES, PLATFORM_C64);
         comboPlatform.setValue(PLATFORM_GB);
         comboPlatform.setPrefWidth(180);
 
@@ -653,21 +662,36 @@ public class GameBoyAudioEditorController {
             cpcMode = PLATFORM_CPC.equals(comboPlatform.getValue());
             zxMode = PLATFORM_ZX.equals(comboPlatform.getValue());
             msxMode = PLATFORM_MSX.equals(comboPlatform.getValue());
+            nesMode = PLATFORM_NES.equals(comboPlatform.getValue());
             c64Mode = PLATFORM_C64.equals(comboPlatform.getValue());
+            // CPC, ZX, MSX, SMS/GG y C64 comparten la misma lista de canales PSG/SID; el NES
+            // tiene los suyos (dos pulsos, triangular y ruido) y el Atari cuatro canales.
+            boolean psgLike = smsMode || cpcMode || zxMode || msxMode || c64Mode;
             if (atariMode) {
                 activeChannels = ATARI_CHANNELS;
-            } else if (smsMode || cpcMode || zxMode || msxMode || c64Mode) {
+            } else if (nesMode) {
+                activeChannels = NES_CHANNELS;
+            } else if (psgLike) {
                 activeChannels = PSG_CHANNELS;
             } else {
                 activeChannels = CHANNELS;
             }
-            comboChannel.setItems(FXCollections.observableArrayList(
-                    atariMode ? ATARI_SFX_CHANNELS : (smsMode || cpcMode || zxMode || msxMode || c64Mode ? PSG_CHANNELS : GB_SFX_CHANNELS)));
+            if (atariMode) {
+                comboChannel.setItems(FXCollections.observableArrayList(ATARI_SFX_CHANNELS));
+            } else if (nesMode) {
+                comboChannel.setItems(FXCollections.observableArrayList(NES_SFX_CHANNELS));
+            } else if (psgLike) {
+                comboChannel.setItems(FXCollections.observableArrayList(PSG_CHANNELS));
+            } else {
+                comboChannel.setItems(FXCollections.observableArrayList(GB_SFX_CHANNELS));
+            }
             comboChannel.setValue(comboChannel.getItems().get(0));
             comboMelodyChannel.setItems(FXCollections.observableArrayList(activeChannels));
             comboMelodyChannel.setValue(activeChannels[0]);
             comboDuty.setValue("50%");
-            comboDuty.setDisable(!(PLATFORM_GB.equals(comboPlatform.getValue()) || PLATFORM_C64.equals(comboPlatform.getValue())));
+            // El duty solo existe en los canales con duty ajustable: GB, NES y SID.
+            comboDuty.setDisable(!(PLATFORM_GB.equals(comboPlatform.getValue())
+                    || nesMode || PLATFORM_C64.equals(comboPlatform.getValue())));
             updateSfxAction.run();
             updateMelodyCode.run();
             updateTrackerSize.run();

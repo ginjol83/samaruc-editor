@@ -9,12 +9,12 @@ import com.retroeditor.service.gameboy.GameBoyAudioPlayer;
  * melodías con timeline: Game Boy (APU/GBDK), Atari 8-bit (POKEY/cc65),
  * Sega Master System / Game Gear (PSG SN76489 / SDCC),
  * Amstrad CPC (AY-3-8912 / z88dk), ZX Spectrum 128 (AY-3-8912 / z88dk),
- * MSX (AY-3-8910 / z88dk) y Commodore 64 (SID 6581 / cc65).
+ * MSX (AY-3-8910 / z88dk), NES (APU RP2A03 / cc65) y Commodore 64 (SID 6581 / cc65).
  */
 public class SoundCodeGenerator {
 
     /** Plataformas soportadas por el editor de sonido. */
-    public enum Platform { GAMEBOY, ATARI, SMS_GAME_GEAR, CPC, ZX_SPECTRUM, MSX, C64 }
+    public enum Platform { GAMEBOY, ATARI, SMS_GAME_GEAR, CPC, ZX_SPECTRUM, MSX, NES, C64 }
 
     /** Reloj del temporizador POKEY en modo 64 kHz (8 bits, por defecto con AUDCTL=0). */
     private static final int POKEY_CLOCK_64K = 63921;
@@ -49,6 +49,9 @@ public class SoundCodeGenerator {
         if (platform == Platform.C64) {
             return generateSidSfx(channel, frequency, volume, dutyCycle, durationMs);
         }
+        if (platform == Platform.NES) {
+            return generateNesSfx(channel, frequency, volume, dutyCycle, durationMs, includeConst);
+        }
         return generateGbSoundCode(channel, frequency, volume, dutyCycle, durationMs, includeConst);
     }
 
@@ -66,7 +69,330 @@ public class SoundCodeGenerator {
         if (platform == Platform.C64) {
             return generateSidMelody(melodyName, steps, includeConst);
         }
+        if (platform == Platform.NES) {
+            return generateNesMelody(melodyName, steps, includeConst);
+        }
         return generateGbMelodyCode(melodyName, steps, includeConst);
+    }
+
+    // ======================================================================
+    // NES (APU RP2A03 / cc65)
+    // ======================================================================
+
+    /**
+     * Reloj del RP2A03 en NTSC (1,789773 MHz). El canal de pulso divide por 16 y el triangular
+     * por 32, de ahí los dos divisores de abajo. En PAL el reloj es 1,662607 MHz y los tonos
+     * salen ~7 % agudos si se dejan estos valores.
+     */
+    private static final int NES_CPU_CLOCK_NTSC = 1789773;
+    private static final int NES_PULSE_DIV_16 = 16;
+    private static final int NES_TRIANGLE_DIV_32 = 32;
+    /** Periodos del ruido ($400E bits 3-0): 0-15. */
+    private static final int NES_NOISE_MAX_PERIOD = 15;
+
+    /** Registro $4015: habilita los canales. Bit 0 = pulso 1, 1 = pulso 2, 2 = triangular, 3 = ruido. */
+    private static int nesEnableBit(int channel) {
+        return 1 << channel;
+    }
+
+    /** Duty del canal de pulso ($4000/$4004 bits 7-6) a partir del porcentaje del tracker. */
+    private static int nesDuty(String dutyCycle) {
+        if ("12.5%".equals(dutyCycle)) {
+            return 0; // 00000001
+        }
+        if ("25%".equals(dutyCycle)) {
+            return 1; // 10000001
+        }
+        if ("75%".equals(dutyCycle)) {
+            return 3; // 01111110
+        }
+        return 2; // 10000111 = 50 %
+    }
+
+    /**
+     * Timer del canal de pulso: f = reloj / (16 * (t + 1)), con t de 11 bits ($4002 y $4003 bits 2-0).
+     */
+    private static int nesPulseTimer(int frequency) {
+        if (frequency <= 0) {
+            return 0;
+        }
+        long t = (NES_CPU_CLOCK_NTSC + (long) NES_PULSE_DIV_16 * frequency / 2)
+                / ((long) NES_PULSE_DIV_16 * frequency) - 1;
+        return (int) Math.max(0, Math.min(2047, t));
+    }
+
+    /**
+     * Timer del canal triangular: f = reloj / (32 * (t + 1)), también de 11 bits. El triangular
+     * no tiene control de volumen (su DAC es fija a 4 bits), así que el volumen del tracker se
+     * descarta para este canal.
+     */
+    private static int nesTriangleTimer(int frequency) {
+        if (frequency <= 0) {
+            return 0;
+        }
+        long t = (NES_CPU_CLOCK_NTSC + (long) NES_TRIANGLE_DIV_32 * frequency / 2)
+                / ((long) NES_TRIANGLE_DIV_32 * frequency) - 1;
+        return (int) Math.max(0, Math.min(2047, t));
+    }
+
+    /**
+     * Periodo del ruido ($400E bits 3-0): la salida es reloj / (t + 1) / 16. El tracker pide una
+     * frecuencia en Hz, así que se elige el periodo cuyo resultado más se acerca. Al ser el ruido
+     * un LFSR de 15 bits con su propia escala, no se pretende una equivalencia exacta de tono.
+     */
+    private static int nesNoisePeriod(int frequency) {
+        if (frequency <= 0) {
+            return 0;
+        }
+        double target = NES_CPU_CLOCK_NTSC / 16.0 / frequency;
+        int best = 0;
+        double bestErr = Double.MAX_VALUE;
+        for (int t = 0; t <= NES_NOISE_MAX_PERIOD; t++) {
+            double err = Math.abs((t + 1) - target);
+            if (err < bestErr) {
+                bestErr = err;
+                best = t;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Campos de la APU por canal, tal y como los nombra {@code <nes.h>} de cc65. El array se
+     * indexa por el offset del registro: los cuatro del pulso 1 ($4000-$4003), los cuatro del
+     * pulso 2 ($4004-$4007), el control y el timer del triangular ($4008, $400A, $400B) y los
+     * del ruido ($400C, $400E, $400F).
+     */
+    private static final String APU_STATUS = "APU.status";
+    private static final String APU_PULSE_CONTROL_0 = "APU.pulse[0].control";
+    private static final String APU_PULSWEEP_0 = "APU.pulse[0].ramp";
+    private static final String APU_PULSE_LOW_0 = "APU.pulse[0].period_low";
+    private static final String APU_PULSE_HIGH_0 = "APU.pulse[0].len_period_high";
+    private static final String APU_PULSE_CONTROL_1 = "APU.pulse[1].control";
+    private static final String APU_PULSWEEP_1 = "APU.pulse[1].ramp";
+    private static final String APU_PULSE_LOW_1 = "APU.pulse[1].period_low";
+    private static final String APU_PULSE_HIGH_1 = "APU.pulse[1].len_period_high";
+    private static final String APU_TRI_CONTROL = "APU.triangle.counter";
+    private static final String APU_TRI_LOW = "APU.triangle.period_low";
+    private static final String APU_TRI_HIGH = "APU.triangle.len_period_high";
+    private static final String APU_NOISE_CONTROL = "APU.noise.control";
+    private static final String APU_NOISE_PERIOD = "APU.noise.period";
+    private static final String APU_NOISE_LEN = "APU.noise.len";
+
+    /**
+     * Emite las escrituras de los registros del canal. El triangular solo usa $4008/$400A/$400B
+     * (el campo {@code unused} de $4009 no tiene control asociado) y el ruido $400C/$400E/$400F.
+     */
+    private void appendNesChannelWrites(StringBuilder sb, int ch, boolean noise, boolean triangle,
+                                        int frequency, int volume, String dutyCycle) {
+        int vol = volume & 0x0F;
+        if (triangle) {
+            int t = nesTriangleTimer(frequency);
+            // $4008: bit 7 = control (activa el triangular), bits 6-0 = recarga del contador lineal.
+            // El contador lineal a 0 y el control a 1 es lo habitual para un tono sostenido.
+            sb.append(String.format("    %s = 0x80;           // $4008 control on, contador lineal 0%n", APU_TRI_CONTROL));
+            sb.append(String.format("    %s = 0x%02X;           // $400A timer bajo = %d%n", APU_TRI_LOW, t & 0xFF, t & 0xFF));
+            sb.append(String.format("    %s = 0x%02X;           // $400B timer alto (11 bits) = %d%n", APU_TRI_HIGH, (t >> 8) & 0x07, t));
+            return;
+        }
+        if (noise) {
+            int p = nesNoisePeriod(frequency);
+            // $400C: bit 5 = modo del LFSR (0 = largo, 32767 pasos), bits 3-0 = volumen constante.
+            sb.append(String.format("    %s = 0x%02X;           // $400C modo largo + volumen %d%n", APU_NOISE_CONTROL, vol, vol));
+            // $400E: bit 7 = loop (0), bits 3-0 = periodo.
+            sb.append(String.format("    %s = 0x%02X;           // $400E loop off + periodo %d%n", APU_NOISE_PERIOD, p, p));
+            return;
+        }
+        // Canal de pulso 0 o 1: los registros van en bloques de 4 desde $4000 / $4004.
+        int base = ch * 4;
+        String control = ch == 0 ? APU_PULSE_CONTROL_0 : APU_PULSE_CONTROL_1;
+        String sweep = ch == 0 ? APU_PULSWEEP_0 : APU_PULSWEEP_1;
+        String low = ch == 0 ? APU_PULSE_LOW_0 : APU_PULSE_LOW_1;
+        String high = ch == 0 ? APU_PULSE_HIGH_0 : APU_PULSE_HIGH_1;
+        int t = nesPulseTimer(frequency);
+        // $4000/$4004: bits 7-6 = duty, bit 5 = halt del contador de longitud (0 para poder pararlo),
+        // bit 4 = volumen constante (1) y bits 3-0 = volumen 0-15.
+        sb.append(String.format("    %s = 0x%02X;           // $%04X duty %d%% + volumen %d%n",
+                control, (nesDuty(dutyCycle) << 6) | 0x10 | vol, 0x4000 + base,
+                dutyPercent(dutyCycle), vol));
+        // $4001/$4005: barrido desactivado (bit 7 = 0) para que el tono no se desvíe.
+        sb.append(String.format("    %s = 0x00;           // $%04X barrido desactivado%n", sweep, 0x4001 + base));
+        sb.append(String.format("    %s = 0x%02X;           // $%04X timer bajo = %d%n", low, t & 0xFF, 0x4002 + base, t & 0xFF));
+        // $4003/$4007: bits 7-5 = longitud (0 = sin contador de longitud), bits 2-0 = timer alto.
+        sb.append(String.format("    %s = 0x%02X;           // $%04X sin longitud + timer alto (11 bits) = %d%n",
+                high, (t >> 8) & 0x07, 0x4003 + base, t));
+    }
+
+    private static int dutyPercent(String dutyCycle) {
+        if ("12.5%".equals(dutyCycle)) return 12;
+        if ("25%".equals(dutyCycle)) return 25;
+        if ("75%".equals(dutyCycle)) return 75;
+        return 50;
+    }
+
+    /** Silencia el canal apagando su control y su contador de longitud. */
+    private void appendNesSilence(StringBuilder sb, int ch, boolean noise, boolean triangle) {
+        if (triangle) {
+            sb.append(String.format("    %s = 0x00;           // $4008 control off (silencio)%n", APU_TRI_CONTROL));
+            sb.append(String.format("    %s = 0x00;           // $400B longitud 0%n", APU_TRI_HIGH));
+            return;
+        }
+        if (noise) {
+            sb.append(String.format("    %s = 0x00;           // $400C volumen 0 (silencio)%n", APU_NOISE_CONTROL));
+            sb.append(String.format("    %s = 0x00;           // $400F longitud 0%n", APU_NOISE_LEN));
+            return;
+        }
+        // Volumen constante a 0 ($4000/$4004 bits 3-0): el pulso se apaga sin tocar el timer.
+        String control = ch == 0 ? APU_PULSE_CONTROL_0 : APU_PULSE_CONTROL_1;
+        sb.append(String.format("    %s &= 0xF0;          // $%04X volumen 0 (silencio)%n", control, 0x4000 + ch * 4));
+    }
+
+    private String generateNesSfx(String channel, int frequency, int volume, String dutyCycle,
+                                  int durationMs, boolean includeConst) {
+        StringBuilder sb = new StringBuilder();
+        int ch = nesChannelIndex(channel);
+        boolean noise = ch == 3;
+        boolean triangle = ch == 2;
+        String symbol = sanitizeSymbol(channel);
+
+        sb.append("// Generated by Samaruc - NES SFX (APU RP2A03 / cc65)\n");
+        sb.append("#include <nes.h>\n\n");
+        appendNesDelayHelper(sb);
+        sb.append("// ").append(channel).append(noise ? "" : " a " + frequency + " Hz")
+          .append(", volumen ").append(volume).append(", duración ").append(durationMs).append(" ms.\n");
+        if (!noise) {
+            sb.append("// Timer de 11 bits: f = 1789773 / (")
+              .append(triangle ? "32" : "16").append(" * (t + 1)) => t = ")
+              .append(triangle ? nesTriangleTimer(frequency) : nesPulseTimer(frequency)).append('\n');
+        } else {
+            sb.append("// El ruido no tiene tono: $400E elige el periodo del LFSR (salida = 1789773 / (t + 1) / 16).\n");
+        }
+        sb.append("// $4015 habilita los canales con un 1 en su bit.\n");
+        sb.append(String.format("// Canal %d (bit %d de $4015)%n", ch + 1, ch));
+        if (triangle) {
+            sb.append("// El canal triangular no tiene control de volumen: su DAC es fija y el tracker no lo usa.\n");
+        }
+
+        sb.append(String.format("void play_%s_effect(void) {%n", symbol));
+        sb.append(String.format("    APU.status = 0x%02X;          // $4015 habilita solo este canal%n", nesEnableBit(ch)));
+        appendNesChannelWrites(sb, ch, noise, triangle, frequency, volume, dutyCycle);
+        sb.append(String.format("    delay(%d);%n", durationMs));
+        appendNesSilence(sb, ch, noise, triangle);
+        sb.append("    APU.status = 0x00;          // $4015 desactiva el canal y borra el longitud\n");
+        sb.append("}\n");
+
+        return sb.toString();
+    }
+
+    /**
+     * delay(ms) por frames: el frame counter de la APU corre a 240 Hz en modo 4 pasos y el
+     * vblank del NES es a 60,1 Hz (NTSC), así que 1 frame ≈ 16,64 ms. Es la misma aproximación
+     * que usa el generador de C64 y evita depender de un reloj del sistema que no existe.
+     */
+    private void appendNesDelayHelper(StringBuilder sb) {
+        sb.append("// delay(ms) por frames de vblank: el NES NTSC va a 60,098 Hz (16,64 ms por frame).\n");
+        sb.append("static void delay(unsigned int ms) {\n");
+        sb.append("    unsigned int frames = (ms * 60U + 98U) / 100U;\n");
+        sb.append("    while (frames--) waitvsync();\n");
+        sb.append("}\n\n");
+    }
+
+    private String generateNesMelody(String melodyName, List<GameBoyAudioPlayer.NoteStep> steps,
+                                     boolean includeConst) {
+        StringBuilder sb = new StringBuilder();
+        String safeName = sanitizeSymbol(melodyName);
+
+        sb.append("// Generated by Samaruc - NES Timeline Melody Composer (APU RP2A03 / cc65)\n");
+        sb.append("#include <nes.h>\n\n");
+        appendNesDelayHelper(sb);
+
+        appendArray(sb, includeConst, "unsigned char", safeName, "_melody_ch", "canal APU 0-3",
+                steps, step -> String.valueOf(nesChannelIndex(step.getChannel())));
+        appendArray(sb, includeConst, "unsigned int", safeName, "_melody_freqs", "frecuencia en Hz",
+                steps, step -> String.valueOf(step.getFrequency()));
+        appendArray(sb, includeConst, "unsigned char", safeName, "_melody_vols", "volumen 0-15",
+                steps, step -> String.valueOf(step.getVolume() & 0x0F));
+        appendArray(sb, includeConst, "unsigned char", safeName, "_melody_duty", "duty 0-3",
+                steps, step -> String.valueOf(nesDuty(step.getDutyCycle())));
+        appendArray(sb, includeConst, "unsigned int", safeName, "_melody_durs", "duración en ms",
+                steps, step -> String.valueOf(step.getDurationMs()));
+        appendArray(sb, includeConst, "unsigned int", safeName, "_melody_starts", "inicio en ms",
+                steps, step -> String.valueOf(step.getStartTimeMs()));
+        sb.append("\n");
+
+        sb.append(String.format("void play_%s_melody(void) {%n", safeName));
+        // cc65 no admite declaraciones mezcladas con codigo: todo se declara al inicio.
+        sb.append("    unsigned int current_time = 0;\n");
+        sb.append("    unsigned int start;\n");
+        sb.append("    unsigned int f;\n");
+        sb.append("    unsigned int t;\n");
+        sb.append("    unsigned char i;\n");
+        sb.append("    unsigned char ch;\n");
+        sb.append("    unsigned char vol;\n");
+        sb.append("    unsigned char duty;\n");
+        sb.append(String.format("    for (i = 0; i < %d; i++) {%n", steps.size()));
+        sb.append(String.format("        start = %s_melody_starts[i];%n", safeName));
+        sb.append("        if (start > current_time) {\n");
+        sb.append("            delay(start - current_time);\n");
+        sb.append("            current_time = start;\n");
+        sb.append("        }\n");
+        sb.append(String.format("        f = %s_melody_freqs[i];%n", safeName));
+        sb.append(String.format("        ch = %s_melody_ch[i];%n", safeName));
+        sb.append(String.format("        vol = %s_melody_vols[i];%n", safeName));
+        sb.append(String.format("        duty = %s_melody_duty[i];%n", safeName));
+        sb.append("        if (f > 0) {\n");
+        sb.append("            t = (ch == 2) ? 1789773UL / (32UL * f) - 1UL\n");
+        sb.append("                            : 1789773UL / (16UL * f) - 1UL;\n");
+        sb.append("            APU.status = (unsigned char)(1 << ch);\n");
+        sb.append("            if (ch == 2) {\n");
+        sb.append("                APU.triangle.counter = 0x80;\n");
+        sb.append("                APU.triangle.period_low = (unsigned char)(t & 0xFF);\n");
+        sb.append("                APU.triangle.len_period_high = (unsigned char)((t >> 8) & 0x07);\n");
+        sb.append("            } else if (ch == 3) {\n");
+        sb.append("                APU.noise.control = vol;\n");
+        sb.append("                APU.noise.period = (unsigned char)(t > 15 ? 15 : t);\n");
+        sb.append("            } else {\n");
+        sb.append("                APU.pulse[ch].control = (unsigned char)((duty << 6) | 0x10 | vol);\n");
+        sb.append("                APU.pulse[ch].ramp = 0x00;\n");
+        sb.append("                APU.pulse[ch].period_low = (unsigned char)(t & 0xFF);\n");
+        sb.append("                APU.pulse[ch].len_period_high = (unsigned char)((t >> 8) & 0x07);\n");
+        sb.append("            }\n");
+        sb.append(String.format("            delay(%s_melody_durs[i]);%n", safeName));
+        sb.append("            if (ch == 2) {\n");
+        sb.append("                APU.triangle.counter = 0x00;\n");
+        sb.append("            } else if (ch == 3) {\n");
+        sb.append("                APU.noise.control = 0x00;\n");
+        sb.append("            } else {\n");
+        sb.append("                APU.pulse[ch].control &= 0xF0;\n");
+        sb.append("            }\n");
+        sb.append("        }\n");
+        sb.append("        current_time += ");
+        sb.append(safeName).append("_melody_durs[i];\n");
+        sb.append("    }\n");
+        sb.append("}\n");
+
+        return sb.toString();
+    }
+
+    /**
+     * Traduce el nombre del canal del editor al índice de la APU: 0 y 1 son los pulsos, 2 el
+     * triangular y 3 el ruido. Acepta tanto los nombres de la UI de NES como los del Game Boy
+     * por si un proyecto mezcla efectos de las dos plataformas.
+     */
+    private static int nesChannelIndex(String channel) {
+        if (channel != null) {
+            String c = channel.toLowerCase();
+            if (c.contains("noise") || c.contains("ruido")) {
+                return 3;
+            }
+            if (c.contains("triangle") || c.contains("triangular") || c.contains("wave")) {
+                return 2;
+            }
+            if (c.contains("square 2") || c.contains("pulse 2") || c.contains("pulso 2") || c.contains("canal 2")) {
+                return 1;
+            }
+        }
+        return 0;
     }
 
     // ======================================================================
