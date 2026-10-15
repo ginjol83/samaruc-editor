@@ -234,6 +234,11 @@
     -fx-text-fill: #9ca3af;
     -fx-font-size: 12px;
 }
+.breadcrumb-sibling {
+    -fx-text-fill: #9ca3af;
+    -fx-font-size: 10px;
+    -fx-padding: 1 1 1 0;
+}
 
 .compile-status-label {
     -fx-padding: 3 10 3 10;
@@ -349,4 +354,48 @@
 .palette-item-hint {
     -fx-text-fill: #6b7280;
     -fx-font-size: 12px;
+}
+
+/* ---------------------------------------------------------------- Panel IA */
+.ai-chat-header {
+    -fx-font-weight: bold;
+    -fx-text-fill: #111827;
+}
+.ai-chat-status {
+    -fx-text-fill: #6b7280;
+    -fx-font-size: 11px;
+}
+.ai-chat-warning {
+    -fx-padding: 6 6 6 6;
+    -fx-background-color: #fff7ed;
+    -fx-border-color: #fdba74;
+    -fx-border-radius: 4;
+}
+.ai-chat-warning Label {
+    -fx-font-size: 11px;
+}
+.ai-chat-button {
+    -fx-padding: 3 8 3 8;
+    -fx-font-size: 11px;
+}
+.ai-chat-bubble {
+    -fx-padding: 2 0 2 0;
+    -fx-font-size: 12px;
+}
+.ai-bubble-user {
+    -fx-font-weight: bold;
+    -fx-text-fill: #1d4ed8;
+}
+.ai-bubble-assistant {
+    -fx-text-fill: #111827;
+}
+.ai-bubble-status {
+    -fx-text-fill: #6b7280;
+    -fx-font-style: italic;
+}
+.ai-bubble-tool {
+    -fx-text-fill: #b45309;
+}
+.ai-bubble-error {
+    -fx-text-fill: #b91c1c;
 }

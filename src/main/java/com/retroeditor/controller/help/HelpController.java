@@ -35,6 +35,20 @@ public class HelpController {
     }
 
     /**
+     * Abre el manual de BASIC (inclusiones y rangos de numeracion) en una ventana WebView.
+     */
+    public void onOpenBasicManual() {
+        UserActionMonitor.basicManualOpened();
+        openHtmlWindow(
+            "/manual-basic.html",
+            "Manual de BASIC",
+            "<html><body><h1>Manual de BASIC no disponible</h1></body></html>",
+            900,
+            740
+        );
+    }
+
+    /**
      * Abre una ventana con licencias de librerias de terceros usadas por la aplicacion.
      */
     public void onOpenThirdPartyLicenses() {

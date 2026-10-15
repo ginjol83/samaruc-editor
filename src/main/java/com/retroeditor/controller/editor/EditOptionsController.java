@@ -1,15 +1,11 @@
 package com.retroeditor.controller.editor;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.ResourceBundle;
-import java.util.Set;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.text.MessageFormat;
@@ -18,7 +14,9 @@ import java.nio.charset.StandardCharsets;
 
 import org.fxmisc.richtext.CodeArea;
 
+import com.retroeditor.model.ConfigModel;
 import com.retroeditor.service.UserActionMonitor;
+import com.retroeditor.service.syntax.CompletionDictionaryService;
 import com.retroeditor.util.FXUtils;
 
 import javafx.beans.InvalidationListener;
@@ -39,32 +37,15 @@ import javafx.stage.Window;
 
 public class EditOptionsController {
 
-    private static final Pattern WORD_PATTERN = Pattern.compile("[A-Za-z0-9_]+");
-    private static final int MAX_SUGGESTIONS = 50;
-
-    private static final List<String> GBDK_KEYWORDS = List.of(
-        "set_sprite_data", "set_sprite_tile", "move_sprite", "wait_vbl_done",
-        "display_on", "display_off", "set_bkg_data", "set_bkg_tiles",
-        "joypad", "JOY_UP", "JOY_DOWN", "JOY_LEFT", "JOY_RIGHT", "JOY_A", "JOY_B",
-        "OBP0", "BGP", "NR50", "NR51", "NR52", "UINT8", "INT8", "UINT16", "INT16"
-    );
-
-    private static final List<String> CONIO_KEYWORDS = List.of(
-        "clrscr", "cputs", "cprintf", "gotoxy", "textattr", "bordercolor",
-        "kbhit", "getch", "inkey", "zx_border", "plot", "draw", "delay"
-    );
-
-    private static final List<String> C_KEYWORDS = List.of(
-        "printf", "scanf", "malloc", "free", "strlen", "strcpy", "strcmp",
-        "memcpy", "memset", "fopen", "fclose", "fread", "fwrite", "abs", "rand", "srand"
-    );
-
     private final FXUtils fxUtils = new FXUtils();
+    private final CompletionDictionaryService completionDictionaries = new CompletionDictionaryService();
+    private ConfigModel configModel;
 
     private final Popup autoCompletePopup = new Popup();
     private final ListView<String> autoCompleteList = new ListView<>();
     private final EventHandler<KeyEvent> autoCompleteKeyFilter = this::handleAutoCompleteKey;
     private CodeArea autoCompleteArea;
+    private String autoCompleteFileName;
     private int autoCompletePrefixStart;
     private boolean autoCompleteAccepting;
 
@@ -357,10 +338,11 @@ public class EditOptionsController {
         }
         String prefix = text.substring(prefixStart, caret);
 
-        List<String> suggestions = buildSuggestions(text, prefix);
+        List<String> suggestions = buildSuggestions(text, prefix, autoCompleteFileName);
         if (suggestions.isEmpty()) return;
 
         autoCompleteArea = codeArea;
+        autoCompleteFileName = currentFileName(tabPane);
         autoCompletePrefixStart = prefixStart;
         autoCompleteAccepting = false;
 
@@ -398,6 +380,7 @@ public class EditOptionsController {
             autoCompleteArea.removeEventFilter(KeyEvent.KEY_PRESSED, autoCompleteKeyFilter);
             autoCompleteArea.textProperty().removeListener(autoCompleteTextListener);
             autoCompleteArea = null;
+            autoCompleteFileName = null;
         }
     }
 
@@ -420,7 +403,7 @@ public class EditOptionsController {
             return;
         }
 
-        List<String> suggestions = buildSuggestions(text, prefix);
+        List<String> suggestions = buildSuggestions(text, prefix, autoCompleteFileName);
         if (suggestions.isEmpty()) {
             hideAutoComplete();
             return;
@@ -476,43 +459,35 @@ public class EditOptionsController {
         autoCompleteAccepting = false;
     }
 
-    private List<String> buildSuggestions(String text, String prefix) {
-        Set<String> pool = new HashSet<>();
-        pool.addAll(GBDK_KEYWORDS);
-        pool.addAll(CONIO_KEYWORDS);
-        pool.addAll(C_KEYWORDS);
+    /**
+     * Nombre del fichero de la pestaña activa. El diccionario de autocompletado lo necesita
+     * para no ofrecer la API de C dentro de un ensamblador.
+     */
+    private String currentFileName(TabPane tabPane) {
+        if (tabPane == null) return null;
+        Tab tab = tabPane.getSelectionModel().getSelectedItem();
+        if (tab == null) return null;
+        Object baseTitle = tab.getProperties().get(FXUtils.TAB_PROP_BASE_TITLE);
+        return baseTitle instanceof String name ? name : null;
+    }
 
-        Map<String, Integer> frequencies = new HashMap<>();
-        Matcher matcher = WORD_PATTERN.matcher(text == null ? "" : text);
-        while (matcher.find()) {
-            String word = matcher.group();
-            if (word.length() >= 2) {
-                frequencies.merge(word, 1, Integer::sum);
-                pool.add(word);
-            }
-        }
+    /**
+     * Inyecta la configuracion: el diccionario de autocompletado depende del compilador, del
+     * perfil de Z88DK y del target de cc65 que tenga el proyecto.
+     */
+    public void setConfigModel(ConfigModel configModel) {
+        this.configModel = configModel;
+    }
 
-        List<String> candidates = new ArrayList<>();
-        for (String word : pool) {
-            if (prefix.isEmpty()) {
-                candidates.add(word);
-            } else if (word.length() >= prefix.length()
-                && word.regionMatches(true, 0, prefix, 0, prefix.length())) {
-                candidates.add(word);
-            }
-        }
-
-        candidates.sort((a, b) -> {
-            int freqA = frequencies.getOrDefault(a, 0);
-            int freqB = frequencies.getOrDefault(b, 0);
-            int byFrequency = Integer.compare(freqB, freqA);
-            if (byFrequency != 0) return byFrequency;
-            int byLength = Integer.compare(a.length(), b.length());
-            if (byLength != 0) return byLength;
-            return a.compareTo(b);
-        });
-
-        return candidates.stream().limit(MAX_SUGGESTIONS).collect(Collectors.toList());
+    private List<String> buildSuggestions(String text, String prefix, String fileName) {
+        ConfigModel config = configModel;
+        return completionDictionaries.suggest(
+                text,
+                prefix,
+                config != null ? config.getCompiladorSeleccionado() : null,
+                config != null ? config.getZ88dkProfile() : null,
+                config != null ? config.getCc65Target() : null,
+                fileName);
     }
 
     private void showPopupNearCaret(CodeArea codeArea) {

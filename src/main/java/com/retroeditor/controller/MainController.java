@@ -38,11 +38,19 @@ import com.retroeditor.controller.editor.FileOptionsController;
 import com.retroeditor.controller.editor.SnippetEditorDialog;
 import com.retroeditor.controller.tools.TileEditorController;
 import com.retroeditor.controller.tools.TilemapEditorController;
+import com.retroeditor.controller.tools.ZxScreenEditorController;
 import com.retroeditor.controller.tools.StructureViewController;
 import com.retroeditor.controller.tools.TodoViewController;
-import com.retroeditor.controller.tools.PngToZxConverterController;
-import com.retroeditor.controller.tools.PngToGameBoyConverterController;
-import com.retroeditor.controller.tools.PngToRetroConverterController;
+import com.retroeditor.controller.ai.AiChatController;
+import com.retroeditor.service.ai.AiPromptBuilder;
+import com.retroeditor.service.ai.AiService;
+import com.retroeditor.service.ai.AiSettings;
+import com.retroeditor.service.ai.AiSettingsRepository;
+import com.retroeditor.service.ai.AiStreamEvent;
+import com.retroeditor.service.ai.OpenCodeProvider;
+import com.retroeditor.service.ai.OpenCodeRuntime;
+import com.retroeditor.service.ai.OpenCodeServerBridge;
+import com.retroeditor.controller.tools.UnifiedPngToCController;
 import com.retroeditor.controller.tools.GameBoyAudioEditorController;
 import com.retroeditor.controller.tools.TranslatorTabManager;
 import com.retroeditor.controller.tools.GitHubRepoBrowserController;
@@ -64,6 +72,9 @@ import com.retroeditor.service.AutoSaveService;
 import com.retroeditor.service.TodoScanService;
 import com.retroeditor.service.ProjectPlatformDetectionService;
 import com.retroeditor.service.ProjectProfileService;
+import com.retroeditor.service.basic.BasicDialect;
+import com.retroeditor.service.basic.BasicDialectResolver;
+import com.retroeditor.service.basic.BasicDialectStore;
 import com.retroeditor.service.PropertiesConfigRepository;
 import com.retroeditor.service.syntax.SyntaxHighlighter;
 import com.retroeditor.service.HomeReleaseNotesService;
@@ -77,6 +88,7 @@ import com.retroeditor.service.ConfigRepository;
 import com.retroeditor.service.WorkspaceService;
 import com.retroeditor.service.TranslatorPersistenceService;
 import com.retroeditor.service.tilemap.TilemapPersistenceService;
+import com.retroeditor.service.zxspectrum.ZxScreenPersistenceService;
 import com.retroeditor.service.CodeFormatterService;
 import com.retroeditor.service.RenameRefactoringService;
 import com.retroeditor.service.ExtractConstantService;
@@ -92,6 +104,9 @@ import com.retroeditor.model.ConfigModel;
 import com.retroeditor.model.EditorModel;
 
 import com.retroeditor.service.CodeFoldingService;
+import com.retroeditor.service.atari.AtariBasicExportService;
+import com.retroeditor.service.atari.basic.AtariBasicSyntaxException;
+import com.retroeditor.service.atari.basic.AtariBasicVariant;
 import com.retroeditor.service.git.GitService;
 import com.retroeditor.service.git.GitModels;
 import com.retroeditor.service.git.GitOperationsException;
@@ -121,6 +136,7 @@ import javafx.scene.Scene;
 import javafx.scene.Parent;
 import javafx.scene.Node;
 
+import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Separator;
@@ -139,12 +155,16 @@ import javafx.scene.control.MenuBar;
 import javafx.scene.control.ToolBar;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.CheckMenuItem;
+import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
 import javafx.scene.control.TextInputDialog;
+import javafx.scene.control.SplitPane;
 
 import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.ClipboardContent;
@@ -184,9 +204,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     private final EditOptionsController   editOptionsController   = new EditOptionsController();
     private final FileOptionsController   fileOptionsController   = new FileOptionsController();
-    private final PngToZxConverterController pngToZxConverterController = new PngToZxConverterController();
-    private final PngToGameBoyConverterController pngToGameBoyConverterController = new PngToGameBoyConverterController();
-    private final PngToRetroConverterController pngToRetroConverterController = new PngToRetroConverterController();
+    private final UnifiedPngToCController pngToCConverterController   = new UnifiedPngToCController();
     private final GameBoyAudioEditorController    gameBoyAudioEditorController    = new GameBoyAudioEditorController();
     private final TranslatorTabManager            translatorTabManager            = new TranslatorTabManager();
     private final GitHubRepoBrowserController     gitHubRepoBrowserController     = new GitHubRepoBrowserController();
@@ -206,6 +224,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private final WorkspaceService workspaceService = new WorkspaceService();
     private final PluginApplicationService pluginApplicationService = new PluginApplicationService();
     private final ProjectPlatformDetectionService projectPlatformDetectionService = new ProjectPlatformDetectionService();
+    private final BasicDialectResolver basicDialectResolver = new BasicDialectResolver();
     private final ProjectProfileService projectProfileService = new ProjectProfileService();
     private final ProjectSearchService projectSearchService = new ProjectSearchService();
     private final TextSearchService textSearchService = new TextSearchService();
@@ -251,6 +270,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private javafx.scene.control.ProgressIndicator progressCompile;
     @FXML private Menu menuArchivo;
     @FXML private Menu menuEdicion;
+    @FXML private Menu menuVer;
     @FXML private Menu menuRefactor;
     @FXML private Menu menuHerramientas;
     @FXML private Menu menuCompilacion;
@@ -285,6 +305,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private MenuItem menuItemExtractFunction;
     @FXML private MenuItem menuItemTileEditor;
     @FXML private MenuItem menuItemTilemapEditor;
+    @FXML private MenuItem menuItemZxScreenEditor;
     @FXML private MenuItem menuItemRomTextTranslator;
     @FXML private MenuItem menuItemGitHubRepos;
     @FXML private MenuItem menuItemGitPanel;
@@ -292,15 +313,19 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private MenuItem menuItemShareToGithub;
     @FXML private MenuItem menuItemPublishRelease;
     @FXML private MenuItem menuItemIssues;
-    @FXML private MenuItem menuItemPngToZx;
-    @FXML private MenuItem menuItemPngToRetro;
+    @FXML private MenuItem menuItemPngToC;
     @FXML private MenuItem menuItemGoToLine;
     @FXML private MenuItem menuItemFind;
     @FXML private MenuItem menuItemFindProject;
     @FXML private Menu menuSnippets;
+    @FXML private Menu menuAi;
+    @FXML private MenuItem menuItemAiExplainError;
+    @FXML private MenuItem menuItemAiExplainSelection;
+    @FXML private MenuItem menuItemAiOpenTerminal;
     @FXML private MenuItem menuItemInsertSnippet;
     @FXML private MenuItem menuItemManageSnippets;
     @FXML private MenuItem menuItemManual;
+    @FXML private MenuItem menuItemBasicManual;
     @FXML private MenuItem menuItemGbdkDocs;
     @FXML private MenuItem menuItemZ88dkDocs;
     @FXML private MenuItem menuItemCc65Docs;
@@ -326,6 +351,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private MenuItem menuItemCompilar;
     @FXML private MenuItem menuItemCompilarYEjecutar;
     @FXML private MenuItem menuItemEjecutar;
+    @FXML private MenuItem menuItemExportAtr;
     @FXML private MenuItem menuItemDeshacer;
     @FXML private MenuItem menuItemGuardarComo;
 
@@ -339,9 +365,20 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private StructureViewController structureViewController;
     @FXML private AnchorPane todoViewAnchor;
     private TodoViewController todoViewController;
+    @FXML private AnchorPane aiChatAnchor;
+    @FXML private Tab aiTab;
+    private AiChatController aiChatController;
+    private AiService aiService;
+    private AiSettings aiSettings = AiSettings.defaults();
+    private AiPromptBuilder aiPromptBuilder = new AiPromptBuilder();
+    private String lastDetectedPlatform;
     private final TodoScanService todoScanService = new TodoScanService();
     @FXML private TabPane outputTabPane;
     @FXML private Tab tabTerminal;
+    @FXML private Tab tabConsola;
+    @FXML private Tab tabMonitor;
+    @FXML private VBox outputContainer;
+    @FXML private SplitPane editorOutputSplitPane;
     @FXML private StyleClassedTextArea consoleOutputArea;
     @FXML private StyleClassedTextArea debuggerOutputArea;
     @FXML private StackPane terminalContainer;
@@ -401,6 +438,24 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         return elements;
     }
 
+    // --- Menú Ver: visibilidad persistente de menús, botones y panel inferior ---
+    private static final String VIEW_PANEL_BOTTOM_KEY = "view.panel.bottom";
+    private Menu menuVerMenus;
+    private Menu menuVerToolbar;
+    private Menu menuVerBottom;
+    private CheckMenuItem viewPanelBottomItem;
+    private CheckMenuItem viewTabConsoleItem;
+    private CheckMenuItem viewTabMonitorItem;
+    private CheckMenuItem viewTabTerminalItem;
+    private final List<ViewMenuEntry>    viewMenuEntries    = new ArrayList<>();
+    private final List<ViewButtonEntry>  viewButtonEntries  = new ArrayList<>();
+
+    private record ViewMenuEntry(String configKey, Menu menu, CheckMenuItem item) {
+    }
+
+    private record ViewButtonEntry(String configKey, Button button, String bundleKey, CheckMenuItem item) {
+    }
+
     private final Map<Tab, File> tabFileMap = new HashMap<>(); // Solo para mapear tabs a archivos
 
     private static final String HOME_TAB_ID             = "home-tab";
@@ -408,6 +463,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private static final String TAB_PROP_GIT_DIRTY       = "git.dirtyDot";
     private static final String TAB_PROP_TILE_CONTROLLER = "tileEditor.controller";
     private static final String TAB_PROP_TILEMAP_CONTROLLER = "tilemapEditor.controller";
+    private static final String TAB_PROP_ZX_SCREEN_CONTROLLER = "zxScreenEditor.controller";
     private volatile boolean lastCompilationHasErrors   = false;
     private volatile boolean lastCompilationHasWarnings = false;
 
@@ -446,6 +502,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     public void initialize() {
         // Cargar configuración del usuario (incluye toolchains de usuario)
         configModel.applyProperties(configRepository.load(userConfigFile));
+        editOptionsController.setConfigModel(configModel);
 
         buildController.setEmbeddedTerminalController(terminalController);
 
@@ -454,6 +511,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         File i18nDir    = new File(System.getProperty("user.home"), ".samaruc-editor/i18n");
         LanguageService langService = new LanguageService(i18nDir);
         bundle          = langService.getBundleForCode(lang);
+        buildController.setBundle(bundle);
 
         AppLogger.setBundle(bundle);
 
@@ -478,6 +536,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 Locale newLocale = java.util.Locale.forLanguageTag(newV != null ? newV : "es");
                 bundle           = ResourceBundle.getBundle("i18n.MessagesBundle", newLocale);
                 AppLogger.setBundle(bundle);
+                buildController.setBundle(bundle);
                 Platform.runLater(() -> {
                     fxUtils.refreshLanguage(getUIElements(), bundle);
                     applyBundleToUI();
@@ -542,7 +601,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             Parent explorer = loader.load();
             projectExplorerController = loader.getController();
             projectExplorerController.setMainController(this);
-            projectExplorerAnchor.getChildren().setAll(explorer);
+            mountInAnchor(projectExplorerAnchor, explorer);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -553,7 +612,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             Parent structure = loader.load();
             structureViewController = loader.getController();
             if (structureViewAnchor != null) {
-                structureViewAnchor.getChildren().setAll(structure);
+                mountInAnchor(structureViewAnchor, structure);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -565,7 +624,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             Parent todoView = loader.load();
             todoViewController = loader.getController();
             if (todoViewAnchor != null) {
-                todoViewAnchor.getChildren().setAll(todoView);
+                mountInAnchor(todoViewAnchor, todoView);
             }
             if (todoViewController != null) {
                 todoViewController.setOnTodoSelectedCallback(this::openTodoItem);
@@ -573,6 +632,35 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+        // Cargar el panel del asistente IA. El servicio vive aqui y no dentro del panel
+        // para poder cerrarlo al salir; el panel solo recibe los eventos ya normalizados.
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getResource("/views/AiChatPane.fxml"));
+            Parent aiChat = loader.load();
+            aiChatController = loader.getController();
+            if (aiChatAnchor != null) {
+                mountInAnchor(aiChatAnchor, aiChat);
+            }
+            aiService = new AiService(Platform::runLater, aiEvent -> {
+                if (aiChatController != null) {
+                    aiChatController.onStreamEvent(aiEvent);
+                }
+            });
+            // El proveedor se construye ya pero no arranca nada: `opencode serve` se levanta
+            // en el primer envio, en un hilo de trabajo.
+            initAiFromSettings();
+            if (aiChatController != null) {
+                aiChatController.setService(aiService);
+                aiChatController.setLanguageService(new LanguageService(i18nDir));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        // Construir el menú Ver (visibilidad de menús, botones y panel inferior)
+        // y aplicar el estado persistido entre sesiones.
+        buildViewMenu();
 
         // Restaurar el último proyecto/archivos al arrancar (la Home se abre
         // solo si no hay nada que restaurar y la preferencia está activada).
@@ -746,6 +834,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuRefactor          != null) menuRefactor.setText(bundle.getString("menu.refactor"));
         if (menuHerramientas      != null) menuHerramientas.setText(bundle.getString("menu.tools"));
         if (menuGit               != null) menuGit.setText(bundle.getString("menu.git"));
+        if (menuAi                != null) menuAi.setText(bundle.getString("menu.ai"));
         if (menuAyuda             != null) menuAyuda.setText(bundle.getString("menu.help"));
         if (menuItemNuevoProyecto != null) menuItemNuevoProyecto.setText(bundle.getString("button.newProject"));
         if (menuItemAbrirProyecto != null) menuItemAbrirProyecto.setText(bundle.getString("button.openProject"));
@@ -759,6 +848,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemSalir         != null) menuItemSalir.setText(bundle.getString("menu.exit"));
         if (menuItemCompilar      != null) menuItemCompilar.setText(bundle.getString("button.compile"));
         if (menuItemEjecutar      != null) menuItemEjecutar.setText(bundle.getString("button.run"));
+        if (menuItemExportAtr     != null) menuItemExportAtr.setText(bundle.getString("menu.export.atr"));
         if (menuItemDeshacer      != null) menuItemDeshacer.setText(bundle.getString("button.undo"));
         if (menuItemRehacer       != null) menuItemRehacer.setText(bundle.getString("button.redo"));
         if (menuItemCortar        != null) menuItemCortar.setText(bundle.getString("button.cut"));
@@ -770,7 +860,8 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemExtractFunction != null) menuItemExtractFunction.setText(bundle.getString("menu.refactor.extractFunction"));
         if (menuItemTileEditor    != null) menuItemTileEditor.setText(bundle.getString("menu.tools.tileEditor"));
         if (menuItemTilemapEditor != null) menuItemTilemapEditor.setText(bundle.getString("menu.tools.tilemapEditor"));
-        if (menuItemPngToRetro   != null) menuItemPngToRetro.setText(bundle.getString("menu.tools.pngToRetro"));
+        if (menuItemZxScreenEditor != null) menuItemZxScreenEditor.setText(bundle.getString("menu.tools.zxScreenEditor"));
+        if (menuItemPngToC != null) menuItemPngToC.setText(bundle.getString("menu.tools.pngToC"));
         if (menuItemGoToLine      != null) menuItemGoToLine.setText(bundle.getString("menu.goto.line"));
         if (menuItemFind          != null) menuItemFind.setText(bundle.getString("menu.find.file"));
         if (menuItemFindProject   != null) menuItemFindProject.setText(bundle.getString("menu.find.project"));
@@ -778,6 +869,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemInsertSnippet != null) menuItemInsertSnippet.setText(bundle.getString("menu.edit.snippets.insert"));
         if (menuItemManageSnippets != null) menuItemManageSnippets.setText(bundle.getString("menu.edit.snippets.manage"));
         if (menuItemManual        != null) menuItemManual.setText(bundle.getString("menu.help.manual"));
+        if (menuItemBasicManual   != null) menuItemBasicManual.setText(bundle.getString("menu.help.basicManual"));
         if (menuItemGbdkDocs      != null) menuItemGbdkDocs.setText(bundle.getString("menu.help.gbdkDocs"));
         if (menuItemZ88dkDocs     != null) menuItemZ88dkDocs.setText(bundle.getString("menu.help.z88dkDocs"));
         if (menuItemCc65Docs      != null) menuItemCc65Docs.setText(bundle.getString("menu.help.cc65Docs"));
@@ -823,6 +915,19 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
         startExternalFileWatcher();
         scheduleAutosave();
+    }
+
+    /**
+     * Monta el contenido de una pestana del sidebar dentro de su AnchorPane, anclado a los
+     * cuatro lados. Sin anchors el AnchorPane dimensiona el hijo a su tamano preferido y el
+     * panel no se estira al redimensionar el divisor principal.
+     */
+    private void mountInAnchor(AnchorPane anchor, Parent content) {
+        AnchorPane.setTopAnchor(content, 0.0);
+        AnchorPane.setRightAnchor(content, 0.0);
+        AnchorPane.setBottomAnchor(content, 0.0);
+        AnchorPane.setLeftAnchor(content, 0.0);
+        anchor.getChildren().setAll(content);
     }
 
     @FXML
@@ -1102,6 +1207,70 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     @FXML
+    private void onExportAtr(ActionEvent event) {
+        Tab tab = fxUtils.getSelectedTab(tabPane);
+        File source = tab != null ? tabFileMap.get(tab) : null;
+        if (source == null || !BasicDialectResolver.isBasicFile(source)) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle(msg("menu.export.atr", "Exportar ATR"));
+            alert.setHeaderText(msg("menu.export.atr", "Exportar ATR"));
+            alert.setContentText(msg("atari.export.noSource", "Abre un fichero .bas para exportar la imagen ATR."));
+            alert.showAndWait();
+            return;
+        }
+        if (basicDialectResolver.resolve(source, currentProjectDir) != BasicDialect.ATARI) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle(msg("menu.export.atr", "Exportar ATR"));
+            alert.setHeaderText(msg("menu.export.atr", "Exportar ATR"));
+            alert.setContentText(msg("basic.dialect.notAtari",
+                    "Este .bas no parece un programa Atari BASIC. Fija el dialecto con 'Herramientas > Dialecto BASIC...' antes de exportar el ATR."));
+            alert.showAndWait();
+            return;
+        }
+
+        BuildSync sync = ensureFileSyncedBeforeBuild();
+        if (sync == BuildSync.ABORT) return;
+        if (sync == BuildSync.PROCEED_UNCHANGED) {
+            boolean saved = fileOptionsController.onSaveFile(event, tabPane, tabFileMap, editorModel);
+            if (!saved) return;
+        }
+
+        String name = source.getName();
+        int dot = name.lastIndexOf('.');
+        String baseName = dot >= 0 ? name.substring(0, dot) : name;
+
+        javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
+        chooser.setTitle(msg("menu.export.atr", "Exportar ATR"));
+        chooser.getExtensionFilters().add(new javafx.stage.FileChooser.ExtensionFilter("Atari ATR (*.atr)", "*.atr"));
+        chooser.setInitialFileName(baseName + ".atr");
+        File target = chooser.showSaveDialog(getStage());
+        if (target == null) return;
+
+        AtariBasicVariant variant = AtariBasicVariant.fromConfig(
+                configModel.getConfigProperty("atari_basic_variant", AtariBasicVariant.ATARI_BASIC.name()));
+        try {
+            new AtariBasicExportService().exportToAtr(
+                    source.toPath(), target.toPath(), AtariBasicExportService.DEFAULT_ENTRY_NAME, variant);
+            terminalController.appendConsoleOutput(
+                    msgFmt("atari.info.atrExported", "Imagen ATR exportada: {0}", target.getName()), consoleOutputArea);
+        } catch (AtariBasicSyntaxException ex) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle(msg("atari.error.syntax.title", "Error de sintaxis Atari BASIC"));
+            alert.setHeaderText(msg("atari.error.syntax.header", "No se pudo generar la imagen ATR"));
+            alert.setContentText(ex.getMessage());
+            alert.showAndWait();
+            terminalController.appendConsoleOutput(
+                    msg("atari.error.syntax.prefix", "Error de sintaxis Atari BASIC") + ": " + ex.getMessage(), consoleOutputArea);
+        } catch (IOException ex) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle(msg("menu.export.atr", "Exportar ATR"));
+            alert.setHeaderText(msg("atari.error.export.header", "No se pudo escribir la imagen ATR"));
+            alert.setContentText(ex.getMessage());
+            alert.showAndWait();
+        }
+    }
+
+    @FXML
     public void onFormatCode(ActionEvent event) {
         Tab tab = fxUtils.getSelectedTab(tabPane);
         if (tab == null) return;
@@ -1144,12 +1313,19 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             } else if (fxUtils.wasLastCreatedProjectCc65C64Template()) {
                 configModel.applyC64Profile();
                 configRepository.save(userConfigFile, configModel.toProperties());
+            } else if (fxUtils.wasLastCreatedProjectAtariBasicTemplate()) {
+                configModel.setConfigProperty("atari_basic_variant",
+                        fxUtils.getLastCreatedAtariBasicVariant().name());
+                configRepository.save(userConfigFile, configModel.toProperties());
             }
 
             UserActionMonitor.projectCreated(creado.getAbsolutePath());
             setProyectoActual(creado);
 
             File defaultMainFile = new File(creado, "src/main.c");
+            if (!defaultMainFile.isFile()) {
+                defaultMainFile = new File(creado, "src/main.bas");
+            }
             if (defaultMainFile.isFile()) {
                 openFileFromExplorer(defaultMainFile);
             } else {
@@ -1193,10 +1369,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (detected == null) return;
 
         ProjectPlatformDetectionService.Platform platform = detected.getPlatform();
+        if (platform != ProjectPlatformDetectionService.Platform.UNKNOWN) {
+            lastDetectedPlatform = platform.name();
+        }
         // SMS/Game Gear y las plataformas no reconocidas no tienen toolchain integrada,
         // asi que no hay perfil que proponer: antes caian en el nombre de ZX Spectrum.
         ProjectProfileService.Profile profile = projectProfileService.profileFor(platform).orElse(null);
         if (profile == null) return;
+        // Un proyecto de Atari BASIC (.bas) no usa toolchain: no proponer el perfil CC65.
+        if (platform == ProjectPlatformDetectionService.Platform.ATARI && hasAtariBasicSources(projectDir)) return;
         if (projectProfileService.isCurrentProfile(platform, configModel)) return;
 
         String detectedProfileName = msg(profile.bundleKey(), profile.fallbackName());
@@ -1227,6 +1408,19 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
         projectProfileService.apply(platform, configModel);
         configRepository.save(userConfigFile, configModel.toProperties());
+    }
+
+    /** True si el proyecto contiene fuentes de Atari BASIC (.bas). */
+    private static boolean hasAtariBasicSources(File projectDir) {
+        if (projectDir == null || !projectDir.isDirectory()) return false;
+        try (java.util.stream.Stream<java.nio.file.Path> paths = java.nio.file.Files.walk(projectDir.toPath())) {
+            return paths.filter(java.nio.file.Files::isRegularFile)
+                .limit(300)
+                .anyMatch(p -> p.getFileName() != null
+                    && p.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".bas"));
+        } catch (java.io.IOException ex) {
+            return false;
+        }
     }
 
 
@@ -1270,6 +1464,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
         if (projectExplorerController != null) projectExplorerController.setRootDirectory(carpeta);
         refreshTodoPanel();
+        refreshAiWorkspace(carpeta);
         gitPanelController.setProject(carpeta);
         try {
             if (carpeta != null) {
@@ -1284,6 +1479,20 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
+    }
+
+    /**
+     * El agente trabaja sobre el proyecto abierto, nunca sobre el directorio desde el que
+     * se lanzo el IDE. Cambiar de proyecto reinicia ademas la conversacion, para que el
+     * modelo no conserve contexto de otro directorio.
+     */
+    private void refreshAiWorkspace(File projectDir) {
+        if (aiChatController == null || aiService == null) return;
+        Path workspace = projectDir != null ? projectDir.toPath() : null;
+        if (workspace == null && aiSettings.workingDirectory() != null) {
+            workspace = aiSettings.workingDirectory();
+        }
+        aiChatController.useWorkspace(workspace);
     }
 
     /**
@@ -1365,6 +1574,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             openTilemapEditorTab(file);
             return;
         }
+        if (ZxScreenPersistenceService.isZxScreenFile(file)) {
+            Tab existing = findZxScreenTabForFile(file);
+            if (existing != null) {
+                tabPane.getSelectionModel().select(existing);
+                return;
+            }
+            openZxScreenEditorTab(file, null);
+            return;
+        }
         for (Map.Entry<Tab, File> entry : tabFileMap.entrySet()) {
             if (file.equals(entry.getValue())) { 
                 UserActionMonitor.fileOpenedFromSearch(file.getName());
@@ -1441,6 +1659,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             
             tabFileMap.put(tab, file.getAbsoluteFile());
             secondaryTabPane.getSelectionModel().select(tab);
+            applyBasicDialectToTab(tab, file);
             persistSessionState();
 
             // Antes de cerrar con la X integrada, si la pestaña está sucia y el
@@ -1476,6 +1695,11 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             return;
         }
 
+        if (ZxScreenPersistenceService.isZxScreenFile(file)) {
+            openZxScreenEditorTab(file, null);
+            return;
+        }
+
         if (forceSingleByteText) {
             editorModel.openFileAsSingleByteText(file);
         } else {
@@ -1487,6 +1711,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             ? fxUtils.addMarkdownTab(file.getName(), content, syntaxHighlighter, tabPane)
             : fxUtils.addTab(file.getName(), content, syntaxHighlighter, tabPane);
         tabFileMap.put(tab, file);
+        applyBasicDialectToTab(tab, file);
         applyDiagnosticsForTab(tab);
         persistSessionState();
 
@@ -1658,6 +1883,11 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             if (tilemap != null) {
                 tilemap.updateCurrentFile(updatedFile);
                 refreshTilemapTabTitle(tab);
+            }
+            ZxScreenEditorController zxScreen = getZxScreenEditorController(tab);
+            if (zxScreen != null) {
+                zxScreen.updateCurrentFile(updatedFile);
+                refreshZxScreenTabTitle(tab);
             }
             if (editorModel != null) {
                 editorModel.renameOpenFile(mappedFile, updatedFile);
@@ -2094,6 +2324,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 File i18nDir = new File(System.getProperty("user.home"), ".samaruc-editor/i18n");
                 LanguageService langService = new LanguageService(i18nDir);
                 bundle = langService.getBundleForCode(langCode);
+                buildController.setBundle(bundle);
                 
                 AppLogger.setBundle(bundle);
                 Platform.runLater(() -> {
@@ -2108,6 +2339,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                     applyApplicationAppearance(tabPane.getScene(), themeToShellAppearance(activeId));
                 }
             },
+            MainController.this::initAiFromSettings,
             UserActionMonitor::configDialogOpened,
             UserActionMonitor::configDialogClosed,
             e -> {
@@ -2146,41 +2378,170 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         switch (choice) {
             case TEXT -> fxUtils.addNewTabNamed(null, "", baseName + ".txt", tabFileMap, syntaxHighlighter, tabPane);
             case C -> fxUtils.addNewTabNamed(null, "", baseName + ".c", tabFileMap, syntaxHighlighter, tabPane);
+            case HEADER -> fxUtils.addNewTabNamed(null, "", baseName + ".h", tabFileMap, syntaxHighlighter, tabPane);
+            case ASM -> fxUtils.addNewTabNamed(null, "", baseName + ".asm", tabFileMap, syntaxHighlighter, tabPane);
+            case BASIC -> {
+                fxUtils.addNewTabNamed(null, "", baseName + ".bas", tabFileMap, syntaxHighlighter, tabPane);
+                applyBasicDialectToTab(fxUtils.getSelectedTab(tabPane), new File(baseName + ".bas"));
+            }
+            case MARKDOWN -> fxUtils.addNewTabNamed(null, "", baseName + ".md", tabFileMap, syntaxHighlighter, tabPane);
+            case JSON -> fxUtils.addNewTabNamed(null, "", baseName + ".json", tabFileMap, syntaxHighlighter, tabPane);
             case SPRITE -> openTileEditorTab(null, baseName + ".tile");
             case TILEMAP -> openTilemapEditorTab(null, baseName + ".tilemap");
+            case ZXSCREEN -> openZxScreenEditorTab(null, baseName + ".zxscreen");
         }
         newFileCounter++;
     }
 
-    private enum NewFileChoice { TEXT, C, SPRITE, TILEMAP }
+    private enum NewFileChoice {
+        TEXT, C, HEADER, ASM, BASIC, MARKDOWN, JSON, SPRITE, TILEMAP, ZXSCREEN
+    }
 
     /**
-     * Pregunta qué tipo de archivo crear: texto, C o sprite (.tile).
+     * Pregunta qué tipo de archivo crear mediante un desplegable. Se usa un
+     * {@code ComboBox} (en vez de una fila de botones) para que la lista pueda
+     * crecer cómodamente con más tipos.
      *
      * @return la opción elegida, o {@code null} si se cancela.
      */
     private NewFileChoice askNewFileChoice() {
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        ComboBox<NewFileChoice> combo = new ComboBox<>();
+        combo.getItems().setAll(NewFileChoice.values());
+        combo.getSelectionModel().selectFirst();
+        combo.setPrefWidth(320);
+        combo.setMaxWidth(Double.MAX_VALUE);
+        combo.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(NewFileChoice item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : newFileChoiceLabel(item));
+            }
+        });
+        combo.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(NewFileChoice item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : newFileChoiceLabel(item));
+            }
+        });
+
+        Dialog<NewFileChoice> dialog = new Dialog<>();
         Stage owner = getStage();
-        if (owner != null) alert.initOwner(owner);
-        alert.setTitle(msg("dialog.newFile.title", "Nuevo archivo"));
-        alert.setHeaderText(msg("dialog.newFile.header", "¿Qué tipo de archivo quieres crear?"));
-        alert.setContentText(null);
+        if (owner != null) dialog.initOwner(owner);
+        dialog.setTitle(msg("dialog.newFile.title", "Nuevo archivo"));
+        dialog.setHeaderText(msg("dialog.newFile.header", "¿Qué tipo de archivo quieres crear?"));
+        ButtonType createType = new ButtonType(msg("dialog.newFile.confirm", "Crear archivo"), ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancelType = new ButtonType(msg("dialog.template.cancel", "Cancelar"), ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(createType, cancelType);
+        dialog.getDialogPane().setContent(combo);
+        dialog.setResultConverter(button -> button == createType ? combo.getValue() : null);
+        return dialog.showAndWait().orElse(null);
+    }
 
-        ButtonType text = new ButtonType(msg("dialog.newFile.text", "Archivo de texto (.txt)"), ButtonBar.ButtonData.OK_DONE);
-        ButtonType c = new ButtonType(msg("dialog.newFile.c", "Archivo C (.c)"), ButtonBar.ButtonData.OK_DONE);
-        ButtonType sprite = new ButtonType(msg("dialog.newFile.sprite", "Sprite (.tile)"), ButtonBar.ButtonData.OK_DONE);
-        ButtonType tilemap = new ButtonType(msg("dialog.newFile.tilemap", "Tilemap (.tilemap)"), ButtonBar.ButtonData.OK_DONE);
-        ButtonType cancel = new ButtonType(msg("dialog.template.cancel", "Cancelar"), ButtonBar.ButtonData.CANCEL_CLOSE);
-        alert.getButtonTypes().setAll(text, c, sprite, tilemap, cancel);
+    private String newFileChoiceLabel(NewFileChoice choice) {
+        return switch (choice) {
+            case TEXT -> msg("dialog.newFile.text", "Archivo de texto (.txt)");
+            case C -> msg("dialog.newFile.c", "Archivo C (.c)");
+            case HEADER -> msg("dialog.newFile.headerC", "Cabecera C (.h)");
+            case ASM -> msg("dialog.newFile.asm", "Ensamblador (.asm)");
+            case BASIC -> msg("dialog.newFile.bas", "BASIC (.bas)");
+            case MARKDOWN -> msg("dialog.newFile.md", "Markdown (.md)");
+            case JSON -> msg("dialog.newFile.json", "JSON (.json)");
+            case SPRITE -> msg("dialog.newFile.sprite", "Sprite (.tile)");
+            case TILEMAP -> msg("dialog.newFile.tilemap", "Tilemap (.tilemap)");
+            case ZXSCREEN -> msg("dialog.newFile.zxscreen", "Pantalla ZX (.zxscreen)");
+        };
+    }
 
-        Optional<ButtonType> result = alert.showAndWait();
-        if (result.isEmpty()) return null;
-        if (result.get() == text) return NewFileChoice.TEXT;
-        if (result.get() == c) return NewFileChoice.C;
-        if (result.get() == sprite) return NewFileChoice.SPRITE;
-        if (result.get() == tilemap) return NewFileChoice.TILEMAP;
-        return null;
+    /**
+     * Aplica el dialecto BASIC resuelto a una pestaña .bas recién creada/abierta:
+     * lo fija como propiedad de la pestaña y recalcula el resaltado inicial.
+     */
+    private void applyBasicDialectToTab(Tab tab, File file) {
+        if (tab == null || file == null || !BasicDialectResolver.isBasicFile(file)) return;
+        BasicDialect dialect = basicDialectResolver.resolve(file, currentProjectDir);
+        tab.getProperties().put(FXUtils.TAB_PROP_BASIC_DIALECT, dialect);
+        CodeArea codeArea = fxUtils.getCodeArea(tab);
+        if (codeArea != null) {
+            try {
+                codeArea.setStyleSpans(0, syntaxHighlighter.computeHighlighting(
+                        codeArea.getText(), file.getName(), dialect));
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    /** Herramientas > Dialecto BASIC...: muestra y permite fijar el dialecto del .bas activo. */
+    @FXML
+    private void onChangeBasicDialect(ActionEvent event) {
+        Tab tab = fxUtils.getSelectedTab(tabPane);
+        File file = tab != null ? tabFileMap.get(tab) : null;
+        if (file == null || !BasicDialectResolver.isBasicFile(file)) {
+            Alert info = new Alert(Alert.AlertType.INFORMATION);
+            info.setTitle(msg("menu.tools.basicDialect", "Dialecto BASIC..."));
+            info.setHeaderText(msg("basic.dialect.noSource.header", "No hay un archivo BASIC activo"));
+            info.setContentText(msg("basic.dialect.noSource", "Abre un archivo .bas y vuelve a intentarlo."));
+            info.showAndWait();
+            return;
+        }
+        BasicDialect current = basicDialectResolver.resolve(file, currentProjectDir);
+        Optional<BasicDialect> chosen = askBasicDialectChoice(current);
+        if (chosen.isEmpty()) return;
+        persistBasicDialectChoice(file, chosen.get());
+        applyBasicDialectToTab(tab, file);
+    }
+
+    private Optional<BasicDialect> askBasicDialectChoice(BasicDialect current) {
+        ComboBox<BasicDialect> combo = new ComboBox<>();
+        BasicDialect[] options = {
+            BasicDialect.ATARI, BasicDialect.ZX, BasicDialect.CPC,
+            BasicDialect.C64, BasicDialect.MSX, BasicDialect.GENERIC
+        };
+        combo.getItems().setAll(options);
+        combo.getSelectionModel().select(current != null ? current : BasicDialect.GENERIC);
+        combo.setPrefWidth(300);
+        combo.setMaxWidth(Double.MAX_VALUE);
+        combo.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(BasicDialect item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : basicDialectLabel(item));
+            }
+        });
+        combo.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(BasicDialect item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : basicDialectLabel(item));
+            }
+        });
+
+        Dialog<BasicDialect> dialog = new Dialog<>();
+        Stage owner = getStage();
+        if (owner != null) dialog.initOwner(owner);
+        dialog.setTitle(msg("menu.tools.basicDialect", "Dialecto BASIC..."));
+        dialog.setHeaderText(msg("basic.dialect.header", "¿Qué dialecto BASIC es este archivo?"));
+        ButtonType setType = new ButtonType(msg("basic.dialect.confirm", "Establecer"), ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancelType = new ButtonType(msg("dialog.template.cancel", "Cancelar"), ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(setType, cancelType);
+        dialog.getDialogPane().setContent(combo);
+        dialog.setResultConverter(button -> button == setType ? combo.getValue() : null);
+        return dialog.showAndWait();
+    }
+
+    private String basicDialectLabel(BasicDialect dialect) {
+        return msg("basic.dialect." + dialect.name().toLowerCase(Locale.ROOT), dialect.getDefaultLabel());
+    }
+
+    private void persistBasicDialectChoice(File file, BasicDialect dialect) {
+        if (currentProjectDir == null || dialect == null || !dialect.isConcrete()) return;
+        try {
+            new BasicDialectStore(currentProjectDir.toPath()).setDialect(
+                    BasicDialectStore.relativePathOf(currentProjectDir.toPath(), file.toPath()), dialect);
+        } catch (java.io.IOException ex) {
+            System.err.println("No se pudo guardar el dialecto BASIC del proyecto: " + ex.getMessage());
+        }
     }
 
     @FXML
@@ -2317,6 +2678,13 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             terminalController.stopTerminal();
         } catch (Exception ignored) {
         }
+        try {
+            if (aiService != null) {
+                aiService.close();
+                aiService = null;
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     @FXML
@@ -2386,6 +2754,10 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 rerouteOpenTilemapAsCodeToTool(opened);
                 return;
             }
+            if (ZxScreenPersistenceService.isZxScreenFile(opened)) {
+                rerouteOpenZxScreenAsCodeToTool(opened);
+                return;
+            }
             rememberRecentFile(opened);
             persistSessionState();
         }
@@ -2419,6 +2791,18 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         persistSessionState();
     }
 
+    private void rerouteOpenZxScreenAsCodeToTool(File zxScreenFile) {
+        for (Tab tab : new ArrayList<>(tabPane.getTabs())) {
+            if (zxScreenFile.equals(tabFileMap.get(tab))) {
+                tabPane.getTabs().remove(tab);
+                break;
+            }
+        }
+        openZxScreenEditorTab(zxScreenFile, null);
+        rememberRecentFile(zxScreenFile);
+        persistSessionState();
+    }
+
     @FXML
     private void onSaveFile(ActionEvent event) {
         Tab selectedTab = tabPane != null ? tabPane.getSelectionModel().getSelectedItem() : null;
@@ -2426,6 +2810,16 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             TilemapEditorController tilemap = getTilemapEditorController(selectedTab);
             if (tilemap != null && tilemap.saveCurrentProject()) {
                 tabFileMap.put(selectedTab, tilemap.getCurrentFile());
+                if (projectExplorerController != null) projectExplorerController.refreshTree();
+                persistSessionState();
+            }
+            return;
+        }
+        if (selectedTab != null && isZxScreenEditorTab(selectedTab)) {
+            ZxScreenEditorController zxScreen = getZxScreenEditorController(selectedTab);
+            if (zxScreen != null && zxScreen.saveCurrentProject()) {
+                tabFileMap.put(selectedTab, zxScreen.getCurrentFile());
+                refreshZxScreenTabTitle(selectedTab);
                 if (projectExplorerController != null) projectExplorerController.refreshTree();
                 persistSessionState();
             }
@@ -2574,13 +2968,20 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                         tabsToSave.add(tab);
                     }
                 } else {
-                    TileEditorController tile = getTileEditorController(tab);
-                    if (tile != null) {
-                        if (tile.getCurrentFile() != null) {
+                    ZxScreenEditorController zxScreen = getZxScreenEditorController(tab);
+                    if (zxScreen != null) {
+                        if (zxScreen.getCurrentFile() != null) {
                             tabsToSave.add(tab);
                         }
-                    } else if (tabFileMap.containsKey(tab)) {
-                        tabsToSave.add(tab);
+                    } else {
+                        TileEditorController tile = getTileEditorController(tab);
+                        if (tile != null) {
+                            if (tile.getCurrentFile() != null) {
+                                tabsToSave.add(tab);
+                            }
+                        } else if (tabFileMap.containsKey(tab)) {
+                            tabsToSave.add(tab);
+                        }
                     }
                 }
             }
@@ -2591,6 +2992,12 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                     TilemapEditorController tilemap = getTilemapEditorController(tab);
                     if (tilemap != null && tilemap.saveCurrentProject()) {
                         tabFileMap.put(tab, tilemap.getCurrentFile());
+                        savedAny = true;
+                    }
+                } else if (isZxScreenEditorTab(tab)) {
+                    ZxScreenEditorController zxScreen = getZxScreenEditorController(tab);
+                    if (zxScreen != null && zxScreen.saveCurrentProject()) {
+                        tabFileMap.put(tab, zxScreen.getCurrentFile());
                         savedAny = true;
                     }
                 } else if (isTileEditorTab(tab)) {
@@ -2665,6 +3072,16 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             }
             return;
         }
+        if (selectedTab != null && isZxScreenEditorTab(selectedTab)) {
+            ZxScreenEditorController zxScreen = getZxScreenEditorController(selectedTab);
+            if (zxScreen != null && zxScreen.saveProjectAs()) {
+                tabFileMap.put(selectedTab, zxScreen.getCurrentFile());
+                refreshZxScreenTabTitle(selectedTab);
+                if (projectExplorerController != null) projectExplorerController.refreshTree();
+                persistSessionState();
+            }
+            return;
+        }
         if (selectedTab != null && isTileEditorTab(selectedTab)) {
             TileEditorController tile = getTileEditorController(selectedTab);
             if (tile != null && tile.saveProjectAs()) {
@@ -2711,6 +3128,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private void onCloseFile(ActionEvent event)  {
         Tab tab = tabPane != null ? tabPane.getSelectionModel().getSelectedItem() : null;
         if (isTilemapEditorTab(tab) && !confirmCloseTilemapTab(tab)) {
+            return;
+        }
+        if (isZxScreenEditorTab(tab) && !confirmCloseZxScreenTab(tab)) {
             return;
         }
         File closing = tab != null ? tabFileMap.get(tab) : null;
@@ -3117,6 +3537,11 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         openTilemapEditorTab(null, null);
     }
 
+    @FXML
+    private void onOpenZxScreenEditor(ActionEvent event) {
+        openZxScreenEditorTab(null, null);
+    }
+
     private void openTilemapEditorTab(File fileToOpen) {
         openTilemapEditorTab(fileToOpen, null);
     }
@@ -3191,9 +3616,107 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         tab.setText(controller.hasUnsavedChanges() ? base + "*" : base);
     }
 
-    private boolean confirmCloseTilemapTab(Tab tab) {
-        TilemapEditorController controller = getTilemapEditorController(tab);
+    /**
+     * Abre el editor de pantalla del ZX Spectrum. Con fileToOpen carga un proyecto .zxscreen;
+     * con untitledName crea una pestana nueva ya associada a ese nombre de fichero.
+     */
+    private void openZxScreenEditorTab(File fileToOpen, String untitledName) {
+        String title = untitledName != null
+                ? untitledName
+                : toolTitle("menu.tools.zxScreenEditor", "Editor de Pantalla ZX");
+        Consumer<File> onExported = exportedFile -> {
+            if (projectExplorerController != null) {
+                projectExplorerController.refreshTree();
+            }
+            openFileFromExplorer(exportedFile);
+            persistSessionState();
+        };
+        ZxScreenEditorController controller = new ZxScreenEditorController();
+        Node node = controller.createNode(currentProjectDir, bundle, onExported);
+        Tab tab = fxUtils.addToolTab(title, node, tabPane);
+        tab.getProperties().put(TAB_PROP_ZX_SCREEN_CONTROLLER, controller);
+        controller.setStateListener(() -> refreshZxScreenTabTitle(tab));
+        tab.setOnCloseRequest(e -> {
+            if (!confirmCloseZxScreenTab(tab)) e.consume();
+        });
+        tab.setOnClosed(e -> {
+            tabFileMap.remove(tab);
+            tab.getProperties().remove(TAB_PROP_ZX_SCREEN_CONTROLLER);
+        });
+        if (fileToOpen != null) {
+            if (controller.openProject(fileToOpen)) {
+                tabFileMap.put(tab, controller.getCurrentFile());
+                rememberRecentFile(fileToOpen);
+            } else {
+                tabPane.getTabs().remove(tab);
+                return;
+            }
+        } else if (untitledName != null) {
+            controller.prepareNewProject(currentProjectDir != null
+                    ? new File(currentProjectDir, untitledName)
+                    : new File(untitledName));
+            tabFileMap.put(tab, controller.getCurrentFile());
+        }
+        refreshZxScreenTabTitle(tab);
+        persistSessionState();
+    }
+
+    private ZxScreenEditorController getZxScreenEditorController(Tab tab) {
+        if (tab == null) return null;
+        Object stored = tab.getProperties().get(TAB_PROP_ZX_SCREEN_CONTROLLER);
+        return stored instanceof ZxScreenEditorController controller ? controller : null;
+    }
+
+    private void refreshZxScreenTabTitle(Tab tab) {
+        ZxScreenEditorController controller = getZxScreenEditorController(tab);
+        if (controller == null) return;
+        File current = controller.getCurrentFile();
+        String base = current != null
+                ? current.getName()
+                : toolTitle("menu.tools.zxScreenEditor", "Editor de Pantalla ZX");
+        tab.setText(controller.hasUnsavedChanges() ? base + "*" : base);
+    }
+
+    private Tab findZxScreenTabForFile(File file) {
+        if (file == null || tabPane == null) return null;
+        for (Tab tab : tabPane.getTabs()) {
+            ZxScreenEditorController controller = getZxScreenEditorController(tab);
+            File current = controller != null ? controller.getCurrentFile() : null;
+            if (current != null && current.equals(file)) return tab;
+        }
+        return null;
+    }
+
+    private boolean isZxScreenEditorTab(Tab tab) {
+        return getZxScreenEditorController(tab) != null;
+    }
+
+    private boolean confirmCloseZxScreenTab(Tab tab) {
+        ZxScreenEditorController controller = getZxScreenEditorController(tab);
         if (controller == null || !controller.hasUnsavedChanges()) return true;
+
+        ButtonType save = new ButtonType("Guardar", ButtonBar.ButtonData.OK_DONE);
+        ButtonType discard = new ButtonType("Descartar", ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancel = new ButtonType("Cancelar", ButtonBar.ButtonData.CANCEL_CLOSE);
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Cerrar pantalla ZX");
+        alert.setHeaderText("Hay cambios sin guardar");
+        alert.setContentText("¿Qué quieres hacer con los cambios de la pantalla?");
+        alert.getButtonTypes().setAll(save, discard, cancel);
+        Optional<ButtonType> result = alert.showAndWait();
+        if (result.isEmpty() || result.get() == cancel) return false;
+        if (result.get() == discard) return true;
+        boolean saved = controller.saveCurrentProject();
+        if (saved && controller.getCurrentFile() != null) {
+            tabFileMap.put(tab, controller.getCurrentFile());
+            refreshZxScreenTabTitle(tab);
+        }
+        return saved;
+    }
+
+    private boolean confirmCloseTilemapTab(Tab tab) {
+        TilemapEditorController tilemap = getTilemapEditorController(tab);
+        if (tilemap == null || !tilemap.hasUnsavedChanges()) return true;
 
         ButtonType save = new ButtonType("Guardar", ButtonBar.ButtonData.OK_DONE);
         ButtonType discard = new ButtonType("Descartar", ButtonBar.ButtonData.OK_DONE);
@@ -3206,9 +3729,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         Optional<ButtonType> result = alert.showAndWait();
         if (result.isEmpty() || result.get() == cancel) return false;
         if (result.get() == discard) return true;
-        boolean saved = controller.saveCurrentProject();
-        if (saved && controller.getCurrentFile() != null) {
-            tabFileMap.put(tab, controller.getCurrentFile());
+        boolean saved = tilemap.saveCurrentProject();
+        if (saved && tilemap.getCurrentFile() != null) {
+            tabFileMap.put(tab, tilemap.getCurrentFile());
             refreshTilemapTabTitle(tab);
         }
         return saved;
@@ -3251,8 +3774,8 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     @FXML
-    private void onOpenPngToZxConverter(ActionEvent event) {
-        String title = toolTitle("tool.pngToZx.title", "Convertir PNG a C (ZX Spectrum)");
+    private void onOpenPngToCConverter(ActionEvent event) {
+        String title = toolTitle("tool.pngToC.title", "Convertir PNG a C");
         Consumer<File> onExported = exportedFile -> {
             if (projectExplorerController != null) {
                 projectExplorerController.refreshTree();
@@ -3260,40 +3783,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             openFileFromExplorer(exportedFile);
             persistSessionState();
         };
-        Node node = pngToZxConverterController.createNode(currentProjectDir, bundle, onExported);
+        Node node = pngToCConverterController.createNode(currentProjectDir, bundle, onExported);
         Tab toolTab = fxUtils.addToolTab(title, node, tabPane);
-        pngToZxConverterController.setOnCloseRequest(() -> tabPane.getTabs().remove(toolTab));
-    }
-
-    @FXML
-    private void onOpenPngToGameBoyConverter(ActionEvent event) {
-        String title = toolTitle("tool.pngToGameBoy.title", "Convertir PNG a C (Game Boy)");
-        Consumer<File> onExported = exportedFile -> {
-            if (projectExplorerController != null) {
-                projectExplorerController.refreshTree();
-            }
-            openFileFromExplorer(exportedFile);
-            persistSessionState();
-        };
-        Node node = pngToGameBoyConverterController.createNode(currentProjectDir, bundle, onExported);
-        Tab toolTab = fxUtils.addToolTab(title, node, tabPane);
-        pngToGameBoyConverterController.setOnCloseRequest(() -> tabPane.getTabs().remove(toolTab));
-    }
-
-    @FXML
-    private void onOpenPngToRetroConverter(ActionEvent event) {
-        String title = toolTitle("tool.pngToRetro.title",
-                "Convertir PNG a C (CPC, C64, Master System, Game Gear, Atari, MSX, NES)");
-        Consumer<File> onExported = exportedFile -> {
-            if (projectExplorerController != null) {
-                projectExplorerController.refreshTree();
-            }
-            openFileFromExplorer(exportedFile);
-            persistSessionState();
-        };
-        Node node = pngToRetroConverterController.createNode(currentProjectDir, bundle, onExported);
-        Tab toolTab = fxUtils.addToolTab(title, node, tabPane);
-        pngToRetroConverterController.setOnCloseRequest(() -> tabPane.getTabs().remove(toolTab));
+        pngToCConverterController.setOnCloseRequest(() -> tabPane.getTabs().remove(toolTab));
     }
 
     @FXML
@@ -4042,6 +4534,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private void onOpenManual()                               { helpController.onOpenManual(); }
 
     @FXML
+    private void onOpenBasicManual()                          { helpController.onOpenBasicManual(); }
+
+    @FXML
     private void onOpenGbdkDocs()                             { helpController.onOpenGbdkDocs(); }
     
     @FXML
@@ -4148,10 +4643,178 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     /**
-     * Aplica el ResourceBundle actual a los elementos de la UI
+     * El panel solo puede ofrecer las acciones si el binario de opencode esta instalado: el
+     * proveedor real arranca {@code opencode serve} en el primer envio, no al abrir el IDE.
      */
+    /** Recarga los ajustes de IA desde su fichero y reconstruye el proveedor. */
+    private void initAiFromSettings() {
+        if (aiService == null) {
+            return;
+        }
+        try {
+            aiSettings = new AiSettingsRepository().load();
+            aiPromptBuilder = new AiPromptBuilder(aiSettings);
+            aiService.useProvider(new OpenCodeProvider(new OpenCodeServerBridge(aiSettings)));
+            if (aiChatController != null) {
+                aiChatController.setSettings(aiSettings);
+            }
+            applyAiAvailability();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void applyAiAvailability() {
+        if (menuAi == null) {
+            return;
+        }
+        OpenCodeRuntime runtime = new OpenCodeRuntime(aiSettings);
+        boolean available = runtime.isAvailable();
+        if (menuItemAiExplainError != null) menuItemAiExplainError.setDisable(!available);
+        if (menuItemAiExplainSelection != null) menuItemAiExplainSelection.setDisable(!available);
+        if (aiChatController != null) {
+            aiChatController.setRuntime(runtime);
+            if (!available) {
+                String hint = runtime.unavailableReason();
+                if (hint != null && bundle != null) {
+                    aiChatController.showNotice(hint);
+                }
+            }
+        }
+    }
+
+    /** Manda a la IA el log de compilacion actual como contexto. */
+    @FXML
+    private void onAiExplainError() {
+        String log = consoleOutputArea != null ? consoleOutputArea.getText() : null;
+        if (log == null || log.isBlank()) {
+            notifyAiNoContext("ai.chat.noBuildLog", "La consola está vacía: compila antes de pedir la explicación.");
+            return;
+        }
+        submitAiPrompt(log, null);
+    }
+
+    /** Manda a la IA la seleccion del editor como contexto. */
+    @FXML
+    private void onAiExplainSelection() {
+        CodeArea area = fxUtils.getCurrentCodeArea(tabPane);
+        String selection = area != null ? area.getSelectedText() : null;
+        if (selection == null || selection.isBlank()) {
+            notifyAiNoContext("ai.chat.noSelection", "Selecciona el código que quieres explicar.");
+            return;
+        }
+        submitAiPrompt(null, selection);
+    }
+
+    /** Enfoca el panel de IA y explica por que no hay nada que enviar. */
+    private void notifyAiNoContext(String key, String fallback) {
+        if (!focusAiPanel()) {
+            return;
+        }
+        String message = bundle != null && bundle.containsKey(key) ? bundle.getString(key) : fallback;
+        aiChatController.showNotice(message);
+    }
+
+    /**
+     * Envia una peticion ya construida al panel. Solo el controlador lee el CodeArea y la
+     * consola: el servicio no debe saber de donde sale el contexto.
+     */
+    private void submitAiPrompt(String buildLog, String selection) {
+        if (aiChatController == null || aiPromptBuilder == null) {
+            return;
+        }
+        if (!focusAiPanel()) {
+            return;
+        }
+        AiPromptBuilder.Context context = new AiPromptBuilder.Context(
+                currentAiFileName(), selection, buildLog, aiToolchainLabel(), aiPlatformLabel());
+        String prompt = buildLog != null && !buildLog.isBlank()
+                ? aiPromptBuilder.explainCompilationError(context, null)
+                : aiPromptBuilder.explainSelection(context, null);
+        if (prompt == null || prompt.isBlank()) {
+            return;
+        }
+        aiChatController.submitPrompt(prompt);
+    }
+
+    private String currentAiFileName() {
+        Tab selected = fxUtils.getSelectedTab(tabPane);
+        File file = selected != null ? tabFileMap.get(selected) : null;
+        return file != null ? file.getName() : null;
+    }
+
+    /** Toolchain configurada para el proyecto: lo que de verdad produjo el log. */
+    private String aiToolchainLabel() {
+        if (configModel == null) {
+            return null;
+        }
+        String compiler = configModel.getCompiladorSeleccionado();
+        String profile = configModel.getZ88dkProfile();
+        if (profile == null || profile.isBlank() || ConfigModel.Z88DK_PROFILE_SPECTRUM.equals(profile)) {
+            return compiler;
+        }
+        return compiler != null && !compiler.isBlank() ? compiler + "-" + profile : profile;
+    }
+
+    private String aiPlatformLabel() {
+        // Reutiliza la deteccion ya hecha al abrir el proyecto: recorrer el arbol de ficheros
+        // en cada peticion seria caro y el resultado no cambia.
+        return lastDetectedPlatform != null && !lastDetectedPlatform.isBlank()
+                ? lastDetectedPlatform
+                : null;
+    }
+
+    /**
+     * Abre el TUI de opencode en la terminal integrada. No pasa por AiService a
+     * proposito: es el segundo canal del documento y es codigo de terminal, no HTTP.
+     */
+    @FXML
+    private void onAiOpenTerminal() {
+        if (terminalController == null) {
+            return;
+        }
+        Optional<Path> executable = new OpenCodeRuntime(aiSettings).resolveExecutable();
+        if (executable.isEmpty()) {
+            terminalController.appendConsoleOutput(
+                    "opencode no esta instalado. Usa el menu IA para ver como instalarlo.", consoleOutputArea);
+            return;
+        }
+        terminalController.executeCommandInTerminal(executable.get().toString());
+        if (outputTabPane != null && tabTerminal != null) {
+            outputTabPane.getSelectionModel().select(tabTerminal);
+        }
+        terminalController.requestTerminalFocus();
+    }
+
+    /** Muestra el panel. Devuelve false si el panel no esta disponible. */
+    private boolean focusAiPanel() {
+        if (aiChatAnchor == null || aiChatController == null) {
+            return false;
+        }
+        if (aiTab != null && aiTab.getTabPane() != null) {
+            aiTab.getTabPane().getSelectionModel().select(aiTab);
+        }
+        aiChatAnchor.requestFocus();
+        return true;
+    }
+
+    /** Textos de la IA: menu y panel, que se painted aparte del resto de la ventana. */
+    private void applyAiTexts() {
+        if (bundle == null) return;
+        if (menuAi != null) menuAi.setText(bundle.getString("menu.ai"));
+        if (menuItemAiExplainError != null) menuItemAiExplainError.setText(bundle.getString("menu.ai.explainError"));
+        if (menuItemAiExplainSelection != null) menuItemAiExplainSelection.setText(bundle.getString("menu.ai.explainSelection"));
+        if (menuItemAiOpenTerminal != null) menuItemAiOpenTerminal.setText(bundle.getString("menu.ai.openTerminal"));
+        if (aiTab != null) aiTab.setText(bundle.getString("ai.chat.tab"));
+        applyAiAvailability();
+        if (aiChatController != null) {
+            aiChatController.applyTexts();
+        }
+    }
+
     private void applyBundleToUI() {
         if (bundle == null) return;
+        applyAiTexts();
 
         if (btnCompilar         != null) btnCompilar.setTooltip(new Tooltip(bundle.getString("button.compile")));
         if (btnCancelarCompilacion != null) btnCancelarCompilacion.setTooltip(new Tooltip(bundle.getString("button.cancelCompile")));
@@ -4197,6 +4860,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemSalir       != null) menuItemSalir.setText(bundle.getString("menu.exit"));
         if (menuItemCompilar    != null) menuItemCompilar.setText(bundle.getString("button.compile"));
         if (menuItemEjecutar    != null) menuItemEjecutar.setText(bundle.getString("button.run"));
+        if (menuItemExportAtr   != null) menuItemExportAtr.setText(bundle.getString("menu.export.atr"));
         if (menuItemDeshacer    != null) menuItemDeshacer.setText(bundle.getString("button.undo"));
         if (menuItemRehacer     != null) menuItemRehacer.setText(bundle.getString("button.redo"));
         if (menuItemCortar      != null) menuItemCortar.setText(bundle.getString("button.cut"));
@@ -4207,7 +4871,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemExtractConstant != null) menuItemExtractConstant.setText(bundle.getString("menu.refactor.extractConstant"));
         if (menuItemExtractFunction != null) menuItemExtractFunction.setText(bundle.getString("menu.refactor.extractFunction"));
         if (menuItemTileEditor  != null) menuItemTileEditor.setText(bundle.getString("menu.tools.tileEditor"));
-        if (menuItemPngToRetro  != null) menuItemPngToRetro.setText(bundle.getString("menu.tools.pngToRetro"));
+        if (menuItemPngToC  != null) menuItemPngToC.setText(bundle.getString("menu.tools.pngToC"));
         if (menuItemRomTextTranslator != null) menuItemRomTextTranslator.setText(bundle.getString("menu.tools.romTextTranslator"));
         if (menuItemGitHubRepos != null) menuItemGitHubRepos.setText(bundle.getString("menu.tools.githubRepos"));
         if (menuItemGitPanel    != null) menuItemGitPanel.setText(bundle.getString("menu.git.panel"));
@@ -4223,6 +4887,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemInsertSnippet != null) menuItemInsertSnippet.setText(bundle.getString("menu.edit.snippets.insert"));
         if (menuItemManageSnippets != null) menuItemManageSnippets.setText(bundle.getString("menu.edit.snippets.manage"));
         if (menuItemManual      != null) menuItemManual.setText(bundle.getString("menu.help.manual"));
+        if (menuItemBasicManual != null) menuItemBasicManual.setText(bundle.getString("menu.help.basicManual"));
         if (menuItemGbdkDocs    != null) menuItemGbdkDocs.setText(bundle.getString("menu.help.gbdkDocs"));
         if (menuItemZ88dkDocs   != null) menuItemZ88dkDocs.setText(bundle.getString("menu.help.z88dkDocs"));
         if (menuItemCc65Docs    != null) menuItemCc65Docs.setText(bundle.getString("menu.help.cc65Docs"));
@@ -4238,6 +4903,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
         updateOutputTabsI18n();
         refreshRecentMenus();
+        refreshViewMenuLabels();
         applyDiagnosticLegendI18n();
         applyMenuAccelerators();
         applyShortcutTooltips();
@@ -4246,10 +4912,14 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
     private void updateOutputTabsI18n() {
         if (outputTabPane == null) return;
-        if (outputTabPane.getTabs().size() > 0) {
+        if (tabConsola != null) {
+            tabConsola.setText(msg("tab.console", "Consola"));
+        } else if (outputTabPane.getTabs().size() > 0) {
             outputTabPane.getTabs().get(0).setText(msg("tab.console", "Consola"));
         }
-        if (outputTabPane.getTabs().size() > 1) {
+        if (tabMonitor != null) {
+            tabMonitor.setText(msg("tab.monitor", "Monitor"));
+        } else if (outputTabPane.getTabs().size() > 1) {
             outputTabPane.getTabs().get(1).setText(msg("tab.monitor", "Monitor"));
         }
         if (tabTerminal != null) {
@@ -4257,6 +4927,246 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         } else if (outputTabPane.getTabs().size() > 2) {
             outputTabPane.getTabs().get(2).setText(msg("tab.terminal", "Terminal"));
         }
+    }
+
+    private void buildViewMenu() {
+        if (menuVer == null) {
+            return;
+        }
+        menuVerMenus   = new Menu();
+        menuVerToolbar = new Menu();
+        menuVerBottom  = new Menu();
+        buildViewMenuMenus();
+        buildViewMenuToolbar();
+        buildViewMenuBottomTabs();
+        menuVer.getItems().addAll(menuVerMenus, menuVerToolbar, menuVerBottom);
+        refreshViewMenuLabels();
+    }
+
+    private CheckMenuItem addViewToggle(String configKey, CheckMenuItem item, Runnable apply, Runnable reflow) {
+        boolean selected = "true".equalsIgnoreCase(configModel.getConfigProperty(configKey, "true"));
+        item.setSelected(selected);
+        item.selectedProperty().addListener((obs, oldV, newV) -> {
+            configModel.setConfigProperty(configKey, Boolean.toString(newV));
+            configRepository.save(userConfigFile, configModel.toProperties());
+            apply.run();
+            if (reflow != null) {
+                reflow.run();
+            }
+        });
+        apply.run();
+        if (reflow != null) {
+            reflow.run();
+        }
+        return item;
+    }
+
+    private void buildViewMenuMenus() {
+        List<ViewMenuEntry> entries = List.of(
+            new ViewMenuEntry("view.menu.archivo",      menuArchivo,     new CheckMenuItem(menuText(menuArchivo))),
+            new ViewMenuEntry("view.menu.compilacion",  menuCompilacion, new CheckMenuItem(menuText(menuCompilacion))),
+            new ViewMenuEntry("view.menu.edicion",      menuEdicion,     new CheckMenuItem(menuText(menuEdicion))),
+            new ViewMenuEntry("view.menu.herramientas", menuHerramientas,new CheckMenuItem(menuText(menuHerramientas))),
+            new ViewMenuEntry("view.menu.ai",           menuAi,          new CheckMenuItem(menuText(menuAi))),
+            new ViewMenuEntry("view.menu.git",          menuGit,         new CheckMenuItem(menuText(menuGit))),
+            new ViewMenuEntry("view.menu.ayuda",        menuAyuda,       new CheckMenuItem(menuText(menuAyuda)))
+        );
+        for (ViewMenuEntry entry : entries) {
+            viewMenuEntries.add(entry);
+            addViewToggle(entry.configKey(), entry.item(), () -> {
+                if (entry.menu() != null) {
+                    boolean visible = entry.item().isSelected();
+                    entry.menu().setVisible(visible);
+                }
+            }, null);
+            menuVerMenus.getItems().add(entry.item());
+        }
+    }
+
+    private void buildViewMenuToolbar() {
+        List<ViewButtonEntry> entries = List.of(
+            new ViewButtonEntry("view.btn.nuevoProyecto",       btnNuevoProyecto,       "button.newProject",     new CheckMenuItem(tooltipText(btnNuevoProyecto))),
+            new ViewButtonEntry("view.btn.abrirProyecto",       btnAbrirProyecto,       "button.openProject",    new CheckMenuItem(tooltipText(btnAbrirProyecto))),
+            new ViewButtonEntry("view.btn.nuevo",               btnNuevo,               "button.new",            new CheckMenuItem(tooltipText(btnNuevo))),
+            new ViewButtonEntry("view.btn.save",                btnSave,                "button.save",           new CheckMenuItem(tooltipText(btnSave))),
+            new ViewButtonEntry("view.btn.close",               btnClose,               "button.close",          new CheckMenuItem(tooltipText(btnClose))),
+            new ViewButtonEntry("view.btn.undo",                btnUndo,                "button.undo",           new CheckMenuItem(tooltipText(btnUndo))),
+            new ViewButtonEntry("view.btn.redo",                btnRedo,                "button.redo",           new CheckMenuItem(tooltipText(btnRedo))),
+            new ViewButtonEntry("view.btn.find",                btnFind,                "tooltip.find.file",     new CheckMenuItem(tooltipText(btnFind))),
+            new ViewButtonEntry("view.btn.findProject",         btnFindProject,         "tooltip.find.project",  new CheckMenuItem(tooltipText(btnFindProject))),
+            new ViewButtonEntry("view.btn.cut",                 btnCut,                 "button.cut",            new CheckMenuItem(tooltipText(btnCut))),
+            new ViewButtonEntry("view.btn.copy",                btnCopy,                "button.copy",           new CheckMenuItem(tooltipText(btnCopy))),
+            new ViewButtonEntry("view.btn.paste",               btnPaste,               "button.paste",          new CheckMenuItem(tooltipText(btnPaste))),
+            new ViewButtonEntry("view.btn.compilar",            btnCompilar,            "button.compile",        new CheckMenuItem(tooltipText(btnCompilar))),
+            new ViewButtonEntry("view.btn.cancelarCompilacion", btnCancelarCompilacion, "button.cancelCompile",  new CheckMenuItem(tooltipText(btnCancelarCompilacion))),
+            new ViewButtonEntry("view.btn.ejecutar",            btnEjecutar,            "button.run",            new CheckMenuItem(tooltipText(btnEjecutar))),
+            new ViewButtonEntry("view.btn.config",              btnConfig,              "button.config",         new CheckMenuItem(tooltipText(btnConfig))),
+            new ViewButtonEntry("view.btn.manual",              btnManual,              "tooltip.manual.open",   new CheckMenuItem(tooltipText(btnManual))),
+            new ViewButtonEntry("view.btn.git",                 btnGit,                 "tooltip.git.openPanel", new CheckMenuItem(tooltipText(btnGit)))
+        );
+        for (ViewButtonEntry entry : entries) {
+            viewButtonEntries.add(entry);
+            addViewToggle(entry.configKey(), entry.item(), this::applyToolbarButtons, this::applyToolbarSeparators);
+            menuVerToolbar.getItems().add(entry.item());
+        }
+    }
+
+    private void buildViewMenuBottomTabs() {
+        viewPanelBottomItem  = new CheckMenuItem();
+        viewTabConsoleItem   = new CheckMenuItem();
+        viewTabMonitorItem   = new CheckMenuItem();
+        viewTabTerminalItem  = new CheckMenuItem();
+
+        addViewToggle(VIEW_PANEL_BOTTOM_KEY, viewPanelBottomItem, this::applyBottomPanel, null);
+        addViewToggle("view.tab.console",  viewTabConsoleItem,  this::applyOutputTabs, null);
+        addViewToggle("view.tab.monitor",  viewTabMonitorItem,  this::applyOutputTabs, null);
+        addViewToggle("view.tab.terminal", viewTabTerminalItem, this::applyOutputTabs, null);
+
+        menuVerBottom.getItems().add(viewPanelBottomItem);
+        menuVerBottom.getItems().add(new SeparatorMenuItem());
+        menuVerBottom.getItems().add(viewTabConsoleItem);
+        menuVerBottom.getItems().add(viewTabMonitorItem);
+        menuVerBottom.getItems().add(viewTabTerminalItem);
+    }
+
+    private void applyToolbarButtons() {
+        for (ViewButtonEntry entry : viewButtonEntries) {
+            boolean visible = entry.item().isSelected();
+            entry.button().setVisible(visible);
+            entry.button().setManaged(visible);
+        }
+    }
+
+    private void applyToolbarSeparators() {
+        if (toolBar == null) {
+            return;
+        }
+        ObservableList<Node> items = toolBar.getItems();
+        for (int i = 0; i < items.size(); i++) {
+            Node node = items.get(i);
+            if (node instanceof Separator) {
+                boolean visible = hasVisibleToolbarItemBefore(items, i) && hasVisibleToolbarItemAfter(items, i);
+                node.setVisible(visible);
+                node.setManaged(visible);
+            }
+        }
+    }
+
+    private boolean hasVisibleToolbarItemBefore(ObservableList<Node> items, int index) {
+        for (int i = 0; i < index; i++) {
+            if (isToolbarItemVisible(items.get(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasVisibleToolbarItemAfter(ObservableList<Node> items, int index) {
+        for (int i = index + 1; i < items.size(); i++) {
+            if (isToolbarItemVisible(items.get(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isToolbarItemVisible(Node node) {
+        return node != null && !(node instanceof Separator) && node.isVisible() && node.isManaged();
+    }
+
+    private void applyOutputTabs() {
+        if (outputTabPane == null || tabConsola == null || tabMonitor == null || tabTerminal == null) {
+            return;
+        }
+        List<Tab> visible = new ArrayList<>();
+        if (viewTabConsoleItem.isSelected())  visible.add(tabConsola);
+        if (viewTabMonitorItem.isSelected())  visible.add(tabMonitor);
+        if (viewTabTerminalItem.isSelected()) visible.add(tabTerminal);
+        outputTabPane.getTabs().setAll(visible);
+        applyBottomPanel();
+    }
+
+    private void applyBottomPanel() {
+        if (outputContainer == null || editorOutputSplitPane == null) {
+            return;
+        }
+        boolean panelOn  = viewPanelBottomItem.isSelected();
+        boolean anyTab   = viewTabConsoleItem.isSelected()
+                        || viewTabMonitorItem.isSelected()
+                        || viewTabTerminalItem.isSelected();
+        boolean showTabs = panelOn && anyTab;
+
+        viewTabConsoleItem.setDisable(!panelOn);
+        viewTabMonitorItem.setDisable(!panelOn);
+        viewTabTerminalItem.setDisable(!panelOn);
+
+        outputTabPane.setVisible(showTabs);
+        outputTabPane.setManaged(showTabs);
+
+        ObservableList<Node> splitItems = editorOutputSplitPane.getItems();
+        if (!panelOn && splitItems.contains(outputContainer)) {
+            splitItems.remove(outputContainer);
+        } else if (panelOn && !splitItems.contains(outputContainer)) {
+            splitItems.add(outputContainer);
+            Platform.runLater(() -> editorOutputSplitPane.setDividerPositions(0.72));
+        }
+        if (panelOn) {
+            outputContainer.setMinHeight(showTabs ? 120 : 32);
+            outputContainer.setPrefHeight(showTabs ? 220 : 32);
+        }
+    }
+
+    private void refreshViewMenuLabels() {
+        if (menuVer == null) {
+            return;
+        }
+        menuVer.setText(msg("menu.view", "Ver"));
+        if (menuVerMenus != null) {
+            menuVerMenus.setText(msg("menu.view.menus", "Menú de la ventana"));
+        }
+        if (menuVerToolbar != null) {
+            menuVerToolbar.setText(msg("menu.view.toolbar", "Barra de herramientas"));
+        }
+        if (menuVerBottom != null) {
+            menuVerBottom.setText(msg("menu.view.bottom", "Panel inferior"));
+        }
+        for (ViewMenuEntry entry : viewMenuEntries) {
+            if (entry.item() != null) {
+                entry.item().setText(menuText(entry.menu()));
+            }
+        }
+        for (ViewButtonEntry entry : viewButtonEntries) {
+            if (entry.item() != null) {
+                entry.item().setText(msg(entry.bundleKey(), tooltipText(entry.button())));
+            }
+        }
+        if (viewPanelBottomItem != null) {
+            viewPanelBottomItem.setText(msg("menu.view.bottomPanel", "Mostrar panel inferior"));
+        }
+        if (viewTabConsoleItem != null) {
+            viewTabConsoleItem.setText(msg("tab.console", "Consola"));
+        }
+        if (viewTabMonitorItem != null) {
+            viewTabMonitorItem.setText(msg("tab.monitor", "Monitor"));
+        }
+        if (viewTabTerminalItem != null) {
+            viewTabTerminalItem.setText(msg("tab.terminal", "Terminal"));
+        }
+    }
+
+    private String menuText(Menu menu) {
+        if (menu != null && menu.getText() != null && !menu.getText().isBlank()) {
+            return menu.getText();
+        }
+        return "?";
+    }
+
+    private String tooltipText(Button button) {
+        Tooltip tooltip = button != null ? button.getTooltip() : null;
+        if (tooltip != null && tooltip.getText() != null && !tooltip.getText().isBlank()) {
+            return tooltip.getText();
+        }
+        return button != null && button.getId() != null ? button.getId() : "";
     }
 
     private void setupRecentMenus() {
@@ -4927,10 +5837,13 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         commands.add(new CommandPalette.Entry(msg("button.run", "Ejecutar"), h, () -> onEjecutar(null)));
         commands.add(new CommandPalette.Entry(msg("menu.tools.tileEditor", "Editor de Sprites"), h, () -> onOpenTileEditor(null)));
         commands.add(new CommandPalette.Entry(msg("menu.tools.tilemapEditor", "Editor de Mapas de Tiles"), h, () -> onOpenTilemapEditor(null)));
+        commands.add(new CommandPalette.Entry(msg("menu.tools.zxScreenEditor", "Editor de Pantalla ZX"), h, () -> onOpenZxScreenEditor(null)));
+        commands.add(new CommandPalette.Entry(msg("menu.tools.pngToC", "Convertir PNG a C"), h, () -> onOpenPngToCConverter(null)));
         commands.add(new CommandPalette.Entry(msg("menu.tools.romTextTranslator", "Traductor de texto Game Boy"), h, () -> onOpenRomTextTranslator(null)));
         commands.add(new CommandPalette.Entry(msg("menu.tools.githubRepos", "Repositorios de GitHub"), h, () -> onOpenGitHubRepoBrowser(null)));
         commands.add(new CommandPalette.Entry(msg("menu.recent.files", "Archivos recientes"), h, this::showRecentFilesInPalette));
         commands.add(new CommandPalette.Entry(msg("menu.help.manual", "Manual"), h, () -> onOpenManual()));
+        commands.add(new CommandPalette.Entry(msg("menu.help.basicManual", "Manual de BASIC"), h, () -> onOpenBasicManual()));
         commands.add(new CommandPalette.Entry(msg("menu.help.gbdkDocs", "Documentación GBDK"), h, () -> onOpenGbdkDocs()));
         commands.add(new CommandPalette.Entry(msg("menu.help.z88dkDocs", "Documentación Z88DK"), h, () -> onOpenZ88dkDocs()));
         commands.add(new CommandPalette.Entry(msg("menu.help.cc65Docs", "Documentación CC65"), h, () -> onOpenCc65Docs()));
@@ -4996,7 +5909,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (name.endsWith(".c") || name.endsWith(".h") || name.endsWith(".asm")
             || name.endsWith(".s") || name.endsWith(".md") || name.endsWith(".markdown")
             || name.endsWith(".txt") || name.equals("makefile") || name.endsWith(".mk")
-            || name.endsWith(".smt") || name.endsWith(".cfg")) {
+            || name.endsWith(".smt") || name.endsWith(".cfg") || name.endsWith(".bas")) {
             return !name.equals("dependency-reduced-pom.xml");
         }
         return false;

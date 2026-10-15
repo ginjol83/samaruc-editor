@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manual de BASIC - Samaru C Retro Editor</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 2em 3em;
+      line-height: 1.6;
+      background: #f5f5f5;
+      color: #333;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: #fff;
+      padding: 3em;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      border-radius: 8px;
+    }
+    h1 {
+      color: #2c3e50;
+      border-bottom: 3px solid #3498db;
+      padding-bottom: 0.5em;
+      margin-top: 0;
+      margin-bottom: 1em;
+    }
+    h2 {
+      color: #2980b9;
+      margin-top: 2em;
+      border-left: 4px solid #3498db;
+      padding-left: 0.5em;
+    }
+    h3 { color: #34495e; margin-top: 1.5em; }
+    nav {
+      background: #ecf0f1;
+      padding: 1em;
+      margin-bottom: 2em;
+      border-radius: 5px;
+      border-left: 4px solid #3498db;
+    }
+    nav ol { margin: 0.4em 0 0; padding-left: 1.2em; }
+    nav a { color: #2980b9; text-decoration: none; font-weight: 500; }
+    nav a:hover { text-decoration: underline; color: #1abc9c; }
+    pre { background: #0f172a; color: #e5e7eb; border-radius: 8px; padding: 12px; overflow: auto; }
+    code { background: #f4f4f4; padding: 0.2em 0.4em; border-radius: 3px; font-family: 'Courier New', monospace; color: #c0392b; }
+    pre code { background: none; padding: 0; color: inherit; }
+    table { width: 100%; border-collapse: collapse; margin: 1em 0; }
+    th, td { padding: 0.7em; text-align: left; border-bottom: 1px solid #ddd; vertical-align: top; }
+    th { background: #3498db; color: #fff; }
+    tr:nth-child(even) td { background: #fafafa; }
+    .note { color: #4b5563; }
+    .small { font-size: 0.93em; }
+    .back-to-top { margin-top: 0.6em; text-align: right; }
+    .back-to-top a { color: #2980b9; text-decoration: none; font-size: 0.92em; }
+    .back-to-top a:hover { text-decoration: underline; color: #1abc9c; }
+  </style>
+</head>
+<body id="top">
+  <div class="container">
+  <h1>Manual de BASIC - Samaru C Retro Editor</h1>
+
+  <nav class="toc">
+    <strong>Contenido</strong>
+    <ol>
+      <li><a href="#intro">Que ofrece BASIC en Samaruc</a></li>
+      <li><a href="#compilar">Compilar, ejecutar y exportar</a></li>
+      <li><a href="#includes">Dividir el programa en varios ficheros (INCLUDE)</a></li>
+      <li><a href="#rangos">Reservar rangos de numeracion</a></li>
+      <li><a href="#errores">Validaciones y errores</a></li>
+      <li><a href="#samaruc">Samaruc BASIC: funciones y procedimientos</a></li>
+      <li><a href="#zx">ZX Spectrum (Sinclair BASIC)</a></li>
+      <li><a href="#limitaciones">Limitaciones</a></li>
+    </ol>
+  </nav>
+
+  <h2 id="intro">1) Que ofrece BASIC en Samaruc</h2>
+  <p>Samaruc reconoce los ficheros <code>.bas</code>, los resalta con un tema BASIC y permite compilarlos y ejecutarlos. El dialecto se resuelve automaticamente por la plataforma del proyecto o por las heurísticas del contenido, y puede forzarse con <strong>Herramientas &gt; Dialecto BASIC...</strong>.</p>
+  <table>
+    <thead>
+      <tr><th>Dialecto</th><th>Estado</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Atari BASIC</td><td>Integrado: tokeniza, ejecuta en Altirra y exporta ATR.</td></tr>
+      <tr><td>ZX Spectrum (Sinclair BASIC)</td><td>Integrado: tokeniza a cinta <code>.tap</code> y ejecuta en JSpeccy.</td></tr>
+      <tr><td>CPC, C64, MSX</td><td>Deteccion y resaltado; la compilacion integrada aun no esta disponible.</td></tr>
+      <tr><td>Generico</td><td>Editor de texto sin toolchain.</td></tr>
+    </tbody>
+  </table>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+
+  <h2 id="compilar">2) Compilar, ejecutar y exportar</h2>
+  <p>Con un <code>.bas</code> de Atari abierto en la pestana activa:</p>
+  <ul>
+    <li><strong>Ejecutar</strong>: genera la imagen BASIC tokenizada en <code>out/&lt;nombre&gt;.bas</code> y abre Altirra, que carga y ejecuta el programa directamente.</li>
+    <li><strong>Compilar</strong>: genera la imagen de disco <code>out/&lt;nombre&gt;.atr</code> (artefacto de distribucion), sin lanzar el emulador.</li>
+    <li><strong>Compilar y ejecutar</strong>: ambas cosas.</li>
+    <li><strong>Compilacion/&gt;Ejecucion &gt; Exportar ATR...</strong>: tokeniza el fichero activo y guarda un <code>.atr</code> donde indiques.</li>
+  </ul>
+  <p class="note small">La variante de Atari BASIC (estandar / XL / XE) se elige al crear el proyecto y se guarda como <code>atari_basic_variant</code>.</p>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+
+  <h2 id="includes">3) Dividir el programa en varios ficheros (INCLUDE)</h2>
+  <p>Samaruc permite repartir un programa BASIC en varios <code>.bas</code> e insertarlos en uno principal con una directiva propia. Puedes escribirla con cualquiera de estas formas:</p>
+  <pre><code>10 REM INCLUDE "sub.bas"
+10 #INCLUDE "sub.bas"
+10 INCLUDE "sub.bas"
+' INCLUDE "sub.bas"</code></pre>
+  <p>Antes de tokenizar, Samaruc sustituye cada directiva por el contenido del fichero indicado. La directiva no aparece en la salida.</p>
+
+  <h3>Ejemplo</h3>
+  <p>Fichero principal <code>main.bas</code>:</p>
+  <pre><code>10 DIM C$(20)
+20 GOSUB 5000
+30 END
+REM INCLUDE "intro.bas"
+REM INCLUDE "parser.bas"</code></pre>
+  <p>Fichero incluido <code>intro.bas</code>:</p>
+  <pre><code>5000 PRINT "LA CUEVA"
+5010 RETURN</code></pre>
+  <p>Programa resultante:</p>
+  <pre><code>10 DIM C$(20)
+20 GOSUB 5000
+30 END
+5000 PRINT "LA CUEVA"
+5010 RETURN</code></pre>
+
+  <h3>Resolucion de rutas</h3>
+  <ul>
+    <li>Las rutas relativas se resuelven respecto al fichero que emite la directiva, no respecto al proyecto.</li>
+    <li>Se admiten subcarpetas (<code>REM INCLUDE "lib/rooms.bas"</code>) y rutas absolutas.</li>
+    <li>Las inclusiones pueden anidarse.</li>
+  </ul>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+
+  <h2 id="rangos">4) Reservar rangos de numeracion</h2>
+  <p>Cuando se juntan varios ficheros, dos de ellos pueden definir el mismo numero de linea y el tokenizador fallaria con <code>line number already in use</code>. Para evitarlo, cada directiva puede reservar el rango de numeracion de su fichero con la forma <code>MIN-MAX</code>:</p>
+  <pre><code>REM INCLUDE "parser.bas" 2000-2999
+REM INCLUDE "movement.bas" 3000-3999
+REM INCLUDE "items.bas" 4000-4199
+REM INCLUDE "rooms.bas" 6000-6999</code></pre>
+  <p>Con esto, cada fichero usa numeros absolutos dentro de su bloque reservado y Samaruc comprueba que no haya conflictos. Es la forma recomendada de repartir un programa grande.</p>
+  <p class="note small">Consejo: asigna bloques con holgura (p.ej. de 1000 en 1000) y lista los <code>INCLUDE</code> en orden ascendente, porque el programa final debe tener los numeros en orden creciente.</p>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+
+  <h2 id="errores">5) Validaciones y errores</h2>
+  <p>Al expandir las inclusiones, Samaruc detecta y reporta estos problemas antes de tokenizar:</p>
+  <table>
+    <thead>
+      <tr><th>Situacion</th><th>Mensaje</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Fichero inexistente</td><td><code>Archivo a incluir no encontrado</code></td></tr>
+      <tr><td>Inclusion ciclica (un fichero se incluye a si mismo, directa o indirectamente)</td><td><code>Ciclo de inclusion detectado</code></td></tr>
+      <tr><td>Linea fuera del rango reservado</td><td><code>Numero de linea N fuera del rango reservado MIN-MAX</code></td></tr>
+      <tr><td>Dos ficheros reservan el mismo bloque</td><td><code>Rangos reservados solapados</code></td></tr>
+      <tr><td>Dos ficheros distintos definen el mismo numero</td><td><code>Numero de linea duplicado</code></td></tr>
+    </tbody>
+  </table>
+  <p>El error incluye la linea de la directiva o del fichero incluido, y se muestra en la consola y en un aviso.</p>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+
+  <h2 id="samaruc">6) Samaruc BASIC: funciones y procedimientos</h2>
+  <p>Samaruc puede enriquecer el BASIC clasico con funciones y procedimientos con parametros, variables locales y valor de retorno. La marca <code>REM @samaruc on</code> en el fuente (normalmente la primera linea) activa este modo; sin ella el fichero se compila como BASIC clasico. Por compatibilidad tambien se acepta la marca antigua <code>REM @modern on</code>.</p>
+
+  <h3>Sintaxis</h3>
+  <pre><code>REM @samaruc on
+10 D = DIST(0, 0, 3, 4)
+20 END
+
+1000 FUNCTION DIST(X1, Y1, X2, Y2)
+1010 LOCAL DX, DY
+1020 DX = X2 - X1
+1030 DY = Y2 - Y1
+1040 RETURN SQR(DX*DX + DY*DY)
+1050 END FUNCTION</code></pre>
+  <ul>
+    <li><code>FUNCTION Nombre(params)</code> ... <code>END FUNCTION</code>: devuelve un valor con <code>RETURN expr</code>.</li>
+    <li><code>PROCEDURE Nombre(params)</code> ... <code>END PROCEDURE</code>: no devuelve valor.</li>
+    <li><code>LOCAL v1, v2, ...</code>: variables privadas de la funcion.</li>
+    <li>Si el nombre acaba en <code>$</code> (<code>FUNCTION NAME$(N)</code>) la funcion devuelve una cadena.</li>
+  </ul>
+
+  <h3>Como se llaman</h3>
+  <p>Una funcion puede usarse como el lado derecho completo de una asignacion o como sentencia suelta:</p>
+  <pre><code>10 D = DIST(0, 0, 3, 4)
+20 N$ = NAME$(5)
+30 BEEP(3)</code></pre>
+
+  <h3>Que genera</h3>
+  <p>Antes de tokenizar, la funcion se traduce a un bloque <code>GOSUB</code> con arrays reservados. El programa anterior se convierte en:</p>
+  <pre><code>1 DIM P(4):DIM L(6)
+10 P(0)=0: P(1)=0: P(2)=3: P(3)=4: GOSUB 1000: D=R
+20 END
+1000 L(0)=P(0): L(1)=P(1): L(2)=P(2): L(3)=P(3)
+1010 REM
+1020 L(4)=L(2)-L(0)
+1030 L(5)=L(3)-L(1)
+1040 R=SQR(L(4)*L(4)+L(5)*L(5)): RETURN
+1050 RETURN</code></pre>
+  <p>Los parametros llegan en <code>P()</code>, los locales usan <code>L()</code> y el resultado se recoge en <code>R</code> (o <code>R$</code>). La linea <code>DIM</code> del prologo se coloca automaticamente en la primera linea baja libre, por lo que conviene no usar las lineas <code>1</code>-<code>9</code> en Samaruc BASIC.</p>
+  <p class="note small">Nombres reservados en Samaruc BASIC: <code>P()</code>, <code>L()</code>, <code>R</code> y <code>R$</code>.</p>
+
+  <h3>Control estructurado</h3>
+  <p>En Samaruc BASIC tambien puedes escribir bucles y condicionales sin numeros de destino. Cada apertura y su cierre van en su propia linea numerada:</p>
+  <pre><code>REM @samaruc on
+100 IF A &gt; 0 THEN
+110   PRINT "POSITIVO"
+120 ELSE
+130   PRINT "NO POSITIVO"
+140 END IF
+
+200 WHILE I &lt; 10
+210   I = I + 1
+220 ENDWHILE
+
+300 REPEAT
+310   I = I - 1
+320 UNTIL I = 0
+
+400 DO
+410   I = I + 1
+420 LOOP WHILE I &lt; 10</code></pre>
+  <table>
+    <thead>
+      <tr><th>Construccion</th><th>Se escribe</th><th>Cierre</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Condicional</td><td><code>IF cond THEN</code> ... <code>ELSE</code> ...</td><td><code>END IF</code> (o <code>ENDIF</code>)</td></tr>
+      <tr><td>Mientras</td><td><code>WHILE cond</code></td><td><code>ENDWHILE</code> / <code>WEND</code> / <code>END WHILE</code></td></tr>
+      <tr><td>Repetir</td><td><code>REPEAT</code></td><td><code>UNTIL cond</code></td></tr>
+      <tr><td>Hacer</td><td><code>DO</code></td><td><code>LOOP</code> / <code>LOOP WHILE cond</code> / <code>LOOP UNTIL cond</code></td></tr>
+    </tbody>
+  </table>
+  <p>El <code>IF</code> multilinea se distingue del clasico de una linea: si la linea acaba justo en <code>THEN</code> es un bloque; si detras de <code>THEN</code> hay codigo o un numero, se deja tal cual.</p>
+
+  <h4>Que genera</h4>
+  <p>El transpilador reescribe cada marca usando la linea siguiente, sin insertar numeros nuevos. El ejemplo del condicional se convierte en:</p>
+  <pre><code>100 IF NOT (A &gt; 0) THEN 130
+110 PRINT "POSITIVO"
+120 GOTO 150
+130 PRINT "NO POSITIVO"
+140 REM
+150 ...</code></pre>
+  <table>
+    <thead>
+      <tr><th>Fuente</th><th>Genera</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>IF cond THEN</code></td><td><code>IF NOT (cond) THEN &lt;primera linea del ELSE o el END IF&gt;</code></td></tr>
+      <tr><td><code>ELSE</code></td><td><code>GOTO &lt;linea siguiente al END IF&gt;</code></td></tr>
+      <tr><td><code>END IF</code></td><td><code>REM</code></td></tr>
+      <tr><td><code>WHILE cond</code></td><td><code>IF NOT (cond) THEN &lt;linea siguiente al ENDWHILE&gt;</code></td></tr>
+      <tr><td><code>ENDWHILE</code></td><td><code>GOTO &lt;linea del WHILE&gt;</code></td></tr>
+      <tr><td><code>REPEAT</code> / <code>DO</code></td><td><code>REM</code></td></tr>
+      <tr><td><code>UNTIL cond</code></td><td><code>IF NOT (cond) THEN &lt;linea del REPEAT&gt;</code></td></tr>
+      <tr><td><code>LOOP</code> / <code>LOOP WHILE cond</code> / <code>LOOP UNTIL cond</code></td><td><code>GOTO &lt;DO&gt;</code> / <code>IF (cond) THEN &lt;DO&gt;</code> / <code>IF NOT (cond) THEN &lt;DO&gt;</code></td></tr>
+    </tbody>
+  </table>
+  <p class="note small">Como el <code>ELSE</code> necesita saltar a la linea siguiente al <code>END IF</code>, cuando uses <code>ELSE</code> el bloque no puede ser lo ultimo del programa: deja al menos una linea despues del <code>END IF</code>. Los bloques se pueden anidar, pero no pueden cruzar el limite de una <code>FUNCTION</code>/<code>PROCEDURE</code>.</p>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+
+  <h3>Constantes y azucar de asignacion</h3>
+  <p>Samaruc BASIC tambien admite constantes simbolicas y una forma mas comoda de escribir incrementos y operaciones acumuladas.</p>
+  <pre><code>REM @samaruc on
+CONST MAX = 10
+CONST ETIQUETA = "VUELTA"
+
+10 I = 0
+110 WHILE I &lt; MAX
+120 PRINT ETIQUETA; I
+130 I += 1
+140 ENDWHILE</code></pre>
+  <table>
+    <thead>
+      <tr><th>Escrito</th><th>Equivale a</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>X += e</code></td><td><code>X = X + e</code></td></tr>
+      <tr><td><code>X -= e</code></td><td><code>X = X - e</code></td></tr>
+      <tr><td><code>X *= e</code></td><td><code>X = X * e</code></td></tr>
+      <tr><td><code>X /= e</code></td><td><code>X = X / e</code></td></tr>
+      <tr><td><code>INC X</code></td><td><code>X = X + 1</code></td></tr>
+      <tr><td><code>DEC X</code></td><td><code>X = X - 1</code></td></tr>
+      <tr><td><code>INC X, n</code> / <code>DEC X, n</code></td><td><code>X = X + n</code> / <code>X = X - n</code></td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li>Las <code>CONST</code> son globales y se sustituyen en tiempo de compilacion; la linea de la definicion se convierte en <code>REM</code> (o se elimina si no tiene numero). Pueden referirse a otras constantes.</li>
+    <li>Dentro de una funcion, un parametro o una variable <code>LOCAL</code> con el mismo nombre tiene prioridad sobre la constante.</li>
+    <li>Los operadores de asignacion compuesta funcionan tambien con elementos de array (<code>A(I) += 1</code>) y con cadenas (<code>S$ += "X"</code>), aunque la concatenacion de cadenas con <code>+</code> no esta soportada por el tokenizador de Atari de Samaruc.</li>
+    <li>El lado derecho se envuelve entre parentesis solo si hace falta preservar la precedencia (p. ej. <code>X *= 2 + 3</code>).</li>
+    <li>No se pueden usar los nombres reservados (<code>P</code>, <code>L</code>, <code>R</code>, <code>R$</code>) para una constante.</li>
+  </ul>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+
+  <h2 id="zx">7) ZX Spectrum (Sinclair BASIC)</h2>
+  <p>Cuando el dialecto resuelto es ZX Spectrum, Samaruc tokeniza el listado al formato de programa en memoria del Spectrum y lo empaqueta en una cinta <code>.tap</code> cargable y con autoarranque:</p>
+  <ul>
+    <li><strong>Ejecutar</strong>: genera <code>out/&lt;nombre&gt;.tap</code> y abre JSpeccy en modo 128K, que carga y ejecuta el programa.</li>
+    <li><strong>Compilar</strong>: genera solo la cinta <code>out/&lt;nombre&gt;.tap</code>, sin lanzar el emulador.</li>
+    <li><strong>Compilar y ejecutar</strong>: ambas cosas.</li>
+  </ul>
+  <p class="note small">La linea de arranque del <code>.tap</code> se toma del primer numero de linea del programa, de modo que el programa arranca solo al cargar la cinta.</p>
+
+  <h3>Formato reconocido</h3>
+  <ul>
+    <li>Cada linea empieza por su numero seguido de la sentencia; los espacios fuera de cadenas y de <code>REM</code> no se almacenan.</li>
+    <li>Las palabras clave se reconocen en cualquier combinacion de mayusculas y minusculas (<code>PRINT</code> equivale a <code>print</code>).</li>
+    <li>Los numeros se guardan en el formato nativo del Spectrum (entero corto o coma flotante).</li>
+    <li>Todo lo que sigue a <code>REM</code> se copia literalmente.</li>
+  </ul>
+
+  <h3>Limitaciones de esta primera version</h3>
+  <ul>
+    <li>Los numeros de linea deben ser estrictamente crecientes (como en el programa final de Atari).</li>
+    <li>Sin modo etiquetas ni control estructurado: Samaruc BASIC con <code>REM @samaruc on</code> es exclusivo de Atari BASIC.</li>
+    <li>Sin las secuencias de escape de zmakebas ni graficos de bloque; la marca <code>DEF FN</code> no se reconoce como token.</li>
+    <li>Una palabra clave debe ir separada de un identificador por un caracter no alfabetico (por ejemplo <code>PRINT A</code>, no <code>PRINTA</code>).</li>
+    <li>Las directivas <code>INCLUDE</code> y los rangos reservados funcionan igual que en Atari.</li>
+  </ul>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+
+  <h2 id="limitaciones">8) Limitaciones</h2>
+  <ul>
+    <li>La compilacion BASIC integrada esta disponible para Atari BASIC y ZX Spectrum (Sinclair BASIC).</li>
+    <li>En Samaruc BASIC los parametros y las variables <code>LOCAL</code> son siempre numericos; los parametros de cadena aun no estan soportados (el retorno si puede ser cadena).</li>
+    <li>Las llamadas a funciones solo valen como asignacion completa o como sentencia suelta; las llamadas anidadas dentro de una expresion o como argumento deben resolverse con una variable temporal (<code>LOCAL T : T = F(1) : G = H(T)</code>).</li>
+    <li>No hay recursion: Samaruc BASIC usa <code>GOSUB</code> y una unica pila de retorno, como el BASIC clasico.</li>
+    <li>El control estructurado no soporta <code>ELSEIF</code>; usa <code>ELSE</code> con un <code>IF</code> anidado. Un <code>ELSE</code> exige al menos una linea despues de su <code>END IF</code>.</li>
+    <li>Los rangos reservados solo evitan duplicados; el orden creciente de los numeros en el programa final sigue siendo responsabilidad del fuente.</li>
+    <li>La directiva se reconoce solo cuando la palabra <code>INCLUDE</code> aparece al principio de la linea (opcionalmente tras numero y <code>REM</code>, <code>'</code> o <code>#</code>); no se interpretan menciones dentro de codigo o cadenas.</li>
+  </ul>
+  <div class="back-to-top"><a href="#top">Volver arriba</a></div>
+</div>
+</body>
+</html>

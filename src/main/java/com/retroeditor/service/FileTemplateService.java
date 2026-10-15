@@ -98,6 +98,22 @@ public class FileTemplateService {
             "main.c",
             "/templates/c64_main.c"),
         new TemplateDefinition(
+            "atari-bas",
+            "Atari BASIC (XL/XE)",
+            "Plantilla Hola Mundo en Atari BASIC para 8 bits de Atari.",
+            "template.atari-bas.name",
+            "template.atari-bas.description",
+            "main.bas",
+            "/templates/atari_basic_main.bas"),
+        new TemplateDefinition(
+            "zx-bas",
+            "ZX Spectrum BASIC",
+            "Plantilla Hola Mundo en BASIC de ZX Spectrum para generar un .tap.",
+            "template.zx-bas.name",
+            "template.zx-bas.description",
+            "main.bas",
+            "/templates/sinclair_basic_main.bas"),
+        new TemplateDefinition(
             "sms-c",
             "Sega Master System (C / SDCC)",
             "Plantilla basica para Sega Master System en C con SMSLib.",

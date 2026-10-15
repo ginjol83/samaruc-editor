@@ -1,12 +1,16 @@
 package com.retroeditor.service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Map;
 
 /**
  * Servicio para detectar bloques plegables ({ } y regiones ASM/#region) en código fuente.
+ *
+ * Las regiones provienen de {@link SourceSymbolScanner} (mismo analisis que la vista
+ * de estructura y las migas de pan); las llaves se cuentan sobre el codigo con
+ * comentarios y cadenas eliminados para no plegar llaves dentro de un comentario.
  */
 public class CodeFoldingService {
 
@@ -26,17 +30,30 @@ public class CodeFoldingService {
         public String getTitle() { return title; }
     }
 
-    private static final Pattern REGION_START_PATTERN = Pattern.compile("(?i)(?:#\\s*region|region)\\s+(.+)");
-    private static final Pattern REGION_END_PATTERN = Pattern.compile("(?i)(?:#\\s*endregion|endregion)");
-
     public List<FoldRange> detectFoldRanges(String text) {
         if (text == null || text.isBlank()) return List.of();
         List<FoldRange> ranges = new ArrayList<>();
-        String[] lines = text.split("\\r?\\n", -1);
+        String[] lines = text.split("\\r?\n", -1);
+        String[] code = SourceSymbolScanner.stripCommentsAndStrings(lines);
+
+        Map<Integer, String> openingTitles = new HashMap<>();
+        for (SourceSymbolScanner.SourceSymbol symbol : SourceSymbolScanner.scan(text)) {
+            switch (symbol.getType()) {
+                case "function" -> openingTitles.put(symbol.getStartLine(), symbol.getName() + "()");
+                case "struct" -> openingTitles.put(symbol.getStartLine(), "struct " + symbol.getName());
+                case "region" -> {
+                    if (symbol.getEndLine() > symbol.getStartLine()) {
+                        ranges.add(new FoldRange(symbol.getStartLine(), symbol.getEndLine(),
+                                "#region " + symbol.getName()));
+                    }
+                }
+                default -> { }
+            }
+        }
 
         List<Integer> braceStack = new ArrayList<>();
-        for (int i = 0; i < lines.length; i++) {
-            String line = lines[i];
+        for (int i = 0; i < code.length; i++) {
+            String line = code[i];
             for (int c = 0; c < line.length(); c++) {
                 char ch = line.charAt(c);
                 if (ch == '{') {
@@ -45,38 +62,14 @@ public class CodeFoldingService {
                     int startLine = braceStack.remove(braceStack.size() - 1);
                     int endLine = i + 1;
                     if (endLine > startLine) {
-                        ranges.add(new FoldRange(startLine, endLine, "{...}"));
+                        String title = openingTitles.getOrDefault(startLine, "{...}");
+                        ranges.add(new FoldRange(startLine, endLine, title));
                     }
-                }
-            }
-        }
-
-        List<RegionStart> regionStack = new ArrayList<>();
-        for (int i = 0; i < lines.length; i++) {
-            String line = lines[i];
-            int lineNum = i + 1;
-            Matcher startMat = REGION_START_PATTERN.matcher(line);
-            if (startMat.find()) {
-                regionStack.add(new RegionStart(startMat.group(1).trim(), lineNum));
-            } else if (REGION_END_PATTERN.matcher(line).find() && !regionStack.isEmpty()) {
-                RegionStart start = regionStack.remove(regionStack.size() - 1);
-                int endLine = lineNum;
-                if (endLine > start.line) {
-                    ranges.add(new FoldRange(start.line, endLine, "#region " + start.name));
                 }
             }
         }
 
         ranges.sort((a, b) -> Integer.compare(a.startLine, b.startLine));
         return ranges;
-    }
-
-    private static class RegionStart {
-        final String name;
-        final int line;
-        RegionStart(String name, int line) {
-            this.name = name;
-            this.line = line;
-        }
     }
 }

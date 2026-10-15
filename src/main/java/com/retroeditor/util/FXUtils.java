@@ -37,15 +37,21 @@ import com.retroeditor.service.ExternalFileChangeService;
 import com.retroeditor.service.SymbolBreadcrumbService;
 import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.service.syntax.SyntaxHighlighter;
+import com.retroeditor.service.atari.basic.AtariBasicVariant;
+import com.retroeditor.service.basic.BasicDialect;
 import com.retroeditor.view.UIElements;
 
+import javafx.geometry.Side;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.ToggleButton;
@@ -66,6 +72,7 @@ public class FXUtils {
 
     public static final String TAB_PROP_BASE_TITLE = "editor.baseTitle";
     public static final String TAB_PROP_FILE_ICON = "editor.fileIcon";
+    public static final String TAB_PROP_BASIC_DIALECT = "editor.basicDialect";
     private static final String TAB_PROP_BASE_TEXT = "editor.baseText";
     private static final String TAB_PROP_CODE_AREA = "editor.codeArea";
     private static final String TAB_PROP_MARKDOWN_WEBVIEW = "editor.markdownWebView";
@@ -78,6 +85,7 @@ public class FXUtils {
         EMPTY,
         SPECTRUM,
         SPECTRUM_SCREEN,
+        SPECTRUM_BASIC,
         GAMEBOY,
         GAMEBOY_SPRITE,
         TRANSLATOR,
@@ -91,6 +99,7 @@ public class FXUtils {
         GCC_CALC,
         CC65,
         CC65_C64,
+        ATARI_BASIC,
         GENERIC,
         ASM,
         MAKEFILE
@@ -100,16 +109,24 @@ public class FXUtils {
         private final ProjectTemplate template;
         private final boolean createReadme;
         private final boolean createGitignore;
+        private final AtariBasicVariant atariBasicVariant;
 
         private ProjectCreationOptions(ProjectTemplate template, boolean createReadme, boolean createGitignore) {
+            this(template, createReadme, createGitignore, AtariBasicVariant.ATARI_BASIC);
+        }
+
+        private ProjectCreationOptions(ProjectTemplate template, boolean createReadme, boolean createGitignore,
+                                       AtariBasicVariant atariBasicVariant) {
             this.template = template;
             this.createReadme = createReadme;
             this.createGitignore = createGitignore;
+            this.atariBasicVariant = atariBasicVariant != null ? atariBasicVariant : AtariBasicVariant.ATARI_BASIC;
         }
     }
 
     private boolean lastProjectCreationCancelled = false;
     private ProjectTemplate lastCreatedProjectTemplate = null;
+    private AtariBasicVariant lastCreatedAtariBasicVariant = AtariBasicVariant.ATARI_BASIC;
     private boolean lastCreateReadmeSelected = true;
     private boolean lastCreateGitignoreSelected = true;
     private String projectReadmeLanguage = "en";
@@ -257,6 +274,21 @@ public class FXUtils {
         return lastCreatedProjectTemplate == ProjectTemplate.TRANSLATOR;
     }
 
+    /** True si el usuario eligió "Atari BASIC" en el asistente. */
+    public boolean wasLastCreatedProjectAtariBasicTemplate() {
+        return lastCreatedProjectTemplate == ProjectTemplate.ATARI_BASIC;
+    }
+
+    /** True si el usuario eligió "ZX Spectrum BASIC" en el asistente. */
+    public boolean wasLastCreatedProjectSpectrumBasicTemplate() {
+        return lastCreatedProjectTemplate == ProjectTemplate.SPECTRUM_BASIC;
+    }
+
+    /** Variante XL/XE elegida al crear el ultimo proyecto Atari BASIC. */
+    public AtariBasicVariant getLastCreatedAtariBasicVariant() {
+        return lastCreatedAtariBasicVariant != null ? lastCreatedAtariBasicVariant : AtariBasicVariant.ATARI_BASIC;
+    }
+
     /** True si el usuario eligió "Desde repositorio GitHub..." en el asistente. */
     public boolean wasLastCreatedProjectGitHubTemplate() {
         return lastCreatedProjectTemplate == ProjectTemplate.GITHUB;
@@ -293,14 +325,28 @@ public class FXUtils {
      */
     public Tab getSelectedTab(TabPane tabPane)       { return tabPane.getSelectionModel().getSelectedItem(); }
 
-    /**
-     * AÃ±ade una nueva pestaÃ±a con un CodeArea y resaltado de sintaxis.
-     * @param title TÃ­tulo de la pestaÃ±a.
+/**
+     * Añade una nueva pestaña con un CodeArea y resaltado de sintaxis.
+     * @param title Título de la pestaña.
      * @param content Contenido inicial del CodeArea.
      * @param syntaxHighlighter Resaltador de sintaxis a utilizar.
-     * @param tabPane TabPane donde se aÃ±adirÃ¡ la nueva pestaÃ±a.
-     * @return La nueva pestaÃ±a creada.
+     * @param tabPane TabPane donde se añadirá la nueva pestaña.
+     * @return La nueva pestaña creada.
      */
+
+    /**
+     * Resaltado de la pestaña respetando su dialecto BASIC resuelto
+     * ({@link #TAB_PROP_BASIC_DIALECT}); si no hay dialecto fijado, se delega en
+     * el comportamiento clásico por extensión.
+     */
+    private StyleSpans<Collection<String>> highlightingFor(SyntaxHighlighter sh, Tab tab, String text, String title) {
+        Object prop = tab.getProperties().get(TAB_PROP_BASIC_DIALECT);
+        if (prop instanceof BasicDialect dialect) {
+            return sh.computeHighlighting(text, title, dialect);
+        }
+        return sh.computeHighlighting(text, title);
+    }
+
     public Tab addTab(String title, String content, SyntaxHighlighter syntaxHighlighter, TabPane tabPane) {
         CodeArea codeArea = new FoldingCodeArea();
         VirtualizedScrollPane<CodeArea> editorScrollPane = new VirtualizedScrollPane<>(codeArea);
@@ -314,11 +360,11 @@ public class FXUtils {
         codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
         codeArea.replaceText(initialText);
 
-        // Aplica el resaltado inicial de sintaxis
-        StyleSpans<Collection<String>> initialSpans = syntaxHighlighter.computeHighlighting(initialText, title);
+        // Aplica el resaltado inicial de sintaxis (respeta el dialecto BASIC de la pestaña)
+        final Tab tab = new Tab(title, editorLayout);
+        StyleSpans<Collection<String>> initialSpans = highlightingFor(syntaxHighlighter, tab, initialText, title);
         codeArea.setStyleSpans(0, initialSpans);
 
-        final Tab tab = new Tab(title, editorLayout);
         tab.getProperties().put(TAB_PROP_BASE_TITLE, title != null ? title : "");
         tab.getProperties().put(TAB_PROP_BASE_TEXT, initialText);
         tab.getProperties().put(TAB_PROP_CODE_AREA, codeArea);
@@ -328,13 +374,131 @@ public class FXUtils {
         // Barra de migas de pan (breadcrumbs) sobre el editor
         HBox breadcrumbBar = buildBreadcrumbBar();
         editorLayout.setTop(breadcrumbBar);
+        Tooltip breadcrumbTip = new Tooltip();
+
+        // Truncado con elipsis: si la ruta no cabe en la barra, cada chip recibe un
+        // ancho proporcional a su pref. Se recalcula al repintar y al redimensionar.
+        Runnable applyBreadcrumbOverflow = () -> {
+            double barWidth = breadcrumbBar.getWidth();
+            if (barWidth <= 0) return;
+            List<Label> chips = new ArrayList<>();
+            double fixed = 0;
+            int childCount = breadcrumbBar.getChildren().size();
+            double spacing = breadcrumbBar.getSpacing() * Math.max(childCount - 1, 0);
+            double barContent = barWidth - breadcrumbBar.getInsets().getLeft()
+                    - breadcrumbBar.getInsets().getRight() - spacing;
+            for (Node node : breadcrumbBar.getChildren()) {
+                if (!(node instanceof Label label)) continue;
+                if (label.getStyleClass().contains("breadcrumb-sep")
+                        || label.getStyleClass().contains("breadcrumb-sibling")) {
+                    fixed += label.prefWidth(-1);
+                } else {
+                    chips.add(label);
+                }
+            }
+            double prefSum = 0;
+            for (Label chip : chips) prefSum += chip.prefWidth(-1);
+            double budget = barContent - fixed;
+            if (budget >= prefSum || prefSum <= 0) {
+                for (Label chip : chips) chip.setMaxWidth(Double.MAX_VALUE);
+            } else {
+                for (Label chip : chips) {
+                    double share = budget * (chip.prefWidth(-1) / prefSum);
+                    chip.setMaxWidth(Math.max(40, share));
+                }
+            }
+        };
+        breadcrumbBar.widthProperty().addListener((obs, oldWidth, newWidth) -> applyBreadcrumbOverflow.run());
 
         final CodeArea area = codeArea;
         final AtomicReference<StyleSpans<Collection<String>>> baseSpans = new AtomicReference<>(initialSpans);
         final AtomicInteger baseLength = new AtomicInteger(initialText.length());
         final String[] lastHighlightWord = {null};
         final int[] lastHighlightPair = {-1, -1};
-        final int[] lastBreadcrumbLine = {-1};
+
+        // Indice de ambitos (migas de pan): se recalcula al cambiar el texto y solo
+        // se resuelve la ruta del cursor al moverse por el fichero.
+        final SymbolBreadcrumbService breadcrumbService = new SymbolBreadcrumbService();
+        final java.util.concurrent.atomic.AtomicReference<SymbolBreadcrumbService.BreadcrumbIndex> breadcrumbIndex = new java.util.concurrent.atomic.AtomicReference<>();
+        final java.util.concurrent.atomic.AtomicReference<String> lastBreadcrumbKey = new java.util.concurrent.atomic.AtomicReference<>();
+        Runnable renderBreadcrumb = () -> {
+            try {
+                SymbolBreadcrumbService.BreadcrumbIndex index = breadcrumbIndex.get();
+                if (index == null) return;
+                int caretLine = area.getCurrentParagraph() + 1;
+                List<SymbolBreadcrumbService.BreadcrumbItem> items = index.pathAt(caretLine);
+                StringBuilder key = new StringBuilder();
+                for (SymbolBreadcrumbService.BreadcrumbItem item : items) {
+                    key.append(item.getName()).append('#').append(item.getLine()).append('>');
+                }
+                String keyText = key.toString();
+                if (keyText.equals(lastBreadcrumbKey.get())) return;
+                lastBreadcrumbKey.set(keyText);
+
+                List<List<SymbolBreadcrumbService.BreadcrumbItem>> siblingGroups = index.siblingsAt(caretLine);
+                StringBuilder path = new StringBuilder();
+                for (SymbolBreadcrumbService.BreadcrumbItem item : items) {
+                    if (path.length() > 0) path.append(" › ");
+                    path.append(item.getName());
+                }
+                breadcrumbTip.setText(path.toString());
+
+                final java.util.function.IntConsumer jumpTo = line -> {
+                    int paragraph = Math.min(Math.max(line - 1, 0), area.getParagraphs().size() - 1);
+                    int off = area.position(paragraph, 0).toOffset();
+                    area.moveTo(Math.min(off, area.getLength()));
+                    area.requestFollowCaret();
+                    area.requestFocus();
+                };
+
+                breadcrumbBar.getChildren().clear();
+                for (int i = 0; i < items.size(); i++) {
+                    SymbolBreadcrumbService.BreadcrumbItem item = items.get(i);
+                    Label chip = new Label(item.getName());
+                    chip.getStyleClass().add(i == 0 ? "breadcrumb-file" : "breadcrumb-item");
+                    chip.setTooltip(breadcrumbTip);
+                    chip.setMinWidth(0);
+                    chip.setTextOverrun(OverrunStyle.ELLIPSIS);
+                    chip.setCursor(Cursor.HAND);
+                    final int line = item.getLine();
+                    chip.setOnMouseClicked(e -> jumpTo.accept(line));
+                    breadcrumbBar.getChildren().add(chip);
+
+                    List<SymbolBreadcrumbService.BreadcrumbItem> siblings =
+                            i < siblingGroups.size() ? siblingGroups.get(i) : List.of();
+                    if (siblings.size() >= 2) {
+                        Label chevron = new Label("▾");
+                        chevron.getStyleClass().add("breadcrumb-sibling");
+                        chevron.setCursor(Cursor.HAND);
+                        chevron.setOnMouseClicked(e -> {
+                            e.consume();
+                            ContextMenu menu = new ContextMenu();
+                            for (SymbolBreadcrumbService.BreadcrumbItem sibling : siblings) {
+                                MenuItem entry = new MenuItem(sibling.getName());
+                                final int siblingLine = sibling.getLine();
+                                entry.setOnAction(ev -> jumpTo.accept(siblingLine));
+                                menu.getItems().add(entry);
+                            }
+                            menu.show(chevron, Side.BOTTOM, 0, 0);
+                        });
+                        breadcrumbBar.getChildren().add(chevron);
+                    }
+                    if (i < items.size() - 1) {
+                        Label sep = new Label("›");
+                        sep.getStyleClass().add("breadcrumb-sep");
+                        breadcrumbBar.getChildren().add(sep);
+                    }
+                }
+                applyBreadcrumbOverflow.run();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        };
+        Runnable refreshBreadcrumbIndex = () -> {
+            breadcrumbIndex.set(breadcrumbService.analyze(area.getText(), baseTitleOf(tab)));
+            lastBreadcrumbKey.set(null); // el texto cambio: repintar aunque la ruta no
+            renderBreadcrumb.run();
+        };
 
         Runnable refreshExtras = () -> {
             try {
@@ -372,7 +536,7 @@ public class FXUtils {
 
         Runnable refreshBaseAndExtras = () -> {
             try {
-                StyleSpans<Collection<String>> base = syntaxHighlighter.computeHighlighting(area.getText(), title);
+                StyleSpans<Collection<String>> base = highlightingFor(syntaxHighlighter, tab, area.getText(), title);
                 baseSpans.set(base);
                 baseLength.set(area.getText().length());
                 lastHighlightWord[0] = null;
@@ -393,6 +557,7 @@ public class FXUtils {
                         }
                     }
                 }
+                refreshBreadcrumbIndex.run();
                 refreshExtras.run();
             } catch (Exception ex) {
                 ex.printStackTrace();
@@ -406,11 +571,7 @@ public class FXUtils {
 
         codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> {
             refreshExtras.run();
-            int line = area.getCurrentParagraph() + 1;
-            if (line != lastBreadcrumbLine[0]) {
-                lastBreadcrumbLine[0] = line;
-                updateBreadcrumbBar(breadcrumbBar, area, baseTitleOf(tab));
-            }
+            renderBreadcrumb.run();
             updateCursorStatus(tabPane, tab);
         });
 
@@ -421,7 +582,7 @@ public class FXUtils {
         MultiCursorManager.attach(codeArea);
         attachProfessionalEditingKeys(codeArea);
 
-        updateBreadcrumbBar(breadcrumbBar, area, baseTitleOf(tab));
+        refreshBreadcrumbIndex.run();
         updateCursorStatus(tabPane, tab);
 
         tabPane.getTabs().add(tab);
@@ -457,18 +618,19 @@ public class FXUtils {
         VirtualizedScrollPane<CodeArea> editorScrollPane = new VirtualizedScrollPane<>(codeArea);
         WebView previewView = new WebView();
         String initialText = content != null ? content : "";
+        Tab tab = new Tab(title);
 
         codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
         codeArea.replaceText(initialText);
         applyEditorThemeToNewCodeArea(codeArea);
         attachCodeAreaDoubleClickHandler(codeArea);
         MultiCursorManager.attach(codeArea);
-        codeArea.setStyleSpans(0, syntaxHighlighter.computeHighlighting(initialText, title));
+        codeArea.setStyleSpans(0, highlightingFor(syntaxHighlighter, tab, initialText, title));
         codeArea.multiPlainChanges()
             .successionEnds(Duration.ofMillis(250))
             .subscribe(ignore -> {
                 try {
-                    codeArea.setStyleSpans(0, syntaxHighlighter.computeHighlighting(codeArea.getText(), title));
+                    codeArea.setStyleSpans(0, highlightingFor(syntaxHighlighter, tab, codeArea.getText(), title));
                     updateMarkdownPreview(previewView, codeArea.getText(), title);
                 } catch (Exception ex) {
                     ex.printStackTrace();
@@ -489,7 +651,6 @@ public class FXUtils {
         codeToggle.setSelected(true);
 
         BorderPane root = new BorderPane();
-        Tab tab = new Tab(title);
         codeToggle.setOnAction(e -> setMarkdownPreviewVisible(tab, editorScrollPane, previewView, false));
         previewToggle.setOnAction(e -> setMarkdownPreviewVisible(tab, editorScrollPane, previewView, true));
 
@@ -1022,6 +1183,7 @@ public class FXUtils {
                 try {
                     createProjectFromTemplate(nuevoProyecto, creationOptions);
                     lastCreatedProjectTemplate = creationOptions.template;
+                    lastCreatedAtariBasicVariant = creationOptions.atariBasicVariant;
                     lastCreateReadmeSelected = creationOptions.createReadme;
                     lastCreateGitignoreSelected = creationOptions.createGitignore;
                     return nuevoProyecto;
@@ -1054,6 +1216,7 @@ public class FXUtils {
         labels.put(ProjectTemplate.EMPTY, msg(bundle, "dialog.project.new.template.option.empty", "Proyecto vacio"));
         labels.put(ProjectTemplate.SPECTRUM, msg(bundle, "dialog.project.new.template.option.spectrum", "Spectrum - Basico"));
         labels.put(ProjectTemplate.SPECTRUM_SCREEN, msg(bundle, "dialog.project.new.template.option.spectrumScreen", "Spectrum - Pantalla inicial"));
+        labels.put(ProjectTemplate.SPECTRUM_BASIC, msg(bundle, "dialog.project.new.template.option.spectrumBasic", "ZX Spectrum BASIC - Hola Mundo"));
         labels.put(ProjectTemplate.GAMEBOY, msg(bundle, "dialog.project.new.template.option.gameboy", "Game Boy - Basico"));
         labels.put(ProjectTemplate.GAMEBOY_SPRITE, msg(bundle, "dialog.project.new.template.option.gameboySprite", "Game Boy - Sprite demo"));
         labels.put(ProjectTemplate.CPC, msg(bundle, "dialog.project.new.template.option.cpc", "Amstrad CPC - Basico"));
@@ -1065,6 +1228,7 @@ public class FXUtils {
         labels.put(ProjectTemplate.GCC_CALC, msg(bundle, "dialog.project.new.template.option.gccCalc", "C normal (gcc) - Calculadora"));
         labels.put(ProjectTemplate.CC65, msg(bundle, "dialog.project.new.template.option.cc65", "CC65 (Atari XE/XL) - Basico"));
         labels.put(ProjectTemplate.CC65_C64, msg(bundle, "dialog.project.new.template.option.cc65C64", "CC65 (C64) - Basico"));
+        labels.put(ProjectTemplate.ATARI_BASIC, msg(bundle, "dialog.project.new.template.option.atariBasic", "Atari BASIC - Hola Mundo"));
         labels.put(ProjectTemplate.GENERIC, msg(bundle, "dialog.project.new.template.option.generic", "C generico"));
         labels.put(ProjectTemplate.ASM, msg(bundle, "dialog.project.new.template.option.asm", "Ensamblador (z80 / Game Boy)"));
         labels.put(ProjectTemplate.MAKEFILE, msg(bundle, "dialog.project.new.template.option.makefile", "Makefile / Custom"));
@@ -1075,6 +1239,7 @@ public class FXUtils {
         descriptions.put(ProjectTemplate.EMPTY, msg(bundle, "dialog.project.new.template.description.empty", "Estructura minima en C con src/main.c sin dependencias."));
         descriptions.put(ProjectTemplate.SPECTRUM, msg(bundle, "dialog.project.new.template.description.spectrum", "Plantilla base para Spectrum con conio.h, pantalla limpia y espera de tecla."));
         descriptions.put(ProjectTemplate.SPECTRUM_SCREEN, msg(bundle, "dialog.project.new.template.description.spectrumScreen", "Ejemplo para Spectrum con mensaje de bienvenida y pausa por teclado."));
+        descriptions.put(ProjectTemplate.SPECTRUM_BASIC, msg(bundle, "dialog.project.new.template.description.spectrumBasic", "Programa Hola Mundo en BASIC de ZX Spectrum listo para generar un .tap y ejecutar en JSpeccy."));
         descriptions.put(ProjectTemplate.GAMEBOY, msg(bundle, "dialog.project.new.template.description.gameboy", "Plantilla base de Game Boy con bucle principal y sincronizacion VBlank."));
         descriptions.put(ProjectTemplate.GAMEBOY_SPRITE, msg(bundle, "dialog.project.new.template.description.gameboySprite", "Demo de Game Boy con sprite cargado y mostrado en pantalla."));
         descriptions.put(ProjectTemplate.CPC, msg(bundle, "dialog.project.new.template.description.cpc", "Plantilla basica para Amstrad CPC con Z88DK."));
@@ -1086,6 +1251,7 @@ public class FXUtils {
         descriptions.put(ProjectTemplate.GCC_CALC, msg(bundle, "dialog.project.new.template.description.gccCalc", "Ejemplo de consola en C normal con bucles y entrada por teclado."));
         descriptions.put(ProjectTemplate.CC65, msg(bundle, "dialog.project.new.template.description.cc65", "Plantilla basica para Atari XE/XL con CC65."));
         descriptions.put(ProjectTemplate.CC65_C64, msg(bundle, "dialog.project.new.template.description.cc65C64", "Plantilla basica para Commodore 64 con CC65."));
+        descriptions.put(ProjectTemplate.ATARI_BASIC, msg(bundle, "dialog.project.new.template.description.atariBasic", "Programa Hola Mundo en Atari BASIC listo para ejecutar en Altirra."));
         descriptions.put(ProjectTemplate.GENERIC, msg(bundle, "dialog.project.new.template.description.generic", "Plantilla generica en C para cualquier plataforma."));
         descriptions.put(ProjectTemplate.ASM, msg(bundle, "dialog.project.new.template.description.asm", "Plantilla de ensamblador z80 para Game Boy / ZX."));
         descriptions.put(ProjectTemplate.MAKEFILE, msg(bundle, "dialog.project.new.template.description.makefile", "Proyecto basado en Makefile con estructura base."));
@@ -1123,9 +1289,36 @@ public class FXUtils {
         descLabel.setMaxWidth(420);
         descLabel.setText(descriptions.get(ProjectTemplate.SPECTRUM));
 
+        javafx.scene.control.Label variantLabel = new javafx.scene.control.Label(
+            msg(bundle, "dialog.project.new.atari.variant.label", "Variante BASIC:"));
+        javafx.scene.control.ComboBox<AtariBasicVariant> variantCombo = new javafx.scene.control.ComboBox<>();
+        variantCombo.getItems().addAll(AtariBasicVariant.values());
+        variantCombo.getSelectionModel().select(lastCreatedAtariBasicVariant);
+        variantCombo.setCellFactory(list -> new javafx.scene.control.ListCell<>() {
+            @Override
+            protected void updateItem(AtariBasicVariant item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : atariVariantLabel(bundle, item));
+            }
+        });
+        variantCombo.setButtonCell(new javafx.scene.control.ListCell<>() {
+            @Override
+            protected void updateItem(AtariBasicVariant item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : atariVariantLabel(bundle, item));
+            }
+        });
+        javafx.scene.layout.HBox variantBox = new javafx.scene.layout.HBox(8, variantLabel, variantCombo);
+        variantBox.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        variantBox.setVisible(false);
+        variantBox.setManaged(false);
+
         combo.getSelectionModel().selectedItemProperty().addListener((obs, oldV, newV) -> {
             ProjectTemplate selectedTemplate = newV != null ? newV : ProjectTemplate.SPECTRUM;
             descLabel.setText(descriptions.getOrDefault(selectedTemplate, ""));
+            boolean isAtariBasic = selectedTemplate == ProjectTemplate.ATARI_BASIC;
+            variantBox.setVisible(isAtariBasic);
+            variantBox.setManaged(isAtariBasic);
         });
 
         javafx.scene.control.Label selectorLabel = new javafx.scene.control.Label(msg(bundle, "dialog.project.new.template.label", "Plantilla:"));
@@ -1139,7 +1332,7 @@ public class FXUtils {
         );
         gitignoreCheck.setSelected(lastCreateGitignoreSelected);
 
-        javafx.scene.layout.VBox content = new javafx.scene.layout.VBox(8, selectorLabel, combo, descLabel, readmeCheck, gitignoreCheck);
+        javafx.scene.layout.VBox content = new javafx.scene.layout.VBox(8, selectorLabel, combo, descLabel, variantBox, readmeCheck, gitignoreCheck);
         content.setPrefWidth(430);
         dialog.getDialogPane().setContent(content);
 
@@ -1148,7 +1341,8 @@ public class FXUtils {
             return new ProjectCreationOptions(
                 combo.getValue(),
                 readmeCheck.isSelected(),
-                gitignoreCheck.isSelected()
+                gitignoreCheck.isSelected(),
+                combo.getValue() == ProjectTemplate.ATARI_BASIC ? variantCombo.getValue() : AtariBasicVariant.ATARI_BASIC
             );
         });
 
@@ -1171,6 +1365,9 @@ public class FXUtils {
             } else if (template == ProjectTemplate.MAKEFILE) {
                 Files.writeString(srcPath.resolve("main.c"), getTemplateMainContent(template));
                 Files.writeString(projectPath.resolve("Makefile"), getMakefileContent());
+            } else if (template == ProjectTemplate.ATARI_BASIC
+                    || template == ProjectTemplate.SPECTRUM_BASIC) {
+                Files.writeString(srcPath.resolve("main.bas"), getTemplateMainContent(template));
             } else {
                 Files.writeString(srcPath.resolve("main.c"), getTemplateMainContent(template));
             }
@@ -1251,7 +1448,8 @@ public class FXUtils {
                 || template == ProjectTemplate.TRANSLATOR) {
             return "gameboy";
         }
-        if (template == ProjectTemplate.SPECTRUM || template == ProjectTemplate.SPECTRUM_SCREEN) {
+        if (template == ProjectTemplate.SPECTRUM || template == ProjectTemplate.SPECTRUM_SCREEN
+                || template == ProjectTemplate.SPECTRUM_BASIC) {
             return "spectrum";
         }
         if (template == ProjectTemplate.CPC) {
@@ -1278,6 +1476,9 @@ public class FXUtils {
         if (template == ProjectTemplate.CC65_C64) {
             return "c64";
         }
+        if (template == ProjectTemplate.ATARI_BASIC) {
+            return "atari";
+        }
         if (template == ProjectTemplate.MAKEFILE) {
             return "make";
         }
@@ -1295,12 +1496,20 @@ public class FXUtils {
             return getSpectrumReadmeContent(normalizedName, template);
         }
 
+        if (template == ProjectTemplate.SPECTRUM_BASIC) {
+            return getSpectrumBasicReadmeContent(normalizedName);
+        }
+
         if (template == ProjectTemplate.CPC) {
             return getCpcReadmeContent(normalizedName);
         }
 
         if (template == ProjectTemplate.CC65 || template == ProjectTemplate.CC65_C64) {
             return getCc65ReadmeContent(normalizedName, template);
+        }
+
+        if (template == ProjectTemplate.ATARI_BASIC) {
+            return getAtariBasicReadmeContent(normalizedName);
         }
 
         if (template == ProjectTemplate.SMS || template == ProjectTemplate.GAME_GEAR
@@ -1535,6 +1744,72 @@ public class FXUtils {
         );
     }
 
+    private String getSpectrumBasicReadmeContent(String projectName) {
+        if (isSpanishReadme()) {
+            return getSpectrumBasicReadmeContentEs(projectName);
+        }
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "ZX Spectrum BASIC project created with Samaruc.",
+            "",
+            "## Structure",
+            "- Main source file: `src/main.bas`",
+            "",
+            "## Run",
+            "- Run from Samaruc: the editor tokenizes the BASIC source into a TAP image and opens it in JSpeccy.",
+            ""
+        );
+    }
+
+    private String getSpectrumBasicReadmeContentEs(String projectName) {
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "Proyecto de BASIC de ZX Spectrum creado con Samaruc.",
+            "",
+            "## Estructura",
+            "- Archivo principal: `src/main.bas`",
+            "",
+            "## Ejecucion",
+            "- Ejecuta desde Samaruc: el editor tokeniza el BASIC a una imagen TAP y la abre en JSpeccy.",
+            ""
+        );
+    }
+
+    private String getAtariBasicReadmeContent(String projectName) {
+        if (isSpanishReadme()) {
+            return getAtariBasicReadmeContentEs(projectName);
+        }
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "Atari BASIC project created with Samaruc.",
+            "",
+            "## Structure",
+            "- Main source file: `src/main.bas`",
+            "",
+            "## Run",
+            "- Run from Samaruc: the editor generates an ATR image and opens it in Altirra.",
+            ""
+        );
+    }
+
+    private String getAtariBasicReadmeContentEs(String projectName) {
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "Proyecto de Atari BASIC creado con Samaruc.",
+            "",
+            "## Estructura",
+            "- Archivo principal: `src/main.bas`",
+            "",
+            "## Ejecucion",
+            "- Ejecuta desde Samaruc: el editor genera una imagen ATR y la abre en Altirra.",
+            ""
+        );
+    }
+
     private String getGenericReadmeContent(String projectName) {
         if (isSpanishReadme()) {
             return getGenericReadmeContentEs(projectName);
@@ -1645,7 +1920,8 @@ public class FXUtils {
 
         if (template == ProjectTemplate.GAMEBOY || template == ProjectTemplate.GAMEBOY_SPRITE) {
             appendGameBoyGitignore(sb);
-        } else if (template == ProjectTemplate.SPECTRUM || template == ProjectTemplate.SPECTRUM_SCREEN) {
+        } else if (template == ProjectTemplate.SPECTRUM || template == ProjectTemplate.SPECTRUM_SCREEN
+                || template == ProjectTemplate.SPECTRUM_BASIC) {
             appendSpectrumGitignore(sb);
         } else if (template == ProjectTemplate.SMS || template == ProjectTemplate.GAME_GEAR) {
             appendSmsGitignore(sb);
@@ -1659,6 +1935,8 @@ public class FXUtils {
             appendCc65Gitignore(sb);
         } else if (template == ProjectTemplate.CC65_C64) {
             appendC64Gitignore(sb);
+        } else if (template == ProjectTemplate.ATARI_BASIC) {
+            appendAtariGitignore(sb);
         } else {
             appendGenericPlatformGitignore(sb);
         }
@@ -1753,6 +2031,14 @@ public class FXUtils {
         sb.append("\n");
     }
 
+    private void appendAtariGitignore(StringBuilder sb) {
+        sb.append("# Atari BASIC outputs\n");
+        sb.append("*.atr\n");
+        sb.append("*.atx\n");
+        sb.append("*.xex\n");
+        sb.append("\n");
+    }
+
     private void appendGenericPlatformGitignore(StringBuilder sb) {
         sb.append("# Platform-specific outputs (generic template)\n");
         sb.append("*.tap\n");
@@ -1765,11 +2051,15 @@ public class FXUtils {
     }
 
     private String loadResourceTemplate(String resourcePath) {
+        return loadResourceTemplate(resourcePath, "int main() { return 0; }\n");
+    }
+
+    private String loadResourceTemplate(String resourcePath, String fallback) {
         try (InputStream in = getClass().getResourceAsStream(resourcePath)) {
-            if (in == null) return "int main() { return 0; }\n";
+            if (in == null) return fallback;
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException ex) {
-            return "int main() { return 0; }\n";
+            return fallback;
         }
     }
 
@@ -1910,6 +2200,12 @@ public class FXUtils {
         if (template == ProjectTemplate.CC65_C64) {
             return loadResourceTemplate("/templates/c64_main.c");
         }
+        if (template == ProjectTemplate.ATARI_BASIC) {
+            return loadResourceTemplate("/templates/atari_basic_main.bas", "10 PRINT \"HOLA MUNDO\"\n20 END\n");
+        }
+        if (template == ProjectTemplate.SPECTRUM_BASIC) {
+            return loadResourceTemplate("/templates/sinclair_basic_main.bas", "10 PRINT \"HOLA MUNDO\"\n20 STOP\n");
+        }
         if (template == ProjectTemplate.GENERIC || template == ProjectTemplate.MAKEFILE) {
             return loadResourceTemplate("/templates/generic_main.c");
         }
@@ -1959,6 +2255,14 @@ public class FXUtils {
         } catch (Exception ignored) {
             return fallback;
         }
+    }
+
+    private String atariVariantLabel(ResourceBundle bundle, AtariBasicVariant variant) {
+        return switch (variant) {
+            case XL -> msg(bundle, "dialog.project.new.atari.variant.xl", "Atari BASIC XL");
+            case XE -> msg(bundle, "dialog.project.new.atari.variant.xe", "Atari BASIC XE");
+            default -> msg(bundle, "dialog.project.new.atari.variant.standard", "Atari BASIC");
+        };
     }
 
     /**
@@ -2166,35 +2470,6 @@ public class FXUtils {
         bar.getStyleClass().add("breadcrumb-bar");
         bar.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
         return bar;
-    }
-
-    private void updateBreadcrumbBar(HBox bar, CodeArea area, String baseTitle) {
-        if (bar == null || area == null) return;
-        try {
-            List<SymbolBreadcrumbService.BreadcrumbItem> items =
-                new SymbolBreadcrumbService().getBreadcrumbs(area.getText(), baseTitle, area.getCurrentParagraph() + 1);
-            bar.getChildren().clear();
-            for (int i = 0; i < items.size(); i++) {
-                SymbolBreadcrumbService.BreadcrumbItem item = items.get(i);
-                Label chip = new Label(item.getName());
-                chip.getStyleClass().add(i == 0 ? "breadcrumb-file" : "breadcrumb-item");
-                chip.setCursor(Cursor.HAND);
-                final int line = item.getLine();
-                chip.setOnMouseClicked(e -> {
-                    int off = area.position(line - 1, 0).toOffset();
-                    area.moveTo(Math.min(off, area.getLength()));
-                    area.requestFollowCaret();
-                    area.requestFocus();
-                });
-                bar.getChildren().add(chip);
-                if (i < items.size() - 1) {
-                    Label sep = new Label("\u203a");
-                    sep.getStyleClass().add("breadcrumb-sep");
-                    bar.getChildren().add(sep);
-                }
-            }
-        } catch (Exception ignored) {
-        }
     }
 
     private static String baseTitleOf(Tab tab) {

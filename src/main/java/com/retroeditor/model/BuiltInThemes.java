@@ -93,6 +93,15 @@ public final class BuiltInThemes {
         t.setColor(EditorTheme.KEY_SYNTAX_JSON_NUMBER,      "#fbbf24");
         t.setColor(EditorTheme.KEY_SYNTAX_JSON_LITERAL,     "#4ade80");
 
+        t.setColor(EditorTheme.KEY_SYNTAX_BASIC_LINE_NUMBER, "#64748b");
+        t.setColor(EditorTheme.KEY_SYNTAX_BASIC_KEYWORD,     "#c084fc");
+        t.setColor(EditorTheme.KEY_SYNTAX_BASIC_FUNCTION,    "#38bdf8");
+        t.setColor(EditorTheme.KEY_SYNTAX_BASIC_STRING,      "#fda4af");
+        t.setColor(EditorTheme.KEY_SYNTAX_BASIC_NUMBER,      "#fbbf24");
+        t.setColor(EditorTheme.KEY_SYNTAX_BASIC_COMMENT,     "#94a3b8");
+        t.setColor(EditorTheme.KEY_SYNTAX_BASIC_OPERATOR,    "#f59e0b");
+        t.setColor(EditorTheme.KEY_SYNTAX_BASIC_VARIABLE,    "#e5e7eb");
+
         t.setColor(EditorTheme.KEY_COMPILE_ERROR_LINE,      "rgba(239, 68, 68, 0.12)");
         t.setColor(EditorTheme.KEY_COMPILE_WARNING_LINE,    "rgba(245, 158, 11, 0.12)");
         t.setColor(EditorTheme.KEY_GUTTER_ERROR,            "#f87171");
@@ -146,6 +155,15 @@ public final class BuiltInThemes {
         t.setColor(EditorTheme.KEY_SYNTAX_JSON_KEY,         "#1d4ed8");
         t.setColor(EditorTheme.KEY_SYNTAX_JSON_NUMBER,      "#0891b2");
         t.setColor(EditorTheme.KEY_SYNTAX_JSON_LITERAL,     "#166534");
+
+        t.setColor(EditorTheme.KEY_SYNTAX_BASIC_LINE_NUMBER, "#64748b");
+        t.setColor(EditorTheme.KEY_SYNTAX_BASIC_KEYWORD,     "#7c3aed");
+        t.setColor(EditorTheme.KEY_SYNTAX_BASIC_FUNCTION,    "#0284c7");
+        t.setColor(EditorTheme.KEY_SYNTAX_BASIC_STRING,      "#b45309");
+        t.setColor(EditorTheme.KEY_SYNTAX_BASIC_NUMBER,      "#0891b2");
+        t.setColor(EditorTheme.KEY_SYNTAX_BASIC_COMMENT,     "#64748b");
+        t.setColor(EditorTheme.KEY_SYNTAX_BASIC_OPERATOR,    "#1d4ed8");
+        t.setColor(EditorTheme.KEY_SYNTAX_BASIC_VARIABLE,    "#111827");
 
         t.setColor(EditorTheme.KEY_COMPILE_ERROR_LINE,      "rgba(239, 68, 68, 0.12)");
         t.setColor(EditorTheme.KEY_COMPILE_WARNING_LINE,    "rgba(245, 158, 11, 0.12)");

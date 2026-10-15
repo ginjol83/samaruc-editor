@@ -115,4 +115,28 @@ class FileTemplateServiceTest {
         assertTrue(msx.content().contains("msx.h"));
         assertTrue(nes.content().contains("nes.h"));
     }
+
+    @Test
+    void exposesAtariBasicTemplate() {
+        FileTemplateService.FileTemplate atari = service.getTemplates().stream()
+            .filter(t -> "atari-bas".equals(t.id()))
+            .findFirst()
+            .orElseThrow();
+
+        assertEquals("main.bas", atari.fileName());
+        assertTrue(atari.content().contains("HOLA MUNDO"));
+        assertTrue(atari.content().contains("PRINT"));
+    }
+
+    @Test
+    void exposesZxBasicTemplate() {
+        FileTemplateService.FileTemplate zx = service.getTemplates().stream()
+            .filter(t -> "zx-bas".equals(t.id()))
+            .findFirst()
+            .orElseThrow();
+
+        assertEquals("main.bas", zx.fileName());
+        assertTrue(zx.content().contains("HOLA MUNDO"));
+        assertTrue(zx.content().contains("PRINT"));
+    }
 }

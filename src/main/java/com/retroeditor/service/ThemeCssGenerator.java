@@ -35,42 +35,57 @@ public final class ThemeCssGenerator {
         Map.entry("caret",              new Object[]{EditorTheme.KEY_CARET,               "#f8fafc"})
     );
 
-    private static final Map<String, Object[]> C_TOKENS = Map.ofEntries(
-        Map.entry("preprocessor",   new Object[]{EditorTheme.KEY_SYNTAX_PREPROCESSOR,   "#7dd3fc", true}),
-        Map.entry("keyword",        new Object[]{EditorTheme.KEY_SYNTAX_KEYWORD,        "#c084fc", true}),
-        Map.entry("comment",        new Object[]{EditorTheme.KEY_SYNTAX_COMMENT,        "#94a3b8", false}),
-        Map.entry("string",         new Object[]{EditorTheme.KEY_SYNTAX_STRING,         "#fda4af", false}),
-        Map.entry("character",      new Object[]{EditorTheme.KEY_SYNTAX_CHARACTER,      "#fda4af", false}),
-        Map.entry("operator",       new Object[]{EditorTheme.KEY_SYNTAX_OPERATOR,       "#f59e0b", false}),
-        Map.entry("zx-function",    new Object[]{EditorTheme.KEY_SYNTAX_ZX_FUNCTION,    "#60a5fa", true}),
-        Map.entry("gbdk-function",  new Object[]{EditorTheme.KEY_SYNTAX_GBDK_FUNCTION,  "#38bdf8", true})
+    /** Estilo de un token: clave de color en el tema, color de reserva y pesos. */
+    private record Token(String key, String fallback, boolean bold, boolean italic) {
+    }
+
+    private static final Map<String, Token> C_TOKENS = Map.ofEntries(
+        Map.entry("preprocessor",   new Token(EditorTheme.KEY_SYNTAX_PREPROCESSOR,   "#7dd3fc", true,  false)),
+        Map.entry("keyword",        new Token(EditorTheme.KEY_SYNTAX_KEYWORD,        "#c084fc", true,  false)),
+        Map.entry("comment",        new Token(EditorTheme.KEY_SYNTAX_COMMENT,        "#94a3b8", false, true)),
+        Map.entry("string",         new Token(EditorTheme.KEY_SYNTAX_STRING,         "#fda4af", false, false)),
+        Map.entry("character",      new Token(EditorTheme.KEY_SYNTAX_CHARACTER,      "#fda4af", false, false)),
+        Map.entry("operator",       new Token(EditorTheme.KEY_SYNTAX_OPERATOR,       "#f59e0b", false, false)),
+        Map.entry("zx-function",    new Token(EditorTheme.KEY_SYNTAX_ZX_FUNCTION,    "#60a5fa", true,  false)),
+        Map.entry("gbdk-function",  new Token(EditorTheme.KEY_SYNTAX_GBDK_FUNCTION,  "#38bdf8", true,  false))
     );
 
-    private static final Map<String, Object[]> ASM_TOKENS = Map.ofEntries(
-        Map.entry("asm-label",       new Object[]{EditorTheme.KEY_SYNTAX_ASM_LABEL,       "#f97316", true}),
-        Map.entry("asm-directive",   new Object[]{EditorTheme.KEY_SYNTAX_ASM_DIRECTIVE,   "#c084fc", true}),
-        Map.entry("asm-instruction", new Object[]{EditorTheme.KEY_SYNTAX_ASM_INSTRUCTION, "#60a5fa", true}),
-        Map.entry("asm-register",    new Object[]{EditorTheme.KEY_SYNTAX_ASM_REGISTER,    "#f87171", true}),
-        Map.entry("asm-number",      new Object[]{EditorTheme.KEY_SYNTAX_ASM_NUMBER,      "#fbbf24", false})
+    private static final Map<String, Token> ASM_TOKENS = Map.ofEntries(
+        Map.entry("asm-label",       new Token(EditorTheme.KEY_SYNTAX_ASM_LABEL,       "#f97316", true,  false)),
+        Map.entry("asm-directive",   new Token(EditorTheme.KEY_SYNTAX_ASM_DIRECTIVE,   "#c084fc", true,  false)),
+        Map.entry("asm-instruction", new Token(EditorTheme.KEY_SYNTAX_ASM_INSTRUCTION, "#60a5fa", true,  false)),
+        Map.entry("asm-register",    new Token(EditorTheme.KEY_SYNTAX_ASM_REGISTER,    "#f87171", true,  false)),
+        Map.entry("asm-number",      new Token(EditorTheme.KEY_SYNTAX_ASM_NUMBER,      "#fbbf24", false, false))
     );
 
-    private static final Map<String, Object[]> MD_TOKENS = Map.ofEntries(
-        Map.entry("md-heading",          new Object[]{EditorTheme.KEY_SYNTAX_MD_HEADING,          "#93c5fd", true}),
-        Map.entry("md-blockquote",       new Object[]{EditorTheme.KEY_SYNTAX_MD_BLOCKQUOTE,       "#94a3b8", false}),
-        Map.entry("md-list",             new Object[]{EditorTheme.KEY_SYNTAX_MD_LIST,             "#60a5fa", false}),
-        Map.entry("md-checklist",        new Object[]{EditorTheme.KEY_SYNTAX_MD_CHECKLIST,        "#94a3b8", false}),
-        Map.entry("md-checklist-pending",new Object[]{EditorTheme.KEY_SYNTAX_MD_CHECKLIST_PENDING,"#fbbf24", false}),
-        Map.entry("md-checklist-done",   new Object[]{EditorTheme.KEY_SYNTAX_MD_CHECKLIST_DONE,   "#4ade80", true}),
-        Map.entry("md-table",            new Object[]{EditorTheme.KEY_SYNTAX_MD_TABLE,            "#c084fc", false}),
-        Map.entry("md-link",             new Object[]{EditorTheme.KEY_SYNTAX_MD_LINK,             "#38bdf8", false}),
-        Map.entry("md-bold",             new Object[]{EditorTheme.KEY_SYNTAX_MD_BOLD,             "#e2e8f0", true}),
-        Map.entry("md-italic",           new Object[]{EditorTheme.KEY_SYNTAX_MD_ITALIC,           "#e2e8f0", false})
+    private static final Map<String, Token> MD_TOKENS = Map.ofEntries(
+        Map.entry("md-heading",          new Token(EditorTheme.KEY_SYNTAX_MD_HEADING,          "#93c5fd", true,  false)),
+        Map.entry("md-blockquote",       new Token(EditorTheme.KEY_SYNTAX_MD_BLOCKQUOTE,       "#94a3b8", false, true)),
+        Map.entry("md-list",             new Token(EditorTheme.KEY_SYNTAX_MD_LIST,             "#60a5fa", false, false)),
+        Map.entry("md-checklist",        new Token(EditorTheme.KEY_SYNTAX_MD_CHECKLIST,        "#94a3b8", false, false)),
+        Map.entry("md-checklist-pending",new Token(EditorTheme.KEY_SYNTAX_MD_CHECKLIST_PENDING,"#fbbf24", false, false)),
+        Map.entry("md-checklist-done",   new Token(EditorTheme.KEY_SYNTAX_MD_CHECKLIST_DONE,   "#4ade80", true,  false)),
+        Map.entry("md-table",            new Token(EditorTheme.KEY_SYNTAX_MD_TABLE,            "#c084fc", false, false)),
+        Map.entry("md-link",             new Token(EditorTheme.KEY_SYNTAX_MD_LINK,             "#38bdf8", false, false)),
+        Map.entry("md-bold",             new Token(EditorTheme.KEY_SYNTAX_MD_BOLD,             "#e2e8f0", true,  false)),
+        Map.entry("md-italic",           new Token(EditorTheme.KEY_SYNTAX_MD_ITALIC,           "#e2e8f0", false, true))
     );
 
-    private static final Map<String, Object[]> JSON_TOKENS = Map.ofEntries(
-        Map.entry("json-key",     new Object[]{EditorTheme.KEY_SYNTAX_JSON_KEY,     "#93c5fd", true}),
-        Map.entry("json-number",  new Object[]{EditorTheme.KEY_SYNTAX_JSON_NUMBER,  "#fbbf24", false}),
-        Map.entry("json-literal", new Object[]{EditorTheme.KEY_SYNTAX_JSON_LITERAL, "#4ade80", true})
+    private static final Map<String, Token> JSON_TOKENS = Map.ofEntries(
+        Map.entry("json-key",     new Token(EditorTheme.KEY_SYNTAX_JSON_KEY,     "#93c5fd", true,  false)),
+        Map.entry("json-number",  new Token(EditorTheme.KEY_SYNTAX_JSON_NUMBER,  "#fbbf24", false, false)),
+        Map.entry("json-literal", new Token(EditorTheme.KEY_SYNTAX_JSON_LITERAL, "#4ade80", true,  false))
+    );
+
+    private static final Map<String, Token> BASIC_TOKENS = Map.ofEntries(
+        Map.entry("basic-line-number", new Token(EditorTheme.KEY_SYNTAX_BASIC_LINE_NUMBER, "#64748b", false, false)),
+        Map.entry("basic-keyword",     new Token(EditorTheme.KEY_SYNTAX_BASIC_KEYWORD,     "#c084fc", true,  false)),
+        Map.entry("basic-function",    new Token(EditorTheme.KEY_SYNTAX_BASIC_FUNCTION,    "#38bdf8", true,  false)),
+        Map.entry("basic-string",      new Token(EditorTheme.KEY_SYNTAX_BASIC_STRING,      "#fda4af", false, false)),
+        Map.entry("basic-number",      new Token(EditorTheme.KEY_SYNTAX_BASIC_NUMBER,      "#fbbf24", false, false)),
+        Map.entry("basic-comment",     new Token(EditorTheme.KEY_SYNTAX_BASIC_COMMENT,     "#94a3b8", false, true)),
+        Map.entry("basic-operator",    new Token(EditorTheme.KEY_SYNTAX_BASIC_OPERATOR,    "#f59e0b", false, false)),
+        Map.entry("basic-variable",    new Token(EditorTheme.KEY_SYNTAX_BASIC_VARIABLE,    "#e5e7eb", false, false))
     );
 
     /**
@@ -132,34 +147,42 @@ public final class ThemeCssGenerator {
         sb.append("}\n\n");
 
         // ---------- Tokens C ----------
-        for (Map.Entry<String, Object[]> e : C_TOKENS.entrySet()) {
-            token(sb, active, base, e.getKey(), (String) e.getValue()[0], (String) e.getValue()[1], (Boolean) e.getValue()[2]);
+        for (Map.Entry<String, Token> e : C_TOKENS.entrySet()) {
+            token(sb, active, base, e.getKey(), e.getValue());
         }
 
         // ---------- Tokens ASM ----------
-        for (Map.Entry<String, Object[]> e : ASM_TOKENS.entrySet()) {
-            token(sb, active, base, e.getKey(), (String) e.getValue()[0], (String) e.getValue()[1], (Boolean) e.getValue()[2]);
+        for (Map.Entry<String, Token> e : ASM_TOKENS.entrySet()) {
+            token(sb, active, base, e.getKey(), e.getValue());
         }
 
         // ---------- Tokens Markdown ----------
-        for (Map.Entry<String, Object[]> e : MD_TOKENS.entrySet()) {
-            token(sb, active, base, e.getKey(), (String) e.getValue()[0], (String) e.getValue()[1], (Boolean) e.getValue()[2]);
+        for (Map.Entry<String, Token> e : MD_TOKENS.entrySet()) {
+            token(sb, active, base, e.getKey(), e.getValue());
         }
 
         // ---------- Tokens JSON ----------
-        for (Map.Entry<String, Object[]> e : JSON_TOKENS.entrySet()) {
-            token(sb, active, base, e.getKey(), (String) e.getValue()[0], (String) e.getValue()[1], (Boolean) e.getValue()[2]);
+        for (Map.Entry<String, Token> e : JSON_TOKENS.entrySet()) {
+            token(sb, active, base, e.getKey(), e.getValue());
+        }
+
+        // ---------- Tokens Atari BASIC ----------
+        for (Map.Entry<String, Token> e : BASIC_TOKENS.entrySet()) {
+            token(sb, active, base, e.getKey(), e.getValue());
         }
 
         return sb.toString();
     }
 
     private static void token(StringBuilder sb, EditorTheme active, EditorTheme base,
-                              String cls, String key, String fallback, boolean bold) {
+                              String cls, Token token) {
         sb.append(".code-area .").append(cls).append(" {\n");
-        sb.append("    -fx-fill: ").append(c(active, base, key, fallback)).append(";\n");
-        if (bold) {
+        sb.append("    -fx-fill: ").append(c(active, base, token.key(), token.fallback())).append(";\n");
+        if (token.bold()) {
             sb.append("    -fx-font-weight: bold;\n");
+        }
+        if (token.italic()) {
+            sb.append("    -fx-font-style: italic;\n");
         }
         sb.append("}\n\n");
     }

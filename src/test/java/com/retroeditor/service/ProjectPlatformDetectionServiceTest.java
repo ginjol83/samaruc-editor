@@ -205,5 +205,34 @@ class ProjectPlatformDetectionServiceTest {
 
         Assertions.assertEquals(ProjectPlatformDetectionService.Platform.NES, result.getPlatform());
     }
-}
 
+    @Test
+    void detectAtariByBasSource() throws IOException {
+        Files.writeString(tempDir.resolve("main.bas"), "10 PRINT \"HOLA MUNDO\"\n20 END\n");
+
+        ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
+
+        Assertions.assertEquals(ProjectPlatformDetectionService.Platform.ATARI, result.getPlatform());
+        Assertions.assertTrue(result.getConfidence() > 0);
+    }
+
+    @Test
+    void detectAtariByWorkspaceTarget() throws IOException {
+        Files.writeString(tempDir.resolve("settings.json"), "{\"samaruc.target\": \"atari\"}");
+
+        ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
+
+        Assertions.assertEquals(ProjectPlatformDetectionService.Platform.ATARI, result.getPlatform());
+        Assertions.assertTrue(result.getConfidence() > 0);
+    }
+
+    @Test
+    void basSourceDoesNotOverrideExplicitCpcSignals() throws IOException {
+        Files.writeString(tempDir.resolve("main.bas"), "10 PRINT \"HOLA\"\n");
+        Files.writeString(tempDir.resolve("main.c"), "#include <cpc.h>\n// +cpc\nvoid main(void){ cpc_ClrScr(); }");
+
+        ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
+
+        Assertions.assertEquals(ProjectPlatformDetectionService.Platform.CPC, result.getPlatform());
+    }
+}

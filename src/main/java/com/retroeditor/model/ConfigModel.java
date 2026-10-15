@@ -191,8 +191,11 @@ public class ConfigModel {
      * @return Valor de la propiedad o el valor por defecto
      */
     public String getConfigProperty(String key, String defaultValue) {
-        // La apariencia es global: no se permite override por workspace
-        boolean isAppearanceKey = EDITOR_THEME_PROPERTY.equals(key) || "editor_appearance".equals(key);
+        // La apariencia es global: no se permite override por workspace.
+        // Las claves "view.*" (visibilidad de menús/botones/paneles) también.
+        boolean isAppearanceKey = EDITOR_THEME_PROPERTY.equals(key)
+                || "editor_appearance".equals(key)
+                || (key != null && key.startsWith("view."));
         // Primero consultar el workspace si está activo
         if (activeWorkspace != null && !isAppearanceKey) {
             String workspaceValue = activeWorkspace.getSetting(key);

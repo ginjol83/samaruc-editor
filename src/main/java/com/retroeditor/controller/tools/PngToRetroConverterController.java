@@ -76,6 +76,7 @@ public class PngToRetroConverterController {
     private ResourceBundle bundle;
     private Node rootNode;
     private Runnable closeHandler;
+    private RetroImageMode initialMode;
     private final PauseTransition reconvertDelay =
             new PauseTransition(Duration.millis(RECONVERT_DELAY_MS));
 
@@ -88,7 +89,19 @@ public class PngToRetroConverterController {
      *        arbol de ficheros y abrirlo en el editor
      */
     public Node createNode(File currentProjectDir, ResourceBundle bundle, Consumer<File> onExported) {
+        return createNode(currentProjectDir, bundle, null, onExported);
+    }
+
+    /**
+     * Crea la UI de la herramienta preseleccionando un modo de video concreto.
+     * Usado por la herramienta unificada "Convertir PNG a C": la maquina elegida
+     * alli fija el modo Retro por defecto; {@code null} deja el modo por defecto
+     * de la propia herramienta.
+     */
+    public Node createNode(File currentProjectDir, ResourceBundle bundle, RetroImageMode initialMode,
+                           Consumer<File> onExported) {
         this.bundle = bundle;
+        this.initialMode = initialMode;
         return buildUi(currentProjectDir, onExported);
     }
 
@@ -114,7 +127,14 @@ public class PngToRetroConverterController {
 
         ComboBox<ModeOption> modeBox = new ComboBox<>();
         modeBox.getItems().addAll(modeOptions());
-        modeBox.setValue(modeBox.getItems().get(1));
+        if (initialMode != null) {
+            modeBox.getItems().stream()
+                    .filter(o -> o.mode() == initialMode)
+                    .findFirst()
+                    .ifPresent(modeBox::setValue);
+        } else {
+            modeBox.setValue(modeBox.getItems().get(1));
+        }
         modeBox.setPrefWidth(300);
 
         TextField arrayName = new TextField("image_data");

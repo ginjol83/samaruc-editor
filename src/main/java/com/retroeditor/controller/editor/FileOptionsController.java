@@ -57,6 +57,7 @@ public class FileOptionsController {
     public File onOpenFile(ActionEvent event, TabPane tabPane, Map<Tab, File> tabFileMap, EditorModel editorModel, SyntaxHighlighter syntaxHighlighter) {
         FileChooser fileChooser = new FileChooser();
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("C / Assembly / Markdown", "*.c", "*.h", "*.asm", "*.s", "*.md", "*.markdown"));
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("BASIC (*.bas)", "*.bas"));
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Sprite Project (*.tile)", "*.tile"));
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Tilemap Project (*.tilemap)", "*.tilemap"));
         if (defaultOpenDirectory != null && defaultOpenDirectory.exists() && defaultOpenDirectory.isDirectory()) {
@@ -155,6 +156,7 @@ public class FileOptionsController {
 
         FileChooser fileChooser = new FileChooser();
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("C / Assembly / Markdown", "*.c", "*.h", "*.asm", "*.s", "*.md", "*.markdown"));
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("BASIC (*.bas)", "*.bas"));
         String defaultName = fxUtils.getDefaultFileName(tab);
         fileChooser.setInitialFileName(defaultName);
 

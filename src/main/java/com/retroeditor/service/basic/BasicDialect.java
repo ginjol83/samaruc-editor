@@ -35,7 +35,7 @@ public enum BasicDialect {
 
     /** True si Samaruc integra hoy tokenizador/compilador/emulaci\u00f3n para este dialecto. */
     public boolean hasNativeToolchain() {
-        return this == ATARI;
+        return this == ATARI || this == ZX;
     }
 
     /** Nombre persistible en el sidecar del proyecto. */

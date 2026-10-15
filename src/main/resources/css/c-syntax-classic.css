@@ -57,6 +57,15 @@
 .code-area .nes-function { -fx-fill: #6d28d9; -fx-font-weight: bold; }
 .code-area .cpc-function { -fx-fill: #a16207; -fx-font-weight: bold; }
 .code-area .c64-function { -fx-fill: #475569; -fx-font-weight: bold; }
+/* Atari BASIC */
+.code-area .basic-line-number { -fx-fill: #64748b; }
+.code-area .basic-keyword { -fx-fill: #7c3aed; -fx-font-weight: bold; }
+.code-area .basic-function { -fx-fill: #0284c7; -fx-font-weight: bold; }
+.code-area .basic-string { -fx-fill: #b45309; }
+.code-area .basic-number { -fx-fill: #0891b2; }
+.code-area .basic-comment { -fx-fill: #64748b; -fx-font-style: italic; }
+.code-area .basic-operator { -fx-fill: #1d4ed8; }
+.code-area .basic-variable { -fx-fill: #111827; }
 .code-area .asm-label { -fx-fill: #7c2d12; -fx-font-weight: bold; }
 .code-area .asm-directive { -fx-fill: #7e22ce; }
 .code-area .asm-instruction { -fx-fill: #1d4ed8; -fx-font-weight: bold; }

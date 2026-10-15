@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+<?import org.kordamp.ikonli.javafx.FontIcon?>
+
+<AnchorPane xmlns:fx="http://javafx.com/fxml" fx:controller="com.retroeditor.controller.ai.AiChatController">
+    <VBox AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" spacing="4.0">
+        <padding><Insets bottom="6.0" left="6.0" right="6.0" top="6.0" /></padding>
+
+        <!-- Cabecera: version detectada del CLI y estado -->
+        <HBox alignment="CENTER_LEFT" spacing="6.0">
+            <FontIcon iconLiteral="fas-robot" iconSize="13" />
+            <Label fx:id="aiHeaderLabel" styleClass="ai-chat-header" text="Asistente IA" HBox.hgrow="ALWAYS" />
+            <Label fx:id="aiStatusLabel" styleClass="ai-chat-status" text="" />
+        </HBox>
+
+        <!-- Aviso de opencode no instalado, con los comandos para arreglarlo -->
+        <VBox fx:id="aiUnavailableBox" managed="false" spacing="2.0" styleClass="ai-chat-warning">
+            <Label fx:id="aiUnavailableHintLabel" wrapText="true" />
+            <VBox fx:id="aiInstallHintsBox" spacing="0.0" />
+            <Button fx:id="btnAiRecheck" onAction="#onRecheck" styleClass="ai-chat-button">
+                <graphic><FontIcon iconLiteral="fas-redo" iconSize="11" /></graphic>
+            </Button>
+        </VBox>
+
+        <!-- Peticion de permiso del agente: se muestra hasta que el usuario responda -->
+        <VBox fx:id="aiPermissionBox" managed="false" spacing="4.0" styleClass="ai-chat-warning">
+            <Label fx:id="aiPermissionLabel" wrapText="true" />
+            <HBox alignment="CENTER_RIGHT" spacing="4.0">
+                <Button fx:id="btnPermissionReject" onAction="#onPermissionReject" styleClass="ai-chat-button"
+                        text="Denegar" />
+                <Button fx:id="btnPermissionAlways" onAction="#onPermissionAlways" styleClass="ai-chat-button"
+                        text="Permitir siempre" />
+                <Button fx:id="btnPermissionAllow" onAction="#onPermissionAllow" styleClass="ai-chat-button"
+                        text="Permitir" />
+            </HBox>
+        </VBox>
+
+        <Separator />
+
+        <ListView fx:id="aiMessageList" VBox.vgrow="ALWAYS" />
+
+        <TextArea fx:id="aiPromptArea" prefRowCount="3" promptText="Escribe tu petición..." />
+
+        <HBox alignment="CENTER_RIGHT" spacing="4.0">
+            <Button fx:id="btnAiNewChat" onAction="#onNewConversation" styleClass="ai-chat-button">
+                <graphic><FontIcon iconLiteral="fas-comment-slash" iconSize="11" /></graphic>
+            </Button>
+            <Region HBox.hgrow="ALWAYS" />
+            <Button fx:id="btnAiCancel" disable="true" onAction="#onCancel" styleClass="ai-chat-button">
+                <graphic><FontIcon iconLiteral="fas-ban" iconSize="11" /></graphic>
+            </Button>
+            <Button fx:id="btnAiSend" disable="true" onAction="#onSend" styleClass="ai-chat-button">
+                <graphic><FontIcon iconLiteral="fas-paper-plane" iconSize="11" /></graphic>
+            </Button>
+        </HBox>
+    </VBox>
+</AnchorPane>

@@ -110,6 +110,42 @@
     -fx-font-weight: bold;
 }
 
+/* Atari BASIC */
+.code-area .basic-line-number {
+    -fx-fill: #64748b;
+}
+
+.code-area .basic-keyword {
+    -fx-fill: #c084fc;
+    -fx-font-weight: bold;
+}
+
+.code-area .basic-function {
+    -fx-fill: #38bdf8;
+    -fx-font-weight: bold;
+}
+
+.code-area .basic-string {
+    -fx-fill: #fda4af;
+}
+
+.code-area .basic-number {
+    -fx-fill: #fbbf24;
+}
+
+.code-area .basic-comment {
+    -fx-fill: #94a3b8;
+    -fx-font-style: italic;
+}
+
+.code-area .basic-operator {
+    -fx-fill: #f59e0b;
+}
+
+.code-area .basic-variable {
+    -fx-fill: #e5e7eb;
+}
+
 .code-area .asm-label {
     -fx-fill: #f97316;
     -fx-font-weight: bold;

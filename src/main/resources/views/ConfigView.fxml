@@ -425,6 +425,40 @@
             </VBox>
             </AnchorPane>
         </Tab>
+        <Tab fx:id="tabAi" text="Asistente IA">
+            <AnchorPane>
+            <VBox spacing="10" alignment="TOP_LEFT" style="-fx-padding: 14;" AnchorPane.topAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0">
+                <Label fx:id="lblAiIntro" wrapText="true" text="Asistente de código basado en opencode. Las credenciales se gestionan con la CLI de opencode (opencode auth), nunca con Samaruc." />
+                <Separator />
+                <Label fx:id="lblAiCliPath" text="Ejecutable de opencode:" />
+                <HBox spacing="6" alignment="CENTER_LEFT">
+                    <TextField fx:id="txtAiCliPath" prefWidth="360" promptText="(vacío = autodetección en el PATH)" />
+                    <Button fx:id="btnAiSeleccionarBin" text="..." onAction="#onSeleccionarAiBin" prefWidth="40" />
+                </HBox>
+                <Label fx:id="lblAiMode" text="Modo de ejecución:" />
+                <ComboBox fx:id="comboAiMode" prefWidth="200" />
+                <Label fx:id="lblAiPort" text="Puerto del servidor opencode:" />
+                <Spinner fx:id="spAiPort" editable="true" prefWidth="140" />
+                <Label fx:id="lblAiWorkingDir" text="Directorio de trabajo (vacío = proyecto abierto):" />
+                <HBox spacing="6" alignment="CENTER_LEFT">
+                    <TextField fx:id="txtAiWorkingDir" prefWidth="360" promptText="(vacío = proyecto abierto)" />
+                    <Button fx:id="btnAiSeleccionarDir" text="..." onAction="#onSeleccionarAiDir" prefWidth="40" />
+                </HBox>
+                <Separator />
+                <Label fx:id="lblAiContextTitle" text="Límites del contexto enviado al asistente:" />
+                <Label fx:id="lblAiMaxContextKb" text="Contexto máximo por fichero (KB):" />
+                <Spinner fx:id="spAiMaxContextKb" editable="true" prefWidth="140" />
+                <Label fx:id="lblAiMaxFiles" text="Ficheros máximos por prompt:" />
+                <Spinner fx:id="spAiMaxFiles" editable="true" prefWidth="140" />
+                <Label fx:id="lblAiMaxLogLines" text="Líneas de log de compilación por prompt:" />
+                <Spinner fx:id="spAiMaxLogLines" editable="true" prefWidth="140" />
+                <HBox spacing="8" alignment="CENTER_LEFT" style="-fx-padding: 8 0 0 0;">
+                    <Button fx:id="btnSaveAi" text="Guardar" onAction="#onSaveAi" prefWidth="170" />
+                    <Label fx:id="lblAiStatus" wrapText="true" />
+                </HBox>
+            </VBox>
+            </AnchorPane>
+        </Tab>
                     </TabPane>
                 </VBox>
             </content>

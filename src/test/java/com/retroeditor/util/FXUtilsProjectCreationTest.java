@@ -136,6 +136,89 @@ class FXUtilsProjectCreationTest {
 
     @Test
     @SuppressWarnings({ "rawtypes", "unchecked" })
+    void createProjectFromAtariBasicTemplateWritesBasAndAtariTarget() throws Exception {
+        FXUtils utils = new FXUtils();
+
+        Path projectDir = tempDir.resolve("atari-basic-project");
+        Files.createDirectories(projectDir);
+
+        Class templateClass = Class.forName("com.retroeditor.util.FXUtils$ProjectTemplate");
+        Object atariBasicTemplate = Enum.valueOf(templateClass, "ATARI_BASIC");
+
+        Class optionsClass = Class.forName("com.retroeditor.util.FXUtils$ProjectCreationOptions");
+        Constructor ctor = optionsClass.getDeclaredConstructor(templateClass, boolean.class, boolean.class);
+        ctor.setAccessible(true);
+        Object options = ctor.newInstance(atariBasicTemplate, true, true);
+
+        Method createProjectMethod = FXUtils.class.getDeclaredMethod("createProjectFromTemplate", File.class, optionsClass);
+        createProjectMethod.setAccessible(true);
+        createProjectMethod.invoke(utils, projectDir.toFile(), options);
+
+        Path basFile = projectDir.resolve("src/main.bas");
+        Assertions.assertTrue(Files.exists(basFile), "Debe generarse src/main.bas");
+        Assertions.assertFalse(Files.exists(projectDir.resolve("src/main.c")), "No debe generarse src/main.c");
+
+        String bas = Files.readString(basFile, StandardCharsets.UTF_8);
+        Assertions.assertTrue(bas.contains("HOLA MUNDO"));
+        Assertions.assertTrue(bas.contains("PRINT"));
+
+        String json = Files.readString(projectDir.resolve(".samarucws").resolve("settings.json"), StandardCharsets.UTF_8);
+        Assertions.assertTrue(json.contains("\"samaruc.target\": \"atari\""));
+
+        String gitignore = Files.readString(projectDir.resolve(".gitignore"), StandardCharsets.UTF_8);
+        Assertions.assertTrue(gitignore.contains("*.atr"));
+    }
+
+    @Test
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    void createProjectFromSpectrumBasicTemplateWritesBasAndSpectrumTarget() throws Exception {
+        FXUtils utils = new FXUtils();
+
+        Path projectDir = tempDir.resolve("zx-basic-project");
+        Files.createDirectories(projectDir);
+
+        Class templateClass = Class.forName("com.retroeditor.util.FXUtils$ProjectTemplate");
+        Object spectrumBasicTemplate = Enum.valueOf(templateClass, "SPECTRUM_BASIC");
+
+        Class optionsClass = Class.forName("com.retroeditor.util.FXUtils$ProjectCreationOptions");
+        Constructor ctor = optionsClass.getDeclaredConstructor(templateClass, boolean.class, boolean.class);
+        ctor.setAccessible(true);
+        Object options = ctor.newInstance(spectrumBasicTemplate, true, true);
+
+        Method createProjectMethod = FXUtils.class.getDeclaredMethod("createProjectFromTemplate", File.class, optionsClass);
+        createProjectMethod.setAccessible(true);
+        createProjectMethod.invoke(utils, projectDir.toFile(), options);
+
+        Path basFile = projectDir.resolve("src/main.bas");
+        Assertions.assertTrue(Files.exists(basFile), "Debe generarse src/main.bas");
+        Assertions.assertFalse(Files.exists(projectDir.resolve("src/main.c")), "No debe generarse src/main.c");
+
+        String bas = Files.readString(basFile, StandardCharsets.UTF_8);
+        Assertions.assertTrue(bas.contains("HOLA MUNDO"));
+        Assertions.assertTrue(bas.contains("PRINT"));
+
+        String json = Files.readString(projectDir.resolve(".samarucws").resolve("settings.json"), StandardCharsets.UTF_8);
+        Assertions.assertTrue(json.contains("\"samaruc.target\": \"spectrum\""));
+
+        String gitignore = Files.readString(projectDir.resolve(".gitignore"), StandardCharsets.UTF_8);
+        Assertions.assertTrue(gitignore.contains("*.tap"));
+    }
+
+    @Test
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    void reportsLastCreatedProjectAsSpectrumBasicTemplate() throws Exception {
+        FXUtils utils = new FXUtils();
+        Class templateClass = Class.forName("com.retroeditor.util.FXUtils$ProjectTemplate");
+        Object template = Enum.valueOf(templateClass, "SPECTRUM_BASIC");
+        Field templateField = FXUtils.class.getDeclaredField("lastCreatedProjectTemplate");
+        templateField.setAccessible(true);
+        templateField.set(utils, template);
+
+        Assertions.assertTrue(utils.wasLastCreatedProjectSpectrumBasicTemplate());
+    }
+
+    @Test
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     void createProjectFromTranslatorTemplateWritesSmTFileAndNoMain() throws Exception {
         FXUtils utils = new FXUtils();
 

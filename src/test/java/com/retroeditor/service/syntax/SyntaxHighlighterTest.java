@@ -1,5 +1,7 @@
 package com.retroeditor.service.syntax;
 
+import com.retroeditor.service.basic.BasicDialect;
+
 import java.util.Collection;
 
 import org.fxmisc.richtext.model.StyleSpan;
@@ -391,6 +393,85 @@ class SyntaxHighlighterTest {
         Assertions.assertTrue(hasStyleAt(spans, text.indexOf("1"), "json-number"));
         Assertions.assertTrue(hasStyleAt(spans, text.indexOf("true"), "json-literal"));
         Assertions.assertTrue(hasStyleAt(spans, text.indexOf("null"), "json-literal"));
+    }
+
+    @Test
+    void highlightsAtariBasicSyntaxForBasFiles() {
+        String text = "10 PRINT \"HOLA MUNDO\"\r\n"
+            + "20 FOR I=1 TO 10: POKE 53280,I: NEXT I\r\n"
+            + "30 IF PEEK(53280)=0 THEN GOTO 10\r\n"
+            + "40 REM esto es un comentario\r\n"
+            + "50 A$=\"X\": PRINT A$; SIN(0.5)\r\n";
+
+        StyleSpans<Collection<String>> spans = highlighter.computeHighlighting(text, "main.bas");
+
+        Assertions.assertEquals(text.length(), totalLength(spans));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("10 PRINT"), "basic-line-number"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("PRINT"), "basic-keyword"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("FOR"), "basic-keyword"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("TO"), "basic-keyword"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("NEXT"), "basic-keyword"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("IF"), "basic-keyword"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("THEN"), "basic-keyword"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("GOTO"), "basic-keyword"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("\"HOLA MUNDO\""), "basic-string"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("PEEK"), "basic-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("SIN"), "basic-function"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("53280"), "basic-number"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("REM esto"), "basic-comment"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("A$"), "basic-variable"));
+    }
+
+    @Test
+    void highlightsQuestionMarkAsPrintAndIsCaseInsensitive() {
+        String text = "10 ? \"hola\"\n"
+            + "20 print \"adios\"\n";
+
+        StyleSpans<Collection<String>> spans = highlighter.computeHighlighting(text, "demo.BAS");
+
+        Assertions.assertEquals(text.length(), totalLength(spans));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("?"), "basic-keyword"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("print"), "basic-keyword"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("\"hola\""), "basic-string"));
+    }
+
+    @Test
+    void keepsCHighlightingForNonBasFiles() {
+        String text = "int main(void) { return 0; }\n";
+
+        StyleSpans<Collection<String>> spans = highlighter.computeHighlighting(text, "main.c");
+
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("int"), "keyword"));
+        Assertions.assertFalse(hasStyleAt(spans, text.indexOf("int"), "basic-keyword"));
+    }
+
+    @Test
+    void genericDialectDisablesBasicHighlightingForBasFiles() {
+        String text = "10 PRINT \"HOLA\"\r\n";
+
+        StyleSpans<Collection<String>> generic =
+            highlighter.computeHighlighting(text, "main.bas", BasicDialect.GENERIC);
+        Assertions.assertEquals(text.length(), totalLength(generic));
+        Assertions.assertFalse(hasStyleAt(generic, text.indexOf("PRINT"), "basic-keyword"));
+    }
+
+    @Test
+    void concreteDialectKeepsBasicHighlightingForBasFiles() {
+        String text = "10 PRINT \"HOLA\"\r\n";
+
+        for (BasicDialect dialect : new BasicDialect[] {BasicDialect.ATARI, BasicDialect.ZX, BasicDialect.CPC, BasicDialect.C64, BasicDialect.MSX}) {
+            StyleSpans<Collection<String>> spans =
+                highlighter.computeHighlighting(text, "main.bas", dialect);
+            Assertions.assertTrue(hasStyleAt(spans, text.indexOf("PRINT"), "basic-keyword"),
+                "El dialecto " + dialect + " debe resaltar BASIC");
+        }
+    }
+
+    @Test
+    void nullDialectPreservesLegacyBasBehavior() {
+        String text = "10 PRINT \"HOLA\"\r\n";
+        StyleSpans<Collection<String>> spans = highlighter.computeHighlighting(text, "main.bas", null);
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("PRINT"), "basic-keyword"));
     }
 
     private boolean hasStyleAt(StyleSpans<Collection<String>> spans, int index, String styleClass) {

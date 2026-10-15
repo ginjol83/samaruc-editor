@@ -34,6 +34,8 @@ import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.service.WorkspaceService;
 import com.retroeditor.service.github.GitHubApiService;
 import com.retroeditor.service.github.GitHubAuthService;
+import com.retroeditor.service.ai.AiSettings;
+import com.retroeditor.service.ai.AiSettingsRepository;
 import com.retroeditor.service.syntax.SyntaxHighlighter;
 
 import javafx.application.Platform;
@@ -200,6 +202,27 @@ public class ConfigController {
     @FXML private Button           btnVerifyGithub;
     @FXML private Button           btnSaveGithub;
     @FXML private Button           btnClearGithubToken;
+    @FXML private Tab              tabAi;
+    @FXML private Label            lblAiIntro;
+    @FXML private Label            lblAiCliPath;
+    @FXML private TextField        txtAiCliPath;
+    @FXML private Button           btnAiSeleccionarBin;
+    @FXML private Label            lblAiMode;
+    @FXML private ComboBox<String> comboAiMode;
+    @FXML private Label            lblAiPort;
+    @FXML private Spinner<Integer> spAiPort;
+    @FXML private Label            lblAiWorkingDir;
+    @FXML private TextField        txtAiWorkingDir;
+    @FXML private Button           btnAiSeleccionarDir;
+    @FXML private Label            lblAiContextTitle;
+    @FXML private Label            lblAiMaxContextKb;
+    @FXML private Spinner<Integer> spAiMaxContextKb;
+    @FXML private Label            lblAiMaxFiles;
+    @FXML private Spinner<Integer> spAiMaxFiles;
+    @FXML private Label            lblAiMaxLogLines;
+    @FXML private Spinner<Integer> spAiMaxLogLines;
+    @FXML private Button           btnSaveAi;
+    @FXML private Label            lblAiStatus;
     @FXML private Label            lblError;
     @FXML private Label            lblIdioma;
     @FXML private Label            lblEditorAppearance;
@@ -296,6 +319,7 @@ public class ConfigController {
     private Runnable onCloseCallback;
     private Runnable onLanguageChanged;
     private Runnable onAppearanceApplied;
+    private Runnable onAiSettingsChanged;
     private boolean syncingCompilerUi = false;
     private final Map<String, String> terminalShellCodeByLabel = new HashMap<>();
 
@@ -413,6 +437,15 @@ public class ConfigController {
             new ThemeToken(EditorTheme.KEY_SYNTAX_JSON_KEY,       "config.theme.token.json_key"),
             new ThemeToken(EditorTheme.KEY_SYNTAX_JSON_NUMBER,    "config.theme.token.json_number"),
             new ThemeToken(EditorTheme.KEY_SYNTAX_JSON_LITERAL,   "config.theme.token.json_literal")),
+        ThemeSection.of("config.theme.section.basic",
+            new ThemeToken(EditorTheme.KEY_SYNTAX_BASIC_LINE_NUMBER, "config.theme.token.basic_line_number"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_BASIC_KEYWORD,     "config.theme.token.basic_keyword"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_BASIC_FUNCTION,    "config.theme.token.basic_function"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_BASIC_STRING,      "config.theme.token.basic_string"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_BASIC_NUMBER,      "config.theme.token.basic_number"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_BASIC_COMMENT,     "config.theme.token.basic_comment"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_BASIC_OPERATOR,    "config.theme.token.basic_operator"),
+            new ThemeToken(EditorTheme.KEY_SYNTAX_BASIC_VARIABLE,    "config.theme.token.basic_variable")),
         ThemeSection.of("config.theme.section.diagnostico",
             new ThemeToken(EditorTheme.KEY_COMPILE_ERROR_LINE,    "config.theme.token.compile_error_line"),
             new ThemeToken(EditorTheme.KEY_COMPILE_WARNING_LINE,  "config.theme.token.compile_warning_line"),
@@ -523,6 +556,8 @@ public class ConfigController {
 
         loadGithubFromConfig();
 
+        loadAiFromFile();
+
         if (btnGuardarWorkspace != null) {
             boolean hasActiveProject = (projectRoot != null && projectRoot.isDirectory());
             btnGuardarWorkspace.setVisible(hasActiveProject);
@@ -561,6 +596,12 @@ public class ConfigController {
      * @param callback
      */
     public void setOnCloseCallback(Runnable callback) { this.onCloseCallback = callback; }
+
+    /**
+     * Configura el callback que se ejecuta al guardar los ajustes del asistente IA.
+     * @param callback
+     */
+    public void setOnAiSettingsChanged(Runnable callback) { this.onAiSettingsChanged = callback; }
 
     /**
      * Inicializa el controlador de configuración.
@@ -606,6 +647,8 @@ public class ConfigController {
         }
 
         loadGithubFromConfig();
+
+        loadAiFromFile();
 
         // Si no existe, crear carpeta de plugins
         try { pluginApplicationService.ensurePluginsDir(pluginsDir); } catch (Exception ignored) {}
@@ -2577,6 +2620,108 @@ public class ConfigController {
     }
 
     /**
+     * Carga los ajustes del asistente IA desde su repositorio propio
+     * ({@code ~/.samaruc-editor/ai.properties}) y los pinta en la pestana.
+     */
+    private void loadAiFromFile() {
+        AiSettings settings = new AiSettingsRepository().load();
+        if (txtAiCliPath != null) {
+            txtAiCliPath.setText(settings.cliPath() != null ? settings.cliPath() : "");
+        }
+        if (comboAiMode != null) {
+            comboAiMode.getItems().setAll(AiSettings.Mode.SERVE.name(), AiSettings.Mode.RUN.name());
+            comboAiMode.getSelectionModel().select(settings.mode().name());
+        }
+        if (spAiPort != null) {
+            spAiPort.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(0, 65535, settings.port(), 1));
+        }
+        if (txtAiWorkingDir != null) {
+            txtAiWorkingDir.setText(settings.workingDirectory() != null ? settings.workingDirectory().toString() : "");
+        }
+        if (spAiMaxContextKb != null) {
+            spAiMaxContextKb.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 4096, settings.maxContextKb(), 1));
+        }
+        if (spAiMaxFiles != null) {
+            spAiMaxFiles.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 100, settings.maxFilesPerPrompt(), 1));
+        }
+        if (spAiMaxLogLines != null) {
+            spAiMaxLogLines.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 2000, settings.maxLogLines(), 1));
+        }
+    }
+
+    /**
+     * Guardar los ajustes del asistente IA en su fichero propio y refrescar el
+     * servicio activo en el editor principal a traves de onAiSettingsChanged.
+     */
+    @FXML
+    public void onSaveAi(ActionEvent event) {
+        if (comboAiMode == null || spAiPort == null) return;
+        String modeName = comboAiMode.getSelectionModel().getSelectedItem();
+        AiSettings.Mode mode = AiSettings.Mode.SERVE;
+        try {
+            mode = AiSettings.Mode.valueOf(modeName);
+        } catch (IllegalArgumentException ignored) {
+            // valor desconocido: se queda SERVE
+        }
+        AiSettings settings = new AiSettings(
+                txtAiCliPath != null ? txtAiCliPath.getText() : null,
+                spAiPort.getValueFactory().getValue(),
+                mode,
+                txtAiWorkingDir == null || txtAiWorkingDir.getText() == null || txtAiWorkingDir.getText().trim().isEmpty()
+                        ? null
+                        : java.nio.file.Path.of(txtAiWorkingDir.getText().trim()),
+                spAiMaxContextKb.getValueFactory().getValue(),
+                spAiMaxFiles.getValueFactory().getValue(),
+                spAiMaxLogLines.getValueFactory().getValue());
+        new AiSettingsRepository().save(settings);
+        if (lblAiStatus != null) {
+            lblAiStatus.setText(tr("config.ai.saved", "Ajustes guardados. Se aplican en tu siguiente consulta."));
+        }
+        if (lblError != null) lblError.setText("");
+        if (onAiSettingsChanged != null) onAiSettingsChanged.run();
+    }
+
+    @FXML
+    public void onSeleccionarAiBin(ActionEvent event) {
+        if (txtAiCliPath == null) return;
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle(tr("config.ai.cliPath.browse", "Seleccionar ejecutable de opencode"));
+        String current = txtAiCliPath.getText();
+        if (current != null && !current.isBlank()) {
+            File f = new File(current);
+            if (f.getParentFile() != null && f.getParentFile().isDirectory()) {
+                chooser.setInitialDirectory(f.getParentFile());
+                chooser.setInitialFileName(f.getName());
+            }
+        }
+        File selected = chooser.showOpenDialog(txtAiCliPath.getScene().getWindow());
+        if (selected != null) {
+            txtAiCliPath.setText(selected.getAbsolutePath());
+        }
+    }
+
+    @FXML
+    public void onSeleccionarAiDir(ActionEvent event) {
+        if (txtAiWorkingDir == null) return;
+        javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
+        chooser.setTitle(tr("config.ai.workingDir.browse", "Seleccionar directorio de trabajo"));
+        String current = txtAiWorkingDir.getText();
+        if (current != null && !current.isBlank()) {
+            File f = new File(current);
+            File parent = f.getParentFile();
+            if (f.isDirectory()) {
+                chooser.setInitialDirectory(f);
+            } else if (parent != null && parent.isDirectory()) {
+                chooser.setInitialDirectory(parent);
+            }
+        }
+        File selected = chooser.showDialog(txtAiWorkingDir.getScene().getWindow());
+        if (selected != null) {
+            txtAiWorkingDir.setText(selected.getAbsolutePath());
+        }
+    }
+
+    /**
      * Verificar la autenticación de GitHub (cascada gh → env → Ajustes) contra
      * {@code GET /user}. La operación de red se ejecuta en hilo de fondo.
      */
@@ -2686,6 +2831,19 @@ public class ConfigController {
         if (btnVerifyGithub != null) btnVerifyGithub.setText(bundle.containsKey("config.github.verify") ? bundle.getString("config.github.verify") : "Verificar");
         if (btnSaveGithub != null) btnSaveGithub.setText(bundle.containsKey("config.github.save") ? bundle.getString("config.github.save") : "Guardar");
         if (btnClearGithubToken != null) btnClearGithubToken.setText(bundle.containsKey("config.github.clear") ? bundle.getString("config.github.clear") : "Borrar token");
+        if (tabAi != null) tabAi.setText(bundle.containsKey("config.ai.tab") ? bundle.getString("config.ai.tab") : "Asistente IA");
+        if (lblAiIntro != null) lblAiIntro.setText(bundle.containsKey("config.ai.tab.intro") ? bundle.getString("config.ai.tab.intro") : "Asistente de codigo basado en opencode. Las credenciales se gestionan con opencode auth, nunca con Samaruc.");
+        if (lblAiCliPath != null) lblAiCliPath.setText(bundle.containsKey("config.ai.cliPath") ? bundle.getString("config.ai.cliPath") : "Ejecutable de opencode:");
+        if (btnAiSeleccionarBin != null) btnAiSeleccionarBin.setText(bundle.containsKey("config.ai.browse") ? bundle.getString("config.ai.browse") : "...");
+        if (lblAiMode != null) lblAiMode.setText(bundle.containsKey("config.ai.mode") ? bundle.getString("config.ai.mode") : "Modo de ejecucion:");
+        if (lblAiPort != null) lblAiPort.setText(bundle.containsKey("config.ai.port") ? bundle.getString("config.ai.port") : "Puerto del servidor opencode:");
+        if (lblAiWorkingDir != null) lblAiWorkingDir.setText(bundle.containsKey("config.ai.workingDir") ? bundle.getString("config.ai.workingDir") : "Directorio de trabajo (vacio = proyecto abierto):");
+        if (btnAiSeleccionarDir != null) btnAiSeleccionarDir.setText(bundle.containsKey("config.ai.browse") ? bundle.getString("config.ai.browse") : "...");
+        if (lblAiContextTitle != null) lblAiContextTitle.setText(bundle.containsKey("config.ai.context.title") ? bundle.getString("config.ai.context.title") : "Limites del contexto enviado al asistente:");
+        if (lblAiMaxContextKb != null) lblAiMaxContextKb.setText(bundle.containsKey("config.ai.maxContextKb") ? bundle.getString("config.ai.maxContextKb") : "Contexto maximo por fichero (KB):");
+        if (lblAiMaxFiles != null) lblAiMaxFiles.setText(bundle.containsKey("config.ai.maxFiles") ? bundle.getString("config.ai.maxFiles") : "Ficheros maximos por prompt:");
+        if (lblAiMaxLogLines != null) lblAiMaxLogLines.setText(bundle.containsKey("config.ai.maxLogLines") ? bundle.getString("config.ai.maxLogLines") : "Lineas de log de compilacion por prompt:");
+        if (btnSaveAi != null) btnSaveAi.setText(bundle.containsKey("button.saveAi") ? bundle.getString("button.saveAi") : "Guardar");
         if (lblPluginsInstalled  != null) lblPluginsInstalled  .setText(bundle.getString("config.plugins.installed"));
         if (lblCompilador        != null) lblCompilador        .setText(bundle.getString("label.compiler"));
         if (lblGbdkBundled       != null) lblGbdkBundled       .setText(bundle.getString("label.compiler.gbdk.bundled"));

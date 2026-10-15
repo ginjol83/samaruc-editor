@@ -76,6 +76,14 @@ public class ProjectPlatformDetectionService {
                 .toList();
 
             for (Path file : files) {
+                String fileName = file.getFileName() != null ? file.getFileName().toString().toLowerCase(Locale.ROOT) : "";
+                // Un fichero .bas es un listado de Atari BASIC: refuerza a ATARI sin
+                // descartar las senales C de otras plataformas del mismo proyecto.
+                if (fileName.endsWith(".bas")) {
+                    atariScore += 8;
+                    evidence.add("*.bas");
+                }
+
                 String content;
                 try {
                     content = Files.readString(file, StandardCharsets.UTF_8).toLowerCase(Locale.ROOT);
@@ -110,6 +118,10 @@ public class ProjectPlatformDetectionService {
                 if (content.contains("\"samaruc.target\":\"cc65\"") || content.contains("\"samaruc.target\": \"cc65\"")) {
                     atariScore += 15;
                     evidence.add("samaruc.target=cc65");
+                }
+                if (content.contains("\"samaruc.target\":\"atari\"") || content.contains("\"samaruc.target\": \"atari\"")) {
+                    atariScore += 15;
+                    evidence.add("samaruc.target=atari");
                 }
                 if (content.contains("\"samaruc.target\":\"c64\"") || content.contains("\"samaruc.target\": \"c64\"")) {
                     c64Score += 15;
@@ -385,6 +397,7 @@ public class ProjectPlatformDetectionService {
             || name.endsWith(".h")
             || name.endsWith(".asm")
             || name.endsWith(".s")
+            || name.endsWith(".bas")
             || name.equals("makefile")
             || name.endsWith(".mk")
             || name.equals("settings.json")

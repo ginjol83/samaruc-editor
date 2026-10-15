@@ -35,6 +35,8 @@
                         <MenuItem fx:id="menuItemCompilar" text="Compilar" onAction="#onCompilar" />
                         <MenuItem fx:id="menuItemCompilarYEjecutar" text="Compilar y ejecutar" onAction="#onCompilarYEjecutar" />
                         <MenuItem fx:id="menuItemEjecutar" text="Ejecutar" onAction="#onEjecutar" />
+                        <SeparatorMenuItem />
+                        <MenuItem fx:id="menuItemExportAtr" text="Exportar ATR..." onAction="#onExportAtr" />
                     </Menu>
                     <Menu fx:id="menuEdicion" text="Edición">
                         <MenuItem fx:id="menuItemDeshacer" text="Deshacer" onAction="#onUndo" />
@@ -70,17 +72,26 @@
                         <MenuItem fx:id="menuItemFindProject" text="Buscar en proyecto" onAction="#onFindInProject" />
                     </Menu>
 
+                    <Menu fx:id="menuVer" text="Ver" />
+
                     <Menu fx:id="menuHerramientas" text="Herramientas">
                         <MenuItem fx:id="menuItemTileEditor" text="Editor de Tiles (Game Boy)" onAction="#onOpenTileEditor" />
                         <MenuItem fx:id="menuItemTilemapEditor" text="Editor de Mapas de Tiles" onAction="#onOpenTilemapEditor" />
-                        <MenuItem fx:id="menuItemGameBoyAudioEditor" text="Editor de audio (Game Boy)" onAction="#onOpenGameBoyAudioEditor" />
-                        <MenuItem fx:id="menuItemPngToGameBoy" text="Convertir PNG a C (Game Boy)" onAction="#onOpenPngToGameBoyConverter" />
-                        <MenuItem fx:id="menuItemPngToZx" text="Convertir PNG a C (ZX Spectrum)" onAction="#onOpenPngToZxConverter" />
-                        <MenuItem fx:id="menuItemPngToRetro" text="Convertir PNG a C (CPC, C64, Master System, Game Gear, Atari, MSX, NES)" onAction="#onOpenPngToRetroConverter" />
+                        <MenuItem fx:id="menuItemZxScreenEditor" text="Editor de Pantalla ZX" onAction="#onOpenZxScreenEditor" />
+                        <MenuItem fx:id="menuItemGameBoyAudioEditor" text="Editor de audio" onAction="#onOpenGameBoyAudioEditor" />
+                        <MenuItem fx:id="menuItemPngToC" text="Convertir PNG a C" onAction="#onOpenPngToCConverter" />
                         <MenuItem fx:id="menuItemRomTextTranslator" text="Traductor de texto Game Boy" onAction="#onOpenRomTextTranslator" />
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemGitHubRepos" text="Repositorios de GitHub" onAction="#onOpenGitHubRepoBrowser" />
                         <MenuItem fx:id="menuItemProjectStats" text="Estadísticas del proyecto" onAction="#onOpenProjectStats" />
+                        <MenuItem fx:id="menuItemBasicDialect" text="Dialecto BASIC..." onAction="#onChangeBasicDialect" />
+                    </Menu>
+
+                    <Menu fx:id="menuAi" text="IA">
+                        <MenuItem fx:id="menuItemAiExplainError" text="Explicar error de compilación" onAction="#onAiExplainError" />
+                        <MenuItem fx:id="menuItemAiExplainSelection" text="Explicar selección" onAction="#onAiExplainSelection" />
+                        <SeparatorMenuItem />
+                        <MenuItem fx:id="menuItemAiOpenTerminal" text="Abrir opencode en la terminal" onAction="#onAiOpenTerminal" />
                     </Menu>
 
                     <Menu fx:id="menuGit" text="Git">
@@ -94,6 +105,7 @@
 
                     <Menu fx:id="menuAyuda" text="Ayuda">
                         <MenuItem fx:id="menuItemManual" text="Manual" onAction="#onOpenManual" />
+                        <MenuItem fx:id="menuItemBasicManual" text="Manual de BASIC" onAction="#onOpenBasicManual" />
                         <MenuItem fx:id="menuItemGbdkDocs" text="Documentación GBDK-2020" onAction="#onOpenGbdkDocs" />
                         <MenuItem fx:id="menuItemZ88dkDocs" text="Documentación Z88DK" onAction="#onOpenZ88dkDocs" />
                         <MenuItem fx:id="menuItemCc65Docs" text="Documentación CC65" onAction="#onOpenCc65Docs" />
@@ -187,7 +199,7 @@
     <!-- Split principal con el explorador de proyecto y el editor -->
     <SplitPane orientation="HORIZONTAL" fx:id="mainSplitPane" BorderPane.alignment="CENTER" dividerPositions="0.18">
         <items>
-            <TabPane fx:id="sidebarTabPane" minWidth="180.0" maxWidth="350.0" prefWidth="220.0" tabClosingPolicy="UNAVAILABLE">
+            <TabPane fx:id="sidebarTabPane" minWidth="180.0" maxWidth="600.0" prefWidth="220.0" tabClosingPolicy="UNAVAILABLE">
                 <tabs>
                     <Tab text="Proyecto">
                         <content>
@@ -202,6 +214,11 @@
                     <Tab text="Tareas">
                         <content>
                             <AnchorPane fx:id="todoViewAnchor" />
+                        </content>
+                    </Tab>
+                    <Tab fx:id="aiTab" text="IA">
+                        <content>
+                            <AnchorPane fx:id="aiChatAnchor" />
                         </content>
                     </Tab>
                 </tabs>
@@ -227,7 +244,7 @@
                              styleClass="output-tab-pane"
                              VBox.vgrow="ALWAYS">
                         <tabs>
-                            <Tab text="Consola">
+                            <Tab fx:id="tabConsola" text="Consola">
                                 <BorderPane>
                                     <top>
                                         <HBox alignment="CENTER_RIGHT"
@@ -270,7 +287,7 @@
                                     </center>
                                 </BorderPane>
                             </Tab>
-                            <Tab text="Monitor">
+                            <Tab fx:id="tabMonitor" text="Monitor">
                                 <BorderPane>
                                     <top>
                                         <HBox alignment="CENTER_RIGHT"

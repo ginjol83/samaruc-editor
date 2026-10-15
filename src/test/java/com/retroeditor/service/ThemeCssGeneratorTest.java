@@ -101,6 +101,39 @@ class ThemeCssGeneratorTest {
     }
 
     @Test
+    void basicTokensAreEmittedForBothPalettes() {
+        String darkCss = ThemeCssGenerator.generateCss(BuiltInThemes.modernDark());
+        String lightCss = ThemeCssGenerator.generateCss(BuiltInThemes.classic());
+
+        for (String selector : new String[]{
+                ".code-area .basic-line-number",
+                ".code-area .basic-keyword",
+                ".code-area .basic-function",
+                ".code-area .basic-string",
+                ".code-area .basic-number",
+                ".code-area .basic-comment",
+                ".code-area .basic-operator",
+                ".code-area .basic-variable"}) {
+            assertTrue(darkCss.contains(selector), "falta en tema oscuro: " + selector);
+            assertTrue(lightCss.contains(selector), "falta en tema claro: " + selector);
+        }
+        assertTrue(darkCss.contains("-fx-fill: #c084fc"));
+        assertTrue(lightCss.contains("-fx-fill: #7c3aed"));
+    }
+
+    @Test
+    void italicTokensEmitFontStyle() {
+        String css = ThemeCssGenerator.generateCss(BuiltInThemes.modernDark());
+
+        assertTrue(css.contains(".code-area .comment {\n    -fx-fill: #94a3b8;\n    -fx-font-style: italic;\n}"),
+            "el comentario C debe ser italico en el CSS generado");
+        assertTrue(css.contains(".code-area .basic-comment {\n    -fx-fill: #94a3b8;\n    -fx-font-style: italic;\n}"),
+            "el comentario BASIC debe ser italico en el CSS generado");
+        assertTrue(css.contains(".code-area .md-italic {\n    -fx-fill: #e5e7eb;\n    -fx-font-style: italic;\n}"),
+            "md-italic debe ser italico en el CSS generado");
+    }
+
+    @Test
     void contentHashIsStableAndDistinguishesContent() {
         String cssA = ThemeCssGenerator.generateCss(BuiltInThemes.modernDark());
         String cssB = ThemeCssGenerator.generateCss(BuiltInThemes.classic());

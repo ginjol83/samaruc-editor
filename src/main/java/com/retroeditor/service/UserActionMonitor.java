@@ -187,6 +187,10 @@ public final class UserActionMonitor {
         AppLogger.logMonitor("HELP_MANUAL", tr("log.monitor.help.manual", "Manual abierto"));
     }
 
+    public static void basicManualOpened() {
+        AppLogger.logMonitor("HELP_BASIC_MANUAL", tr("log.monitor.help.basic.manual", "Manual de BASIC abierto"));
+    }
+
     public static void creditsShown() {
         AppLogger.logMonitor("HELP_CREDITS", tr("log.monitor.help.credits", "Creditos mostrados"));
     }

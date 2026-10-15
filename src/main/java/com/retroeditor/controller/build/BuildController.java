@@ -15,6 +15,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,6 +29,14 @@ import com.retroeditor.emulator.EmulatorLauncher;
 import com.retroeditor.model.ConfigModel;
 import com.retroeditor.service.NativeGccBuildService;
 import com.retroeditor.service.UserActionMonitor;
+import com.retroeditor.service.atari.AtariBasicExportService;
+import com.retroeditor.service.atari.basic.AtariBasicSyntaxException;
+import com.retroeditor.service.atari.basic.AtariBasicVariant;
+import com.retroeditor.service.basic.BasicDialect;
+import com.retroeditor.service.basic.BasicDialectResolver;
+import com.retroeditor.service.basic.BasicDialectStore;
+import com.retroeditor.service.zxspectrum.basic.SinclairBasicExportService;
+import com.retroeditor.service.zxspectrum.basic.SinclairBasicSyntaxException;
 import com.retroeditor.util.CompilerArgs;
 import com.retroeditor.util.FXUtils;
 
@@ -38,6 +47,7 @@ import javafx.beans.property.ReadOnlyBooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
+import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.stage.Stage;
@@ -107,6 +117,32 @@ public class BuildController {
     private final AtomicReference<Process> activeCompilationProcess = new AtomicReference<>();
     private final AtomicReference<Thread> activeCompilationThread = new AtomicReference<>();
     private final BooleanProperty compilationRunning = new SimpleBooleanProperty(false);
+    private ResourceBundle bundle;
+    private final BasicDialectResolver basicDialectResolver = new BasicDialectResolver();
+    private final Map<String, BasicDialect> rememberedStandaloneDialects = new HashMap<>();
+
+    /** Actualiza el bundle de idioma usado en los mensajes de la UI. */
+    public void setBundle(ResourceBundle bundle) {
+        this.bundle = bundle;
+    }
+
+    private String msg(String key, String fallback) {
+        if (bundle == null) return fallback;
+        try {
+            return bundle.getString(key);
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
+    private String msgFmt(String key, String fallback, Object... args) {
+        String pattern = msg(key, fallback);
+        try {
+            return java.text.MessageFormat.format(pattern, args);
+        } catch (Exception ignored) {
+            return pattern;
+        }
+    }
 
     /**
      * Conecta el controlador de la terminal embebida (ConPTY/PTY) para poder lanzar
@@ -140,6 +176,26 @@ public class BuildController {
         String selectedCompiler = configModel.getConfigProperty("compilador_seleccionado", COMPILER_GBDK);
 
         File selectedFile = getCurrentFile(tabPane, tabFileMap);
+        if (selectedFile != null && BasicDialectResolver.isBasicFile(selectedFile)) {
+            BasicDialect dialect = resolveBasicDialectForExecution(selectedFile, projectRootDir, null);
+            if (dialect == BasicDialect.ATARI) {
+                compileAtariBasic(selectedFile, projectRootDir, consoleOutputArea, configModel);
+                return;
+            }
+            if (dialect == BasicDialect.ZX) {
+                compileZxBasic(selectedFile, projectRootDir, consoleOutputArea);
+                return;
+            }
+            if (dialect != null && dialect.isConcrete()) {
+                terminalController.appendConsoleOutput(
+                        "La integración de " + basicDialectLabel(dialect) + " aún no está disponible en Samaruc.", consoleOutputArea);
+                return;
+            }
+            terminalController.appendConsoleOutput(
+                    "El dialecto BASIC de '" + selectedFile.getName() + "' no está fijado. Usa 'Herramientas > Dialecto BASIC...' para elegirlo.",
+                    consoleOutputArea);
+            return;
+        }
         if (shouldUseMakeBuild(selectedCompiler, selectedFile, projectRootDir)) {
             runMakeTarget(
                 selectedFile,
@@ -637,10 +693,31 @@ public class BuildController {
                              File projectRootDir,
                              Stage ownerStage) {
 
-        terminalController.appendConsoleOutput("Compilando y ejecutando...", consoleOutputArea);
-
         String selectedCompiler = configModel.getConfigProperty("compilador_seleccionado", COMPILER_GBDK);
         File selectedFile = getCurrentFile(tabPane, tabFileMap);
+
+        if (selectedFile != null && BasicDialectResolver.isBasicFile(selectedFile)) {
+            BasicDialect dialect = resolveBasicDialectForExecution(selectedFile, projectRootDir, ownerStage);
+            if (dialect == BasicDialect.ATARI) {
+                runAtariBasic(selectedFile, projectRootDir, consoleOutputArea, ownerStage, configModel);
+                return;
+            }
+            if (dialect == BasicDialect.ZX) {
+                runZxBasic(selectedFile, projectRootDir, consoleOutputArea, ownerStage);
+                return;
+            }
+            if (dialect != null && dialect.isConcrete()) {
+                terminalController.appendConsoleOutput(
+                        "La integración de " + basicDialectLabel(dialect) + " aún no está disponible en Samaruc.", consoleOutputArea);
+                return;
+            }
+            terminalController.appendConsoleOutput(
+                    "El dialecto BASIC de '" + selectedFile.getName() + "' no está fijado. Usa 'Herramientas > Dialecto BASIC...' para elegirlo.",
+                    consoleOutputArea);
+            return;
+        }
+
+        terminalController.appendConsoleOutput("Compilando y ejecutando...", consoleOutputArea);
 
         if (shouldUseMakeBuild(selectedCompiler, selectedFile, projectRootDir)) {
             runMakeTarget(
@@ -692,6 +769,259 @@ public class BuildController {
                 }
             }
         );
+    }
+
+    /**
+     * Resuelve el dialecto BASIC de un fichero {@code .bas} para compilar/ejecutar.
+     * Cuando no hay señal (GENERIC), pregunta al usuario (solo si hay ventana
+     * propietaria) y persiste la elección en el sidecar del proyecto si existe;
+     * en un {@code .bas} suelto la recuerda para la sesión.
+     *
+     * @return dialecto a usar, o {@code null} si queda GENERIC sin fijar.
+     */
+    private BasicDialect resolveBasicDialectForExecution(File sourceFile, File projectRootDir, Stage ownerStage) {
+        String key = sourceFile != null ? sourceFile.getAbsolutePath() : "";
+        BasicDialect remembered = rememberedStandaloneDialects.get(key);
+        if (remembered != null) return remembered;
+
+        BasicDialect dialect = basicDialectResolver.resolve(sourceFile, projectRootDir);
+        if (dialect != BasicDialect.GENERIC) return dialect;
+
+        if (ownerStage == null) return null;
+        BasicDialect chosen = askBasicDialectChoice(ownerStage);
+        if (chosen == null || !chosen.isConcrete()) return null;
+
+        if (projectRootDir != null) {
+            try {
+                new BasicDialectStore(projectRootDir.toPath()).setDialect(
+                        BasicDialectStore.relativePathOf(projectRootDir.toPath(), sourceFile.toPath()), chosen);
+            } catch (IOException ex) {
+                // No bloquea la compilación/ejecución.
+            }
+        } else {
+            rememberedStandaloneDialects.put(key, chosen);
+        }
+        return chosen;
+    }
+
+    private BasicDialect askBasicDialectChoice(Stage ownerStage) {
+        BasicDialect[] options = {
+            BasicDialect.ATARI, BasicDialect.ZX, BasicDialect.CPC,
+            BasicDialect.C64, BasicDialect.MSX, BasicDialect.GENERIC
+        };
+        java.util.LinkedHashMap<String, BasicDialect> byLabel = new java.util.LinkedHashMap<>();
+        for (BasicDialect option : options) {
+            byLabel.put(basicDialectLabel(option), option);
+        }
+        ChoiceDialog<String> dialog = new ChoiceDialog<>(null, new ArrayList<>(byLabel.keySet()));
+        if (ownerStage != null) dialog.initOwner(ownerStage);
+        dialog.setTitle(msg("basic.dialect.title", "Dialecto BASIC"));
+        dialog.setHeaderText(msg("basic.dialect.header", "¿Qué dialecto BASIC es este archivo?"));
+        return dialog.showAndWait().map(byLabel::get).orElse(null);
+    }
+
+    private String basicDialectLabel(BasicDialect dialect) {
+        return msg("basic.dialect." + dialect.name().toLowerCase(Locale.ROOT), dialect.getDefaultLabel());
+    }
+
+    /**
+     * Flujo "Ejecutar" de un proyecto Atari BASIC: tokeniza la fuente, escribe
+     * la imagen BASIC ({@code .bas}) en la carpeta de salida y abre Altirra con
+     * ella. Altirra carga y ejecuta el programa directamente; no se necesita un
+     * ATR bootable ni un DOS.
+     */
+    private void runAtariBasic(File sourceFile,
+                               File projectRootDir,
+                               StyleClassedTextArea consoleOutputArea,
+                               Stage ownerStage,
+                               ConfigModel configModel) {
+        File basFile = buildAtariBasicProgram(sourceFile, projectRootDir, consoleOutputArea, configModel);
+        if (basFile == null) {
+            return;
+        }
+        launchAltirraRom(basFile, consoleOutputArea, ownerStage, configModel);
+    }
+
+    /**
+     * Flujo "Compilar" de un proyecto Atari BASIC: valida la sintaxis y deja la
+     * imagen ATR en la carpeta de salida, sin lanzar el emulador.
+     */
+    private void compileAtariBasic(File sourceFile,
+                                   File projectRootDir,
+                                   StyleClassedTextArea consoleOutputArea,
+                                   ConfigModel configModel) {
+        buildAtariBasicAtr(sourceFile, projectRootDir, consoleOutputArea, configModel);
+    }
+
+    /**
+     * Tokeniza la fuente Atari BASIC y escribe la imagen BASIC ({@code .bas}) en
+     * la carpeta de salida. Devuelve el fichero generado, o {@code null} si hubo
+     * un error que ya se habra reportado por consola/UI.
+     */
+    private File buildAtariBasicProgram(File sourceFile,
+                                        File projectRootDir,
+                                        StyleClassedTextArea consoleOutputArea,
+                                        ConfigModel configModel) {
+        try {
+            File outputDir = resolveOutputDirectory(sourceFile, projectRootDir);
+            if (!outputDir.isDirectory() && !outputDir.mkdirs()) {
+                terminalController.appendConsoleOutput(
+                        msgFmt("atari.error.outputDir", "No se pudo crear la carpeta de salida: {0}", outputDir),
+                        consoleOutputArea);
+                return null;
+            }
+            File basFile = new File(outputDir, baseNameOf(sourceFile) + ".bas");
+            new AtariBasicExportService().exportToBasic(
+                    sourceFile.toPath(), basFile.toPath(), atariVariantFor(configModel));
+            terminalController.appendConsoleOutput(
+                    msgFmt("atari.info.basGenerated", "Programa Atari BASIC generado: {0}", basFile.getName()),
+                    consoleOutputArea);
+            return basFile;
+        } catch (AtariBasicSyntaxException ex) {
+            reportAtariSyntaxError(ex, consoleOutputArea);
+        } catch (IOException ex) {
+            reportAtariWriteError(ex, consoleOutputArea);
+        }
+        return null;
+    }
+
+    /**
+     * Tokeniza la fuente Atari BASIC y escribe la imagen ATR en la carpeta de
+     * salida. Devuelve el ATR generado, o {@code null} si hubo un error que ya
+     * se habra reportado por consola/UI.
+     */
+    private File buildAtariBasicAtr(File sourceFile,
+                                    File projectRootDir,
+                                    StyleClassedTextArea consoleOutputArea,
+                                    ConfigModel configModel) {
+        try {
+            File outputDir = resolveOutputDirectory(sourceFile, projectRootDir);
+            if (!outputDir.isDirectory() && !outputDir.mkdirs()) {
+                terminalController.appendConsoleOutput(
+                        msgFmt("atari.error.outputDir", "No se pudo crear la carpeta de salida: {0}", outputDir),
+                        consoleOutputArea);
+                return null;
+            }
+            File atrFile = new File(outputDir, baseNameOf(sourceFile) + ".atr");
+            new AtariBasicExportService().exportToAtr(
+                    sourceFile.toPath(),
+                    atrFile.toPath(),
+                    AtariBasicExportService.DEFAULT_ENTRY_NAME,
+                    atariVariantFor(configModel));
+            terminalController.appendConsoleOutput(
+                    msgFmt("atari.info.atrGenerated", "Imagen ATR generada: {0}", atrFile.getName()),
+                    consoleOutputArea);
+            return atrFile;
+        } catch (AtariBasicSyntaxException ex) {
+            reportAtariSyntaxError(ex, consoleOutputArea);
+        } catch (IOException ex) {
+            reportAtariWriteError(ex, consoleOutputArea);
+        }
+        return null;
+    }
+
+    private static String baseNameOf(File sourceFile) {
+        String name = sourceFile.getName();
+        int dot = name.lastIndexOf('.');
+        return dot >= 0 ? name.substring(0, dot) : name;
+    }
+
+    private static AtariBasicVariant atariVariantFor(ConfigModel configModel) {
+        return AtariBasicVariant.fromConfig(configModel != null
+                ? configModel.getConfigProperty("atari_basic_variant", AtariBasicVariant.ATARI_BASIC.name())
+                : null);
+    }
+
+    private void reportAtariSyntaxError(AtariBasicSyntaxException ex, StyleClassedTextArea consoleOutputArea) {
+        terminalController.appendConsoleOutput(
+                msg("atari.error.syntax.prefix", "Error de sintaxis Atari BASIC") + ": " + ex.getMessage(),
+                consoleOutputArea);
+        Alert alert = new Alert(AlertType.ERROR);
+        alert.setTitle(msg("atari.error.syntax.title", "Error de sintaxis Atari BASIC"));
+        alert.setHeaderText(msg("atari.error.syntax.header", "No se pudo generar el programa Atari BASIC"));
+        alert.setContentText(ex.getMessage());
+        alert.showAndWait();
+    }
+
+    private void reportAtariWriteError(IOException ex, StyleClassedTextArea consoleOutputArea) {
+        terminalController.appendConsoleOutput(
+                msgFmt("atari.error.write", "Error al generar la salida Atari BASIC: {0}", ex.getMessage()),
+                consoleOutputArea);
+    }
+
+    /**
+     * Flujo "Ejecutar" de un proyecto Sinclair BASIC (ZX Spectrum): tokeniza la
+     * fuente, escribe la cinta {@code .tap} en la carpeta de salida y abre JSpeccy
+     * con ella. La cabecera del {@code .tap} fija la linea de arranque, de modo que
+     * el programa se ejecuta al cargar la cinta.
+     */
+    private void runZxBasic(File sourceFile,
+                            File projectRootDir,
+                            StyleClassedTextArea consoleOutputArea,
+                            Stage ownerStage) {
+        File tapFile = buildZxTap(sourceFile, projectRootDir, consoleOutputArea);
+        if (tapFile == null) {
+            return;
+        }
+        launchJSpeccy(sourceFile, projectRootDir, consoleOutputArea, ownerStage);
+    }
+
+    /**
+     * Flujo "Compilar" de un proyecto Sinclair BASIC: valida la sintaxis y deja la
+     * cinta {@code .tap} en la carpeta de salida, sin lanzar el emulador.
+     */
+    private void compileZxBasic(File sourceFile,
+                                File projectRootDir,
+                                StyleClassedTextArea consoleOutputArea) {
+        buildZxTap(sourceFile, projectRootDir, consoleOutputArea);
+    }
+
+    /**
+     * Tokeniza la fuente Sinclair BASIC y escribe la cinta {@code .tap} en la
+     * carpeta de salida. Devuelve el fichero generado, o {@code null} si hubo un
+     * error que ya se habra reportado por consola/UI.
+     */
+    private File buildZxTap(File sourceFile,
+                            File projectRootDir,
+                            StyleClassedTextArea consoleOutputArea) {
+        try {
+            File outputDir = resolveOutputDirectory(sourceFile, projectRootDir);
+            if (!outputDir.isDirectory() && !outputDir.mkdirs()) {
+                terminalController.appendConsoleOutput(
+                        msgFmt("zx.error.outputDir", "No se pudo crear la carpeta de salida: {0}", outputDir),
+                        consoleOutputArea);
+                return null;
+            }
+            File tapFile = buildOutputFile(sourceFile, ".tap", projectRootDir);
+            new SinclairBasicExportService().exportToTap(
+                    sourceFile.toPath(), tapFile.toPath(), baseNameOf(sourceFile));
+            terminalController.appendConsoleOutput(
+                    msgFmt("zx.info.tapGenerated", "Cinta Spectrum (.tap) generada: {0}", tapFile.getName()),
+                    consoleOutputArea);
+            return tapFile;
+        } catch (SinclairBasicSyntaxException ex) {
+            reportZxSyntaxError(ex, consoleOutputArea);
+        } catch (IOException ex) {
+            reportZxWriteError(ex, consoleOutputArea);
+        }
+        return null;
+    }
+
+    private void reportZxSyntaxError(SinclairBasicSyntaxException ex, StyleClassedTextArea consoleOutputArea) {
+        terminalController.appendConsoleOutput(
+                msg("zx.error.syntax.prefix", "Error de sintaxis Sinclair BASIC") + ": " + ex.getMessage(),
+                consoleOutputArea);
+        Alert alert = new Alert(AlertType.ERROR);
+        alert.setTitle(msg("zx.error.syntax.title", "Error de sintaxis Sinclair BASIC"));
+        alert.setHeaderText(msg("zx.error.syntax.header", "No se pudo generar la cinta Spectrum"));
+        alert.setContentText(ex.getMessage());
+        alert.showAndWait();
+    }
+
+    private void reportZxWriteError(IOException ex, StyleClassedTextArea consoleOutputArea) {
+        terminalController.appendConsoleOutput(
+                msgFmt("zx.error.write", "Error al generar la salida Sinclair BASIC: {0}", ex.getMessage()),
+                consoleOutputArea);
     }
 
     /**

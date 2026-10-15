@@ -64,6 +64,16 @@ public class EditorTheme {
     public static final String KEY_SYNTAX_JSON_NUMBER  = "syntax.json_number";
     public static final String KEY_SYNTAX_JSON_LITERAL = "syntax.json_literal";
 
+    // ---- Colores del resaltado de sintaxis (Atari BASIC) ----
+    public static final String KEY_SYNTAX_BASIC_LINE_NUMBER = "syntax.basic_line_number";
+    public static final String KEY_SYNTAX_BASIC_KEYWORD     = "syntax.basic_keyword";
+    public static final String KEY_SYNTAX_BASIC_FUNCTION    = "syntax.basic_function";
+    public static final String KEY_SYNTAX_BASIC_STRING      = "syntax.basic_string";
+    public static final String KEY_SYNTAX_BASIC_NUMBER      = "syntax.basic_number";
+    public static final String KEY_SYNTAX_BASIC_COMMENT     = "syntax.basic_comment";
+    public static final String KEY_SYNTAX_BASIC_OPERATOR    = "syntax.basic_operator";
+    public static final String KEY_SYNTAX_BASIC_VARIABLE    = "syntax.basic_variable";
+
     // ---- Marcas de diagnostico ----
     public static final String KEY_COMPILE_ERROR_LINE    = "compile_error_line";
     public static final String KEY_COMPILE_WARNING_LINE  = "compile_warning_line";

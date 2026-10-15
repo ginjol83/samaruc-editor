@@ -1,5 +1,7 @@
 package com.retroeditor.service.syntax;
 
+import com.retroeditor.service.basic.BasicDialect;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.regex.Matcher;
@@ -37,6 +39,29 @@ public class SyntaxHighlighter {
         "textcolor", "textbackground", "wherex", "wherey",
         "savemouse", "restoremouse", "mouse_move", "mouse_get",
         "ANTIC", "GTIA", "POKEY", "PMBASE", "PCOLR0", "PCOLR1", "PCOLR2", "PCOLR3"
+    };
+
+    /**
+     * Atari BASIC: sentencias y palabras de control. Atari BASIC no distingue mayusculas de
+     * minusculas, asi que el patron se compila en modo CASE_INSENSITIVE. El {@code ?} es el
+     * atajo de {@code PRINT}. No se incluyen abreviaturas ({@code PR.}, {@code G.}...) para no
+     * ensuciar el resaltado con fragmentos de identificadores.
+     */
+    private static final String[] BASIC_KEYWORDS = new String[] {
+        "REM", "DATA", "INPUT", "COLOR", "LIST", "ENTER", "LET", "IF", "THEN",
+        "FOR", "TO", "STEP", "NEXT", "GOTO", "GO", "GOSUB", "TRAP", "BYE", "CONT",
+        "COM", "CLOSE", "CLR", "DEG", "DIM", "END", "NEW", "OPEN", "LOAD", "SAVE",
+        "STATUS", "NOTE", "POINT", "XIO", "ON", "POKE", "PRINT", "RAD", "READ",
+        "RESTORE", "RETURN", "RUN", "STOP", "POP", "GET", "PUT", "GRAPHICS", "PLOT",
+        "POSITION", "DOS", "DRAWTO", "SETCOLOR", "LOCATE", "SOUND", "LPRINT",
+        "CSAVE", "CLOAD", "AND", "OR", "NOT"
+    };
+
+    /** Funciones de Atari BASIC; se resaltan solo cuando van seguidas de parentesis. */
+    private static final String[] BASIC_FUNCTIONS = new String[] {
+        "STR\\$", "CHR\\$", "USR", "ASC", "VAL", "LEN", "ADR", "ATN", "COS",
+        "PEEK", "SIN", "RND", "FRE", "EXP", "LOG", "CLOG", "SQR", "SGN", "ABS",
+        "INT", "PADDLE", "STICK", "PTRIG", "STRIG"
     };
 
     /**
@@ -101,6 +126,15 @@ public class SyntaxHighlighter {
     private static final String  CHARACTER_PATTERN    = "'([^'\\\\]|\\\\.)*'";
     private static final String  OPERATOR_PATTERN     = "[~!%^&*+=|?:<>/-]";
     private static final String  PREPROCESSOR_PATTERN = "^[ \\t]*#[^\\r\\n]*";
+
+    private static final String  BASIC_COMMENT_PATTERN      = "\\bREM\\b[^\\r\\n]*";
+    private static final String  BASIC_STRING_PATTERN       = "\"[^\"]*\"";
+    private static final String  BASIC_LINE_NUMBER_PATTERN  = "(?m)^[ \\t]*\\d+";
+    private static final String  BASIC_KEYWORD_PATTERN      = "\\b(" + String.join("|", BASIC_KEYWORDS) + ")\\b|\\?";
+    private static final String  BASIC_FUNCTION_PATTERN     = "\\b(" + String.join("|", BASIC_FUNCTIONS) + ")(?=\\s*\\()";
+    private static final String  BASIC_NUMBER_PATTERN       = "(?:\\d+\\.?\\d*|\\.\\d+)(?:[Ee][+-]?\\d+)?";
+    private static final String  BASIC_OPERATOR_PATTERN     = "<>|<=|>=|[+\\-*/^=<>]";
+    private static final String  BASIC_VARIABLE_PATTERN     = "\\b[A-Za-z][A-Za-z0-9]*\\$?";
 
     private static final String  MD_FENCED_CODE_PATTERN = "```[\\s\\S]*?```";
     private static final String  MD_HEADING_PATTERN     = "(?m)^#{1,6}\\s.*$";
@@ -172,6 +206,19 @@ public class SyntaxHighlighter {
                                                    Pattern.MULTILINE
                                                    );
 
+    /** Atari BASIC (extension {@code .bas}). CASE_INSENSITIVE porque BASIC no distingue caja. */
+    private static final Pattern BASIC_PATTERN = Pattern.compile(
+                                                     "(?<BASICCOMMENT>" + BASIC_COMMENT_PATTERN + ")"
+                                                   + "|(?<BASICSTRING>" + BASIC_STRING_PATTERN + ")"
+                                                   + "|(?<BASICLINENUMBER>" + BASIC_LINE_NUMBER_PATTERN + ")"
+                                                   + "|(?<BASICKEYWORD>" + BASIC_KEYWORD_PATTERN + ")"
+                                                   + "|(?<BASICFUNCTION>" + BASIC_FUNCTION_PATTERN + ")"
+                                                   + "|(?<BASICNUMBER>" + BASIC_NUMBER_PATTERN + ")"
+                                                   + "|(?<BASICOPERATOR>" + BASIC_OPERATOR_PATTERN + ")"
+                                                   + "|(?<BASICVARIABLE>" + BASIC_VARIABLE_PATTERN + ")",
+                                                   Pattern.MULTILINE | Pattern.CASE_INSENSITIVE
+                                                   );
+
     /**
      * Computa el resaltado de sintaxis para el texto dado.
      * @param text Texto a resaltar.
@@ -182,6 +229,15 @@ public class SyntaxHighlighter {
     }
 
     public StyleSpans<Collection<String>> computeHighlighting(String text, String fileName) {
+        return computeHighlighting(text, fileName, null);
+    }
+
+    /**
+     * Computa el resaltado con un dialecto BASIC resuelto. {@code null} conserva el
+     * comportamiento previo (todo {@code .bas} se resalta como BASIC); un dialecto
+     * {@code GENERIC} deja los {@code .bas} como texto plano.
+     */
+    public StyleSpans<Collection<String>> computeHighlighting(String text, String fileName, BasicDialect dialect) {
         if (isMarkdownFile(fileName)) {
             return computeMarkdownHighlighting(text);
         }
@@ -192,6 +248,10 @@ public class SyntaxHighlighter {
 
         if (isJsonFile(fileName)) {
             return computeJsonHighlighting(text);
+        }
+
+        if (isBasicFile(fileName, dialect)) {
+            return computeBasicHighlighting(text);
         }
 
         return computeCHighlighting(text);
@@ -339,6 +399,51 @@ public class SyntaxHighlighter {
 
         spansBuilder.add(Collections.emptyList(), text.length() - lastEnd);
         return spansBuilder.create();
+    }
+
+    private StyleSpans<Collection<String>> computeBasicHighlighting(String text) {
+        if (text == null || text.isEmpty()) {
+            StyleSpansBuilder<Collection<String>> emptyBuilder = new StyleSpansBuilder<>();
+            emptyBuilder.add(Collections.emptyList(), 0);
+            return emptyBuilder.create();
+        }
+
+        Matcher matcher = BASIC_PATTERN.matcher(text);
+        int lastEnd = 0;
+        StyleSpansBuilder<Collection<String>> spansBuilder = new StyleSpansBuilder<>();
+
+        while (matcher.find()) {
+            String styleClass =
+                matcher.group("BASICCOMMENT") != null ? "basic-comment" :
+                matcher.group("BASICSTRING") != null ? "basic-string" :
+                matcher.group("BASICLINENUMBER") != null ? "basic-line-number" :
+                matcher.group("BASICKEYWORD") != null ? "basic-keyword" :
+                matcher.group("BASICFUNCTION") != null ? "basic-function" :
+                matcher.group("BASICNUMBER") != null ? "basic-number" :
+                matcher.group("BASICOPERATOR") != null ? "basic-operator" :
+                matcher.group("BASICVARIABLE") != null ? "basic-variable" :
+                null;
+
+            assert styleClass != null;
+
+            spansBuilder.add(Collections.emptyList(), matcher.start() - lastEnd);
+            spansBuilder.add(Collections.singleton(styleClass), matcher.end() - matcher.start());
+            lastEnd = matcher.end();
+        }
+
+        spansBuilder.add(Collections.emptyList(), text.length() - lastEnd);
+        return spansBuilder.create();
+    }
+
+    private boolean isBasicFile(String fileName) {
+        if (fileName == null || fileName.isBlank()) return false;
+        return fileName.toLowerCase().endsWith(".bas");
+    }
+
+    private boolean isBasicFile(String fileName, BasicDialect dialect) {
+        if (!isBasicFile(fileName)) return false;
+        if (dialect == null) return true;
+        return dialect.isConcrete();
     }
 
     private boolean isMarkdownFile(String fileName) {

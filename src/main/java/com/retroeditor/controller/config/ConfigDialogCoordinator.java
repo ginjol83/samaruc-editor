@@ -38,6 +38,7 @@ public class ConfigDialogCoordinator {
         ResourceBundle bundle,
         Runnable onLanguageChanged,
         Runnable onAppearanceApplied,
+        Runnable onAiSettingsChanged,
         Runnable onOpened,
         Runnable onClosed,
         Consumer<Exception> onError
@@ -62,6 +63,7 @@ public class ConfigDialogCoordinator {
             configController.reloadFromModel();
             configController.setOnLanguageChanged(onLanguageChanged);
             configController.setOnAppearanceApplied(onAppearanceApplied);
+            configController.setOnAiSettingsChanged(onAiSettingsChanged);
             configController.setOnCloseCallback(() -> {
                 closeInternals();
                 if (onClosed != null) onClosed.run();
