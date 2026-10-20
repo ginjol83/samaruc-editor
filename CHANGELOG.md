@@ -1,6 +1,6 @@
 # Changelog
 
-## No publicado
+## 1.3.3 - 2026-10-20
 
 ### Añadido
 - **Master System, Game Gear, MSX y NES como plataformas de primera clase**: plantilla de proyecto y de "nuevo archivo" (`gg-c`, `msx-c`, `nes-c`), pestaña propia de compilación Z88DK para cada una, perfil de compilador seleccionable, `cc65 -t nes` como tercer target de CC65, README y `.gitignore` específicos, y emuladores empaquetados (`openMSX`, `Mesen`) con entradas en el menú Ayuda (`CC65`, `openMSX`, `Mesen`).
