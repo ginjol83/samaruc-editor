@@ -70,10 +70,10 @@ Matriz de paridad (estado real, al día):
 
 Notas de integración (MSX/NES) que conviene recordar: en MSX el TMS9918 no tiene tiles 4bpp (el conversor usa las tres tablas reales de SCREEN 1: patrones 1bpp en `0x0000`, nombres en `0x1800`, color en `0x2000`); en NES el valor de píxel es un slot de subpaleta (no un índice del PPU) y el sprite usa una subpaleta entera; el reloj del MSX es el del ZX (110838 ÷ 1773400/16), no el de 1 MHz del CPC.
 
-**Conclusión de paridad:** el plan en pasos está **cerrado salvo P3.4** (cierre transversal: `AGENTS.md` — aún dice que "mesen y openmsx están empaquetados sin ninguna referencia", falso desde el 29/09 —, resumen del informe y pasada de i18n). La única plataforma "esqueleto" es el ASM Z80 genérico (por diseño).
+**Conclusión de paridad:** el plan en pasos está **cerrado**. **P3.4 cerrado el 2026-10-19**: se corrigió el párrafo desfasado de `AGENTS.md` (decía que "mesen y openmsx están empaquetados sin ninguna referencia", falso desde el 29/09; ahora refleja `EmulatorLauncher.resolveBundled*` + lanzamiento en `BuildController` + enlaces de Ayuda), se revisó la consistencia de los bundles (0 dobles backslashes, 0 claves duras ausentes) y se completó el inventario añadiendo 39 claves usadas vía `msg(key, fallback)` que faltaban en los 6 bundles (§9). La única plataforma "esqueleto" es el ASM Z80 genérico (por diseño).
 
 Pendientes de este bloque:
-1. **P3.4** — cierre transversal (S).
+1. ~~**P3.4** — cierre transversal (S).~~ ✅ HECHO (2026-10-19).
 2. Regresiones pendientes del plan: test que pince "Atari detectado compila `-t atari`" y "proyecto GG cuyo artefacto sale `.sms`" (la resolución `resolveSmsArtifact` prefiere `.sms` sobre `.gg`).
 3. Detalle menor: el artefacto snapshot `.cpc` no se carga (habría que pedir `-subtype=dsk`).
 
@@ -125,12 +125,12 @@ Orden por valor/esfuerzo, no por documento:
 | 1 | ~~Verificar la suite~~ (baneado por 799/0/0/1) + decidir los commits de los 3 bloques del 05/10 y commitear | §8 | S | 🟡 Falta solo decidir commit |
 | 2 | **Release 1.3.3**: bump en `pom.xml` + `VERSION.txt` + `build-release.ps1` + `CHANGELOG.md`; push de los 31 commits; tag | evaluacion | S | ⛔ |
 | 3 | ~~Traductor de ROMs multiformato~~ | cobertura hueco 6 | L | ⛔ **DESCARTADO** (07/10) — decisión: traductor solo Game Boy |
-| 4 | **P3.4** cierre transversal (`AGENTS.md` desfasado, resumen del informe, i18n) | plan de paridad | S | ⛔ |
+| 4 | ~~**P3.4** cierre transversal~~ (`AGENTS.md`, informe, i18n) | plan de paridad | S | ✅ HECHO (2026-10-19) |
 | 5 | **UI de ajustes de IA** (`AiSettings` solo por fichero de propiedades, no está en `ConfigView.fxml`) | §8.6 | M | 🟡 |
 | 6 | Verificar en la app real el ciclo completo `opencode serve` + streaming del panel | §8.4 | S | 🟡 Solo hay cobertura de tests unitarios |
 | 7 | Panel de animaciones nombradas + offsets por paso | animaciones | M | 🟡 |
 | 8 | Tests de regresión §3 (perfil Atari, artefacto GG `.sms`) + carga de `.cpc` | plan de paridad | S | 🟡 |
-| 9 | Actualizar el enunciado de AGENTS.md (mesen/openmsx ya tienen referencias) y clave `config.compiler.option.gbdk` inventariada | P3.4 | S | 🟡 |
+| 9 | ~~Actualizar el enunciado de AGENTS.md (mesen/openmsx ya tienen referencias) y clave `config.compiler.option.gbdk` inventariada~~ | P3.4 | S | ✅ HECHO (2026-10-19) |
 
 Pendientes de medio/largo plazo sin compromiso (del `ROADMAP.md` de la raíz): jerarquía de llamadas, quick fixes/bulb, depurador source-level, profiler de T-states, optimizador de tilesets, analizador de attribute clash ZX, export del tracker a drivers (Arkos/AY), SDK de plugins documentado, y la Fase 3/4 de la IA (selector de modelo, permisos, MCP, skills de dominio).
 
@@ -190,3 +190,11 @@ Arquitectura (todo en `service/ai`, sin JavaFX en los servicios; la UI solo cono
 - Verificaciones hechas al elaborar y mantener este informe (2026-10-06): presencia de `gg-c`/`msx-c`/`nes-c` en `FileTemplateService`, patrones de sintaxis CPC/C64/SMS/MSX/NES en `SyntaxHighlighter`, `CompletionDictionaryService` con los 3 compiladores y 6 perfiles, `TranslatorTabManager` conectado a `MainController`, y `TextEncoding` todavía en `service/gameboy/`.
 - Número de tests: **799 tests, 0 fallos, 0 errores, 1 skip** (`mvn -o test`, ejecutado el 2026-10-06 08:14); el último dato previo era 683 tras P3.1 (01/10). *Nota: `target/surefire-reports` conserva dos `.txt` antiguos de septiembre (`ReproTest`, `DebugTmpTest`) que inflan el recuento si no se filtran por fecha.*
 - Regla de mantenimiento: cuando una tarea de la lista §6 se cierre, marcarla con su fecha here mismo; los detalles de sesión se conservan en `.agents/`.
+
+## 10. Cierre P3.4 (2026-10-19)
+
+Pasada transversal de paridad; los tres frentes del P3.4 quedaron cerrados:
+
+- **`AGENTS.md`** (§ Estructura de `libs/`): se sustituyó el párrafo "mesen y openmsx están empaquetados sin ninguna referencia desde el código" por el estado real. Verificado en código: `EmulatorLauncher.resolveBundledMesenExecutable` / `resolveBundledOpenMsxExecutable` (`util/emulator/EmulatorLauncher.java:365,377`), lanzamiento NES/MSX en `controller/build/BuildController.java:1579,1539` y enlaces de Ayuda `menu.help.mesenDocs` / `menu.help.openMsxDocs` (`controller/help/HelpController.java:118,130`).
+- **Consistencia i18n**: 0 apariciones de doble backslash (`\\uXXXX`) en los 6 bundles; los únicos `\` restantes son `\n` de salto de línea en `*.notOpen.content` / `external.change.content`, válidos y consistentes. `MessagesBundleParityTest` en verde (6/6).
+- **Inventario de claves**: 0 claves usadas con `getString`/`containsKey` ausentes (`config.compiler.option.gbdk` ya estaba). Sí faltaban **39 claves** invocadas vía `msg(key, fallback)` — el editor mostraba el literal en español en todos los idiomas (recuperación de autosave, refactor, rename, paleta de comandos, `git.diff.*`, folding, `menu.goto.definition`, `menu.tools.basicDialect`). Añadidas a los 6 bundles (823 → 862 claves, paridad idéntica). Las claves dinámicas `tool.github.category.<cat>`, `basic.dialect.<d>`, `tool.pngToC.platform.<k>` y `tool.pngToRetro.mode.<m>` tienen sus valores concretos salvo las categorías de GitHub (se muestran tal cual). `palette.hint` se deja fuera a propósito: se usa con fallback `null` y darle valor pintaría una pista idéntica junto a todos los comandos.

@@ -1,6 +1,6 @@
 # Pendientes del proyecto
 
-Actualizado: 2026-10-15
+Actualizado: 2026-10-19
 Commit consolidado: 46630111
 
 ## 1. Organizativo / Release
@@ -10,10 +10,10 @@ Commit consolidado: 46630111
 
 ## 2. P3.4 - Cierre transversal (paridad)
 
-- [ ] **Actualizar AGENTS.md**. En el apartado de estructura de libs/ dice que mesen y openmsx están empaquetados "sin ninguna referencia desde el código". Desde 29/09 tienen referencias (o al menos están presentes en la distribución). Revisar y corregir ese párrafo.
-- [ ] **Resumir informe integrado**. Completar los puntos de P3.4 marcados en estado-integrado-del-proyecto.md (resumen del informe, pasada final de i18n).
-- [ ] **Revisar dobleces de backslash i18n** (ya corregidos hoy en de/fr). Asegurar que todos los bundles usan el mismo formato (\uXXXX o bytes crudos) y que MessagesBundleParityTest sigue pasando.
-- [ ] **Inventario de claves i18n**. Revisar si falta alguna clave usada (p.ej. config.compiler.option.gbdk mencionada) y añadirla a los 6 bundles.
+- [x] **Actualizar AGENTS.md**. Corregido el párrafo (2026-10-19): ahora refleja que `mesen` y `openmsx` están integrados (`EmulatorLauncher.resolveBundled*`, lanzamiento en `BuildController`, enlaces de Ayuda).
+- [x] **Resumir informe integrado**. Cerrado (2026-10-19): P3.4 marcado como hecho en `estado-integrado-del-proyecto.md` (§3, §6, §10).
+- [x] **Revisar dobleces de backslash i18n**. Verificado (2026-10-19): 0 dobles backslashes en los 6 bundles; sólo `\n` legítimos. `MessagesBundleParityTest` en verde (6/6).
+- [x] **Inventario de claves i18n**. Hecho (2026-10-19): 0 claves duras ausentes (`config.compiler.option.gbdk` ya estaba); añadidas 39 claves usadas vía `msg(key, fallback)` a los 6 bundles (823 → 862 claves).
 
 ## 3. IA - Verificación y UI
 
