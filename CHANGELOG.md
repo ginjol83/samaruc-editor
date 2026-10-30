@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.4 - 2026-10-30
+
+### Añadido
+- **Numeración de líneas configurable** en Ajustes → Apariencia (`show_line_numbers`). El gutter reserva un ancho mínimo fijo para que el texto no se desplace al crecer el número de dígitos, y mantiene las marcas de error/aviso de compilación aunque los números estén ocultos. La vista previa de temas refleja el cambio al instante.
+- **Dithering Floyd-Steinberg** opcional (activado por defecto) en el conversor PNG → Game Boy, tanto para bitmap 2bpp como para tilemap, pensado para degradados y fotografías.
+- **`EditorViewport`**: utilidad que captura y restaura la posición visible del editor.
+
+### Corregido
+- **El editor ya no salta al principio del archivo** al reaplicar resaltado, diagnósticos de compilación o al perder/recuperar el foco.
+- **Buscar y reemplazar**: ya no roba el foco al panel de búsqueda (lo que interrumpía la escritura y dejaba inutilizable el botón de reemplazar) y sustituye la coincidencia seleccionada correctamente, incluido "reemplazar todo", sin mover el viewport.
+- **Cambio de proyecto**: se cierran las pestañas de archivos del proyecto anterior sin tocar los archivos externos abiertos manualmente.
+
 ## 1.3.3 - 2026-10-20
 
 ### Añadido
