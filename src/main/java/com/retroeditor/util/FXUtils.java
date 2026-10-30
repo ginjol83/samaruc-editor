@@ -1,5 +1,6 @@
 package com.retroeditor.util;
 
+import javafx.application.Platform;
 import javafx.event.ActionEvent;
 import java.io.File;
 import java.io.IOException;
@@ -25,7 +26,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.fxmisc.richtext.CodeArea;
-import org.fxmisc.richtext.LineNumberFactory;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.model.StyleSpan;
 import org.fxmisc.richtext.model.StyleSpans;
@@ -134,9 +134,29 @@ public class FXUtils {
     private java.util.function.BiConsumer<String, CodeArea> doubleClickHandler;
     private java.util.function.Consumer<CodeArea> editorThemeApplier;
     private Label cursorStatusLabel;
+    private com.retroeditor.model.ConfigModel configModel;
 
     public void setCursorStatusLabel(Label label) {
         this.cursorStatusLabel = label;
+    }
+
+    public void setConfigModel(com.retroeditor.model.ConfigModel configModel) {
+        this.configModel = configModel;
+    }
+
+    private boolean isShowLineNumbers() {
+        if (configModel == null) {
+            return true;
+        }
+        try {
+            return configModel.isShowLineNumbers();
+        } catch (Exception ex) {
+            return true;
+        }
+    }
+
+    private void applyLineNumbers(CodeArea codeArea) {
+        LineNumberGutter.apply(codeArea, isShowLineNumbers());
     }
 
     /** Refresca la posición del cursor en la barra de estado a partir de la pestaña activa. */
@@ -347,6 +367,36 @@ public class FXUtils {
         return sh.computeHighlighting(text, title);
     }
 
+    /**
+     * Evita que el viewport salte al principio cuando el editor pierde el foco
+     * o cuando un cambio de estilos fuerza un nuevo layout. Se guarda la ultima
+     * posicion visible mientras el area tiene el foco y se restaura al salir y
+     * al volver.
+     */
+    private void attachViewportPreservation(CodeArea codeArea) {
+        if (codeArea == null) return;
+        final AtomicReference<EditorViewport.Snapshot> lastViewport =
+                new AtomicReference<>(EditorViewport.capture(codeArea));
+        codeArea.estimatedScrollYProperty().addListener((obs, oldY, newY) -> {
+            if (codeArea.isFocused()) {
+                lastViewport.set(EditorViewport.capture(codeArea));
+            }
+        });
+        codeArea.focusedProperty().addListener((obs, wasFocused, isFocused) -> {
+            EditorViewport.Snapshot previous = lastViewport.get();
+            if (isFocused) {
+                if (previous != null && previous.getCaretPosition() == codeArea.getCaretPosition()) {
+                    Platform.runLater(() -> EditorViewport.restore(codeArea, previous));
+                }
+            } else {
+                EditorViewport.Snapshot snapshot = previous != null
+                        ? previous
+                        : EditorViewport.capture(codeArea);
+                Platform.runLater(() -> EditorViewport.restore(codeArea, snapshot));
+            }
+        });
+    }
+
     public Tab addTab(String title, String content, SyntaxHighlighter syntaxHighlighter, TabPane tabPane) {
         CodeArea codeArea = new FoldingCodeArea();
         VirtualizedScrollPane<CodeArea> editorScrollPane = new VirtualizedScrollPane<>(codeArea);
@@ -356,8 +406,8 @@ public class FXUtils {
         editorLayout.setRight(minimap);
         String initialText = content != null ? content : "";
 
-        // Habilita la funciÃ³n de numeraciÃ³n de lÃ­neas para los pÃ¡rrafos. 
-        codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
+        // Habilita la funciÃ³n de numeraciÃ³n de lÃ­neas para los pÃ¡rrafos.
+        applyLineNumbers(codeArea);
         codeArea.replaceText(initialText);
 
         // Aplica el resaltado inicial de sintaxis (respeta el dialecto BASIC de la pestaña)
@@ -528,13 +578,14 @@ public class FXUtils {
                     }
                 }
                 StyleSpans<Collection<String>> combined = applyExtraStyles(baseSpans.get(), extras);
-                area.setStyleSpans(0, combined);
+                EditorViewport.preserve(area, () -> area.setStyleSpans(0, combined));
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
         };
 
         Runnable refreshBaseAndExtras = () -> {
+            EditorViewport.Snapshot viewport = EditorViewport.capture(area);
             try {
                 StyleSpans<Collection<String>> base = highlightingFor(syntaxHighlighter, tab, area.getText(), title);
                 baseSpans.set(base);
@@ -561,6 +612,8 @@ public class FXUtils {
                 refreshExtras.run();
             } catch (Exception ex) {
                 ex.printStackTrace();
+            } finally {
+                EditorViewport.restore(area, viewport);
             }
         };
 
@@ -574,6 +627,8 @@ public class FXUtils {
             renderBreadcrumb.run();
             updateCursorStatus(tabPane, tab);
         });
+
+        attachViewportPreservation(codeArea);
 
         codeArea.textProperty().addListener((obs, oldText, newText) -> updateTabDirtyIndicator(tab, codeArea));
 
@@ -620,17 +675,19 @@ public class FXUtils {
         String initialText = content != null ? content : "";
         Tab tab = new Tab(title);
 
-        codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
+        applyLineNumbers(codeArea);
         codeArea.replaceText(initialText);
         applyEditorThemeToNewCodeArea(codeArea);
         attachCodeAreaDoubleClickHandler(codeArea);
+        attachViewportPreservation(codeArea);
         MultiCursorManager.attach(codeArea);
         codeArea.setStyleSpans(0, highlightingFor(syntaxHighlighter, tab, initialText, title));
         codeArea.multiPlainChanges()
             .successionEnds(Duration.ofMillis(250))
             .subscribe(ignore -> {
                 try {
-                    codeArea.setStyleSpans(0, highlightingFor(syntaxHighlighter, tab, codeArea.getText(), title));
+                    EditorViewport.preserve(codeArea, () ->
+                        codeArea.setStyleSpans(0, highlightingFor(syntaxHighlighter, tab, codeArea.getText(), title)));
                     updateMarkdownPreview(previewView, codeArea.getText(), title);
                 } catch (Exception ex) {
                     ex.printStackTrace();

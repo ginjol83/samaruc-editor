@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.fxmisc.richtext.CodeArea;
 
+import com.retroeditor.model.ConfigModel;
 import com.retroeditor.model.EditorModel;
 import com.retroeditor.service.LocalHistoryService;
 import com.retroeditor.service.UserActionMonitor;
@@ -32,6 +33,10 @@ public class FileOptionsController {
 
     private File defaultOpenDirectory = null;
     private File defaultSaveDirectory = null;
+
+    public void setConfigModel(ConfigModel configModel) {
+        fxUtils.setConfigModel(configModel);
+    }
 
     public void setDefaultOpenDirectory(File dir) {
         this.defaultOpenDirectory = dir;

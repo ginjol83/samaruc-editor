@@ -37,6 +37,7 @@ import com.retroeditor.service.github.GitHubAuthService;
 import com.retroeditor.service.ai.AiSettings;
 import com.retroeditor.service.ai.AiSettingsRepository;
 import com.retroeditor.service.syntax.SyntaxHighlighter;
+import com.retroeditor.util.LineNumberGutter;
 
 import javafx.application.Platform;
 import javafx.event.ActionEvent;
@@ -68,7 +69,6 @@ import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 import org.fxmisc.richtext.CodeArea;
-import org.fxmisc.richtext.LineNumberFactory;
 
 public class ConfigController {
     private static final String COMPILER_GBDK      = "GBDK";
@@ -143,6 +143,7 @@ public class ConfigController {
     @FXML private CheckBox         chkEnableLogs;
     @FXML private CheckBox         chkShowHomeOnStartup;
     @FXML private CheckBox         chkSyntaxCheckOnSave;
+    @FXML private CheckBox         chkShowLineNumbers;
     @FXML private TextField        txtProjectDetectThreshold;
     @FXML private TextField        txtMakeExecutable;
     @FXML private TextField        txtMakeBuildTarget;
@@ -542,6 +543,9 @@ public class ConfigController {
         }
         if (chkSyntaxCheckOnSave != null) {
             chkSyntaxCheckOnSave.setSelected(configModel.isSyntaxCheckOnSave());
+        }
+        if (chkShowLineNumbers != null) {
+            chkShowLineNumbers.setSelected(configModel.isShowLineNumbers());
         }
 
         loadZ88dkFlagsFromConfig();
@@ -2562,6 +2566,9 @@ public class ConfigController {
         if (chkSyntaxCheckOnSave != null) {
             configModel.setSyntaxCheckOnSave(chkSyntaxCheckOnSave.isSelected());
         }
+        if (chkShowLineNumbers != null) {
+            configModel.setShowLineNumbers(chkShowLineNumbers.isSelected());
+        }
         persistConfig();
         applyApplicationAppearanceToCurrentScene(appearance);
         if (onAppearanceApplied != null) {
@@ -2901,6 +2908,7 @@ public class ConfigController {
         if (chkEnableLogs != null) chkEnableLogs.setText(bundle.containsKey("config.appearance.enable_logs") ? bundle.getString("config.appearance.enable_logs") : "Habilitar guardado de logs en archivo (samaruc.log)");
         if (chkShowHomeOnStartup != null) chkShowHomeOnStartup.setText(bundle.containsKey("config.appearance.show_home_on_startup") ? bundle.getString("config.appearance.show_home_on_startup") : "Mostrar página de inicio al arrancar");
         if (chkSyntaxCheckOnSave != null) chkSyntaxCheckOnSave.setText(bundle.containsKey("config.appearance.syntax_check_on_save") ? bundle.getString("config.appearance.syntax_check_on_save") : "Comprobar errores de sintaxis al guardar (GCC)");
+        if (chkShowLineNumbers != null) chkShowLineNumbers.setText(bundle.containsKey("config.appearance.show_line_numbers") ? bundle.getString("config.appearance.show_line_numbers") : "Mostrar numeros de linea");
         if (btnGuardarCompilador != null) btnGuardarCompilador .setText(bundle.getString("button.saveConfig"));
         if (btnSaveMakeOpts      != null) btnSaveMakeOpts      .setText(bundle.getString("button.saveMake"));
         if (btnGuardarSpectrumBin!= null) btnGuardarSpectrumBin.setText(bundle.getString("button.saveZ88dk"));
@@ -3170,7 +3178,7 @@ public class ConfigController {
 
             CodeArea area = new CodeArea();
             area.setEditable(false);
-            area.setParagraphGraphicFactory(LineNumberFactory.get(area));
+            LineNumberGutter.apply(area, configModel == null || configModel.isShowLineNumbers());
             area.replaceText(sample);
             area.getStyleClass().add("code-area");
             area.setPrefHeight(110);
@@ -3196,6 +3204,14 @@ public class ConfigController {
         }
         if (tabAppearance != null) {
             tabAppearance.getProperties().put("themeControlsWired", Boolean.TRUE);
+        }
+
+        if (chkShowLineNumbers != null) {
+            chkShowLineNumbers.selectedProperty().addListener((obs, oldV, newV) -> {
+                for (CodeArea area : previewAreas) {
+                    LineNumberGutter.apply(area, Boolean.TRUE.equals(newV));
+                }
+            });
         }
 
         if (comboThemeMode != null) {

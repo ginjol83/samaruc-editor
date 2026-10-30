@@ -51,7 +51,8 @@ public class PngToGameBoyBitmapConverter {
 
         // Convertir a índices de color (0-3 para Game Boy)
         byte[] colorIndices = rgbTo4Color(image, options.width(), options.height(),
-                                         options.contrastLevel(), options.invertColors());
+                                         options.contrastLevel(), options.invertColors(),
+                                         options.useDithering());
 
         // Empaquetar en formato 2bpp
         return pack2bpp(colorIndices, options.width(), options.height());
@@ -59,22 +60,43 @@ public class PngToGameBoyBitmapConverter {
 
     /**
      * Convierte una imagen RGB a índices de color Game Boy (0-3).
-     * Usa cuantización simple de colores más cercanos.
+     * Usa cuantización simple de colores más cercanos o Floyd-Steinberg.
      *
      * @param image imagen BufferedImage a convertir
      * @param targetWidth ancho esperado (crop/pad si difiere)
      * @param targetHeight alto esperado
      * @param contrastLevel nivel de contraste (-50 a 50)
      * @param invertColors si true, invierte los colores
+     * @param useDithering si true, aplica Floyd-Steinberg
      * @return array de bytes con índices de color [0-3]
      */
     private byte[] rgbTo4Color(BufferedImage image, int targetWidth, int targetHeight,
-                               int contrastLevel, boolean invertColors) {
-        byte[] result = new byte[targetWidth * targetHeight];
-        
+                               int contrastLevel, boolean invertColors, boolean useDithering) {
         int imgWidth = image.getWidth();
         int imgHeight = image.getHeight();
         GameBoyColorQuantizer quantizer = new GameBoyColorQuantizer();
+
+        if (useDithering) {
+            int[] rgbArray = new int[targetWidth * targetHeight];
+            for (int y = 0; y < targetHeight; y++) {
+                for (int x = 0; x < targetWidth; x++) {
+                    int rgb;
+                    if (x >= imgWidth || y >= imgHeight) {
+                        rgb = 0xFFFFFF;
+                    } else {
+                        rgb = image.getRGB(x, y);
+                        rgb = applyContrast(rgb, contrastLevel);
+                        if (invertColors) {
+                            rgb = invertRgb(rgb);
+                        }
+                    }
+                    rgbArray[y * targetWidth + x] = rgb;
+                }
+            }
+            return quantizer.quantizeWithFloydSteinberg(rgbArray, targetWidth, targetHeight);
+        }
+
+        byte[] result = new byte[targetWidth * targetHeight];
 
         for (int y = 0; y < targetHeight; y++) {
             for (int x = 0; x < targetWidth; x++) {

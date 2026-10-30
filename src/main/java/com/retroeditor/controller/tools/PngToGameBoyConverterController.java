@@ -130,6 +130,9 @@ public class PngToGameBoyConverterController {
         CheckBox chkInvertColors = new CheckBox(msg(bundle, "tool.pngToGameBoy.invertColors", "Invertir colores"));
         chkInvertColors.setSelected(false);
 
+        CheckBox chkDithering = new CheckBox(msg(bundle, "tool.pngToGameBoy.dithering", "Aplicar dithering (mejor para degradados/fotos)"));
+        chkDithering.setSelected(true);
+
         CheckBox chkIncludeConst = new CheckBox(msg(bundle, "tool.pngToGameBoy.includeConst", "Incluir const"));
         chkIncludeConst.setSelected(true);
 
@@ -150,6 +153,7 @@ public class PngToGameBoyConverterController {
             new Label(msg(bundle, "tool.pngToGameBoy.contrast", "Contraste:")),
             contrastBox,
             chkInvertColors,
+            chkDithering,
             new Separator(),
             chkIncludeConst,
             chkIncludeDefines
@@ -194,35 +198,38 @@ public class PngToGameBoyConverterController {
                 selectedPng = file;
                 lblFileSelected.setText(file.getName());
                 updatePreview(previewCanvas, outputArea, txtArrayName, spinWidth, spinHeight, 
-                             sliderContrast, chkInvertColors, chkIncludeConst, chkIncludeDefines, comboExportMode);
+                             sliderContrast, chkInvertColors, chkDithering, chkIncludeConst, chkIncludeDefines, comboExportMode);
             }
         });
 
         // Update preview when options change
         txtArrayName.textProperty().addListener((obs, oldV, newV) -> 
             updatePreview(previewCanvas, outputArea, txtArrayName, spinWidth, spinHeight, 
-                         sliderContrast, chkInvertColors, chkIncludeConst, chkIncludeDefines, comboExportMode));
+                         sliderContrast, chkInvertColors, chkDithering, chkIncludeConst, chkIncludeDefines, comboExportMode));
         comboExportMode.valueProperty().addListener((obs, oldV, newV) -> 
             updatePreview(previewCanvas, outputArea, txtArrayName, spinWidth, spinHeight, 
-                         sliderContrast, chkInvertColors, chkIncludeConst, chkIncludeDefines, comboExportMode));
+                         sliderContrast, chkInvertColors, chkDithering, chkIncludeConst, chkIncludeDefines, comboExportMode));
         spinWidth.valueProperty().addListener((obs, oldV, newV) -> 
             updatePreview(previewCanvas, outputArea, txtArrayName, spinWidth, spinHeight, 
-                         sliderContrast, chkInvertColors, chkIncludeConst, chkIncludeDefines, comboExportMode));
+                         sliderContrast, chkInvertColors, chkDithering, chkIncludeConst, chkIncludeDefines, comboExportMode));
         spinHeight.valueProperty().addListener((obs, oldV, newV) -> 
             updatePreview(previewCanvas, outputArea, txtArrayName, spinWidth, spinHeight, 
-                         sliderContrast, chkInvertColors, chkIncludeConst, chkIncludeDefines, comboExportMode));
+                         sliderContrast, chkInvertColors, chkDithering, chkIncludeConst, chkIncludeDefines, comboExportMode));
         sliderContrast.valueProperty().addListener((obs, oldV, newV) -> 
             updatePreview(previewCanvas, outputArea, txtArrayName, spinWidth, spinHeight, 
-                         sliderContrast, chkInvertColors, chkIncludeConst, chkIncludeDefines, comboExportMode));
+                         sliderContrast, chkInvertColors, chkDithering, chkIncludeConst, chkIncludeDefines, comboExportMode));
         chkInvertColors.selectedProperty().addListener((obs, oldV, newV) -> 
             updatePreview(previewCanvas, outputArea, txtArrayName, spinWidth, spinHeight, 
-                         sliderContrast, chkInvertColors, chkIncludeConst, chkIncludeDefines, comboExportMode));
+                         sliderContrast, chkInvertColors, chkDithering, chkIncludeConst, chkIncludeDefines, comboExportMode));
+        chkDithering.selectedProperty().addListener((obs, oldV, newV) -> 
+            updatePreview(previewCanvas, outputArea, txtArrayName, spinWidth, spinHeight, 
+                         sliderContrast, chkInvertColors, chkDithering, chkIncludeConst, chkIncludeDefines, comboExportMode));
         chkIncludeConst.selectedProperty().addListener((obs, oldV, newV) -> 
             updatePreview(previewCanvas, outputArea, txtArrayName, spinWidth, spinHeight, 
-                         sliderContrast, chkInvertColors, chkIncludeConst, chkIncludeDefines, comboExportMode));
+                         sliderContrast, chkInvertColors, chkDithering, chkIncludeConst, chkIncludeDefines, comboExportMode));
         chkIncludeDefines.selectedProperty().addListener((obs, oldV, newV) -> 
             updatePreview(previewCanvas, outputArea, txtArrayName, spinWidth, spinHeight, 
-                         sliderContrast, chkInvertColors, chkIncludeConst, chkIncludeDefines, comboExportMode));
+                         sliderContrast, chkInvertColors, chkDithering, chkIncludeConst, chkIncludeDefines, comboExportMode));
 
         btnExport.setOnAction(e -> exportToProject(currentProjectDir, outputArea, onExported));
         btnClipboard.setOnAction(e -> copyToClipboard(outputArea));
@@ -252,7 +259,7 @@ public class PngToGameBoyConverterController {
 
     private void updatePreview(Canvas canvas, TextArea outputArea, TextField txtArrayName, 
                               Spinner<Integer> spinWidth, Spinner<Integer> spinHeight,
-                              Slider sliderContrast, CheckBox chkInvertColors,
+                              Slider sliderContrast, CheckBox chkInvertColors, CheckBox chkDithering,
                               CheckBox chkIncludeConst, CheckBox chkIncludeDefines,
                               ComboBox<String> comboExportMode) {
         if (selectedPng == null) {
@@ -274,7 +281,8 @@ public class PngToGameBoyConverterController {
                 tilemapResult = tilemapConverter.convertImageToTilemap(
                     image,
                     (int) sliderContrast.getValue(),
-                    chkInvertColors.isSelected()
+                    chkInvertColors.isSelected(),
+                    chkDithering.isSelected()
                 );
 
                 String headerCode = tilemapFormatter.generateHeaderFile(txtArrayName.getText());
@@ -293,7 +301,8 @@ public class PngToGameBoyConverterController {
                     chkIncludeDefines.isSelected(),
                     (int) sliderContrast.getValue(),
                     chkInvertColors.isSelected(),
-                    "Generado por Samaruc"
+                    "Generado por Samaruc",
+                    chkDithering.isSelected()
                 );
 
                 convertedData = bitmapConverter.convertPngTo2bpp(selectedPng, opts);

@@ -121,6 +121,7 @@ public class ConfigModel {
     private final BooleanProperty enableLogs                              = new SimpleBooleanProperty(this, "enable_logs", false);
     private final BooleanProperty showHomeOnStartup                       = new SimpleBooleanProperty(this, "show_home_on_startup", true);
     private final BooleanProperty syntaxCheckOnSave                       = new SimpleBooleanProperty(this, "syntax_check_on_save", true);
+    private final BooleanProperty showLineNumbers                        = new SimpleBooleanProperty(this, "show_line_numbers", true);
     private final StringProperty  terminalShell                           = new SimpleStringProperty (this, "terminal_shell", TERMINAL_SHELL_AUTO);
 
     private WorkspaceModel activeWorkspace = null;
@@ -256,6 +257,7 @@ public class ConfigModel {
             case "enable_logs"               : return String.valueOf(isEnableLogs());
             case "show_home_on_startup"      : return String.valueOf(isShowHomeOnStartup());
             case "syntax_check_on_save"      : return String.valueOf(isSyntaxCheckOnSave());
+            case "show_line_numbers"         : return String.valueOf(isShowLineNumbers());
             case "terminal_shell"            : return getTerminalShell() != null ? getTerminalShell() : defaultValue;
             case "gbdk_opt_level"  : return getGbdkOptLevel()  != null ? getGbdkOptLevel() : defaultValue;
             case "gbdk_opt_speed"  : return Boolean.toString(isGbdkOptSpeed());
@@ -339,10 +341,11 @@ public class ConfigModel {
             case "marketplace_catalog_url": setMarketplaceCatalogUrl(value);      break;
             case "project_detect_auto_apply": setAutoApplyDetectedProjectProfile(Boolean.parseBoolean(value)); break;
             case "project_detect_auto_apply_threshold": setAutoApplyDetectedProjectProfileThreshold(value); break;
-            case "enable_logs"               : setEnableLogs(Boolean.parseBoolean(value)); break;
-            case "show_home_on_startup"      : setShowHomeOnStartup(Boolean.parseBoolean(value)); break;
-            case "syntax_check_on_save"      : setSyntaxCheckOnSave(Boolean.parseBoolean(value)); break;
-            case "terminal_shell"            : setTerminalShell(value); break;
+            case "enable_logs"                : setEnableLogs(Boolean.parseBoolean(value)); break;
+            case "show_home_on_startup"       : setShowHomeOnStartup(Boolean.parseBoolean(value)); break;
+            case "syntax_check_on_save"       : setSyntaxCheckOnSave(Boolean.parseBoolean(value)); break;
+            case "show_line_numbers"          : setShowLineNumbers(Boolean.parseBoolean(value)); break;
+            case "terminal_shell"             : setTerminalShell(value); break;
             case "gbdk_opt_level"  : setGbdkOptLevel(value);                                break;
             case "gbdk_opt_speed"  : setGbdkOptSpeed(Boolean.parseBoolean(value));          break;
             case "gbdk_opt_size"   : setGbdkOptSize(Boolean.parseBoolean(value));           break;
@@ -464,6 +467,7 @@ public class ConfigModel {
         enableLogs             .set(Boolean.parseBoolean(source.getProperty("enable_logs", "false")));
         showHomeOnStartup      .set(Boolean.parseBoolean(source.getProperty("show_home_on_startup", "true")));
         syntaxCheckOnSave      .set(Boolean.parseBoolean(source.getProperty("syntax_check_on_save", "true")));
+        showLineNumbers        .set(Boolean.parseBoolean(source.getProperty("show_line_numbers", "true")));
         terminalShell          .set(normalizeTerminalShell(source.getProperty("terminal_shell", TERMINAL_SHELL_AUTO)));
     }
 
@@ -522,6 +526,7 @@ public class ConfigModel {
         p.setProperty("enable_logs", String.valueOf(isEnableLogs()));
         p.setProperty("show_home_on_startup", String.valueOf(isShowHomeOnStartup()));
         p.setProperty("syntax_check_on_save", String.valueOf(isSyntaxCheckOnSave()));
+        p.setProperty("show_line_numbers", String.valueOf(isShowLineNumbers()));
         p.setProperty("gbdk_opt_level", getGbdkOptLevel() != null ? getGbdkOptLevel() : GBDK_OPT_NONE);
         p.setProperty("gbdk_opt_speed", Boolean.toString(isGbdkOptSpeed()));
         p.setProperty("gbdk_opt_size", Boolean.toString(isGbdkOptSize()));
@@ -787,6 +792,9 @@ public class ConfigModel {
     public BooleanProperty showHomeOnStartupProperty() { return showHomeOnStartup; }
     public boolean         isShowHomeOnStartup()        { return showHomeOnStartup.get(); }
     public void            setShowHomeOnStartup(boolean v) { showHomeOnStartup.set(v); }
+    public BooleanProperty showLineNumbersProperty()   { return showLineNumbers; }
+    public boolean         isShowLineNumbers()          { return showLineNumbers.get(); }
+    public void            setShowLineNumbers(boolean v){ showLineNumbers.set(v); }
     public BooleanProperty syntaxCheckOnSaveProperty() { return syntaxCheckOnSave; }
     public boolean         isSyntaxCheckOnSave()        { return syntaxCheckOnSave.get(); }
     public void            setSyntaxCheckOnSave(boolean v) { syntaxCheckOnSave.set(v); }

@@ -14,6 +14,7 @@ import com.retroeditor.service.ProjectSearchService;
 import com.retroeditor.service.ProjectSearchService.SearchOptions;
 import com.retroeditor.service.TextSearchService;
 import com.retroeditor.service.UserActionMonitor;
+import com.retroeditor.util.EditorViewport;
 import com.retroeditor.util.FXUtils;
 
 import javafx.application.Platform;
@@ -151,6 +152,20 @@ public class SearchController {
         return fxUtils.getCurrentCodeArea(tabPane);
     }
 
+    /**
+     * Selecciona una coincidencia y la hace visible sin robar el foco al panel
+     * de busqueda. Robarlo interrumpia la escritura en el campo de texto y
+     * dejaba inutilizable el boton de reemplazar.
+     */
+    private void selectMatchWithoutFocus(CodeArea area, int start, int end) {
+        int safeStart = Math.max(0, Math.min(start, area.getLength()));
+        int safeEnd = Math.max(safeStart, Math.min(end, area.getLength()));
+        area.selectRange(safeStart, safeEnd);
+        int paragraph = area.offsetToPosition(
+                safeStart, org.fxmisc.richtext.model.TwoDimensional.Bias.Forward).getMajor();
+        area.showParagraphAtCenter(paragraph);
+    }
+
     /** 
      * Busca la siguiente ocurrencia del término en el archivo actual.
      * @param term Término a buscar.
@@ -174,8 +189,7 @@ public class SearchController {
         if (idx >= 0) {
             final int fidx = idx;
             Platform.runLater(() -> {
-                area.requestFocus();
-                area.selectRange(fidx, fidx + term.length());
+                selectMatchWithoutFocus(area, fidx, fidx + term.length());
                 lastSearchIndex = fidx;
                 lastSearchTerm = term;
             });
@@ -203,8 +217,7 @@ public class SearchController {
         if (idx >= 0) {
             final int fidx = idx;
             Platform.runLater(() -> {
-                area.requestFocus();
-                area.selectRange(fidx, fidx + term.length());
+                selectMatchWithoutFocus(area, fidx, fidx + term.length());
                 lastSearchIndex = fidx;
                 lastSearchTerm = term;
             });
@@ -238,10 +251,44 @@ public class SearchController {
         CodeArea area = getCurrentCodeArea();
         if (area == null || term == null || term.isEmpty()) return;
 
-        int start = area.getSelection().getEnd();
-        String updated = textSearchService.replaceFirst(area.getText(), term, replacement, start, caseSensitive, regex);
-        if (!updated.equals(area.getText())) {
-            Platform.runLater(() -> area.replaceText(updated));
+        String text = area.getText();
+        int selectionStart = area.getSelection().getStart();
+        int selectionEnd = area.getSelection().getEnd();
+        TextSearchService.MatchRange match = null;
+
+        if (selectionEnd > selectionStart) {
+            TextSearchService.MatchRange current = textSearchService.findNext(
+                    text, term, selectionStart, caseSensitive, regex);
+            if (current != null
+                    && current.getStart() == selectionStart
+                    && current.getEnd() == selectionEnd) {
+                match = current;
+            }
+        }
+
+        if (match == null) {
+            match = textSearchService.findNext(text, term, selectionEnd, caseSensitive, regex);
+        }
+        if (match == null) return;
+
+        int matchStart = match.getStart();
+        int matchEnd = match.getEnd();
+        String safeReplacement = replacement != null ? replacement : "";
+        EditorViewport.Snapshot viewport = EditorViewport.capture(area);
+
+        area.replaceText(matchStart, matchEnd, safeReplacement);
+
+        int nextFrom = matchStart + safeReplacement.length();
+        TextSearchService.MatchRange next = textSearchService.findNext(
+                area.getText(), term, nextFrom, caseSensitive, regex);
+        if (next != null) {
+            area.selectRange(next.getStart(), next.getEnd());
+            int paragraph = area.offsetToPosition(
+                    next.getStart(), org.fxmisc.richtext.model.TwoDimensional.Bias.Forward).getMajor();
+            area.showParagraphAtCenter(paragraph);
+        } else {
+            area.moveTo(Math.min(nextFrom, area.getLength()));
+            EditorViewport.restore(area, viewport);
         }
     }
 
@@ -270,7 +317,11 @@ public class SearchController {
 
         String updated = textSearchService.replaceAll(area.getText(), term, replacement, caseSensitive, regex);
         if (!updated.equals(area.getText())) {
-            Platform.runLater(() -> area.replaceText(updated));
+            EditorViewport.Snapshot viewport = EditorViewport.capture(area);
+            int caret = area.getCaretPosition();
+            area.replaceText(updated);
+            area.moveTo(Math.min(caret, area.getLength()));
+            EditorViewport.restore(area, viewport);
         }
     }
 
@@ -295,7 +346,6 @@ public class SearchController {
             final int fidx = next.getStart();
             final int fend = Math.max(next.getEnd(), fidx + Math.max(1, term.length()));
             Platform.runLater(() -> {
-                area.requestFocus();
                 area.selectRange(fidx, Math.min(area.getLength(), fend));
                 lastSearchIndex = fidx;
                 lastSearchTerm = term;
@@ -324,7 +374,6 @@ public class SearchController {
             final int fend = Math.max(prev.getEnd(), fidx + Math.max(1, term.length()));
 
             Platform.runLater(() -> {
-                area.requestFocus();
                 area.selectRange(fidx, Math.min(area.getLength(), fend));
                 lastSearchIndex = fidx;
                 lastSearchTerm  = term;

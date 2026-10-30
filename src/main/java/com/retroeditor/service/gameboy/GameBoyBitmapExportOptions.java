@@ -12,6 +12,7 @@ package com.retroeditor.service.gameboy;
  * @param contrastLevel nivel de contraste (-50 a 50, donde 0 es sin cambios)
  * @param invertColors si true, invierte los colores
  * @param comment comentario de generación
+ * @param useDithering si true, aplica dithering Floyd-Steinberg para mejorar degradados
  */
 public record GameBoyBitmapExportOptions(
     String arrayName,
@@ -22,8 +23,16 @@ public record GameBoyBitmapExportOptions(
     boolean includeDefines,
     int contrastLevel,
     boolean invertColors,
-    String comment
+    String comment,
+    boolean useDithering
 ) {
+    public GameBoyBitmapExportOptions(String arrayName, int width, int height,
+                                      boolean useGameBoyColor, boolean includeConst,
+                                      boolean includeDefines, int contrastLevel,
+                                      boolean invertColors, String comment) {
+        this(arrayName, width, height, useGameBoyColor, includeConst, includeDefines,
+             contrastLevel, invertColors, comment, true);
+    }
     public void validate() {
         if (width <= 0 || width % 8 != 0) {
             throw new IllegalArgumentException("Ancho debe ser múltiplo de 8: " + width);

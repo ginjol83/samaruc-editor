@@ -20,6 +20,19 @@ public class PngToGameBoyTilemapConverter {
      * @return GameBoyTilemapResult con mapData y tileData
      */
     public GameBoyTilemapResult convertImageToTilemap(BufferedImage image, int contrastLevel, boolean invertColors) {
+        return convertImageToTilemap(image, contrastLevel, invertColors, true);
+    }
+
+    /**
+     * Convierte una imagen PNG a tilemap para Game Boy.
+     *
+     * @param image imagen BufferedImage (esperada 160x144)
+     * @param contrastLevel nivel de contraste
+     * @param invertColors si true, invierte colores
+     * @param useDithering si true, aplica Floyd-Steinberg
+     * @return GameBoyTilemapResult con mapData y tileData
+     */
+    public GameBoyTilemapResult convertImageToTilemap(BufferedImage image, int contrastLevel, boolean invertColors, boolean useDithering) {
         if (image.getWidth() < TILE_SIZE * TILES_WIDTH || image.getHeight() < TILE_SIZE * TILES_HEIGHT) {
             throw new IllegalArgumentException(
                 String.format("Image too small: expected at least %dx%d, got %dx%d",
@@ -31,11 +44,37 @@ public class PngToGameBoyTilemapConverter {
         TileDeduplicator deduplicator = new TileDeduplicator();
         byte[] mapData = new byte[TILES_WIDTH * TILES_HEIGHT];
 
+        // Si usamos dithering, preprocesar toda la imagen
+        byte[][] ditheredIndices = null;
+        if (useDithering) {
+            int totalWidth = TILE_SIZE * TILES_WIDTH;
+            int totalHeight = TILE_SIZE * TILES_HEIGHT;
+            int[] rgbArray = new int[totalWidth * totalHeight];
+            for (int y = 0; y < totalHeight; y++) {
+                for (int x = 0; x < totalWidth; x++) {
+                    int rgb = image.getRGB(x, y);
+                    rgb = applyContrast(rgb, contrastLevel);
+                    if (invertColors) {
+                        rgb = invertRgb(rgb);
+                    }
+                    rgbArray[y * totalWidth + x] = rgb;
+                }
+            }
+            GameBoyColorQuantizer quantizer = new GameBoyColorQuantizer();
+            byte[] flatIndices = quantizer.quantizeWithFloydSteinberg(rgbArray, totalWidth, totalHeight);
+            ditheredIndices = new byte[totalHeight][totalWidth];
+            for (int y = 0; y < totalHeight; y++) {
+                for (int x = 0; x < totalWidth; x++) {
+                    ditheredIndices[y][x] = flatIndices[y * totalWidth + x];
+                }
+            }
+        }
+
         // Procesar cada tile en la imagen
         for (int tileY = 0; tileY < TILES_HEIGHT; tileY++) {
             for (int tileX = 0; tileX < TILES_WIDTH; tileX++) {
                 // Extraer los píxeles de este tile
-                int[][] tilePixels = extractTilePixels(image, tileX, tileY, contrastLevel, invertColors);
+                int[][] tilePixels = extractTilePixels(image, tileX, tileY, contrastLevel, invertColors, ditheredIndices);
 
                 // Convertir pixels a bytes 2bpp
                 byte[] tileBytes = pixelsTo2bpp(tilePixels);
@@ -69,11 +108,29 @@ public class PngToGameBoyTilemapConverter {
      */
     private int[][] extractTilePixels(BufferedImage image, int tileX, int tileY,
                                       int contrastLevel, boolean invertColors) {
+        return extractTilePixels(image, tileX, tileY, contrastLevel, invertColors, null);
+    }
+
+    /**
+     * Extrae los píxeles de un tile (8x8) de la imagen.
+     * Retorna índices de color [0-3].
+     */
+    private int[][] extractTilePixels(BufferedImage image, int tileX, int tileY,
+                                      int contrastLevel, boolean invertColors, byte[][] ditheredIndices) {
         int[][] pixels = new int[TILE_SIZE][TILE_SIZE];
         GameBoyColorQuantizer quantizer = new GameBoyColorQuantizer();
 
         int startX = tileX * TILE_SIZE;
         int startY = tileY * TILE_SIZE;
+
+        if (ditheredIndices != null) {
+            for (int y = 0; y < TILE_SIZE; y++) {
+                for (int x = 0; x < TILE_SIZE; x++) {
+                    pixels[y][x] = ditheredIndices[startY + y][startX + x] & 0x03;
+                }
+            }
+            return pixels;
+        }
 
         for (int y = 0; y < TILE_SIZE; y++) {
             for (int x = 0; x < TILE_SIZE; x++) {

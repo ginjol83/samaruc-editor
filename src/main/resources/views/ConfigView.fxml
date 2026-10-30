@@ -80,6 +80,7 @@
                     <CheckBox fx:id="chkEnableLogs" text="Habilitar guardado de logs en archivo (samaruc.log)" />
                     <CheckBox fx:id="chkShowHomeOnStartup" text="Mostrar página de inicio al arrancar" />
                     <CheckBox fx:id="chkSyntaxCheckOnSave" selected="true" text="Comprobar errores de sintaxis al guardar (GCC)" />
+                    <CheckBox fx:id="chkShowLineNumbers" selected="true" text="Mostrar números de línea" />
                     <HBox spacing="8" alignment="CENTER_LEFT">
                         <Button fx:id="btnGuardarAppearance" text="Guardar cambios" onAction="#onSaveEditorAppearance" prefWidth="170" />
                     </HBox>

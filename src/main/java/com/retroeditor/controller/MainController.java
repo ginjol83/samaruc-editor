@@ -519,6 +519,8 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         editorModel         = new EditorModel();
         syntaxHighlighter   = new SyntaxHighlighter();
         fxUtils             = new FXUtils();
+        fxUtils.setConfigModel(configModel);
+        fileOptionsController.setConfigModel(configModel);
         fxUtils.setEditorAppearance(configModel.getConfigProperty(EDITOR_APPEARANCE_PROPERTY, ConfigModel.EDITOR_APPEARANCE_MODERN_DARK));
         fxUtils.setEditorThemeApplier(codeArea -> {
             String activeId = themeService.resolveActiveThemeId(configModel);
@@ -571,6 +573,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 terminalController.setEnableLogging(newV);
             }
         });
+
+        configModel.showLineNumbersProperty().addListener((obs, oldV, newV) ->
+            Platform.runLater(this::reapplyLineNumberGutters));
 
         buildController.compilationRunningProperty().addListener((obs, wasRunning, isRunning) -> updateCompileStatusUI());
 
@@ -1447,7 +1452,11 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     public MenuBar getMenuBar() { return menuBar; }
 
     public void setProyectoActual(File carpeta) {
+        File previousProject = this.currentProjectDir;
         this.currentProjectDir = carpeta;
+        if (previousProject != null && !sameFile(previousProject, carpeta)) {
+            closeTabsFromPreviousProject(previousProject, carpeta);
+        }
         UserActionMonitor.projectSet(carpeta != null ? carpeta.getName() : null);
 
         if (terminalController != null) {
@@ -1479,6 +1488,46 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
+    }
+
+    /**
+     * Cierra las pestanas de archivos que pertenecian al proyecto anterior y no
+     * forman parte del nuevo. Los archivos externos abiertos manualmente se
+     * conservan, ya que no viven dentro del directorio del proyecto anterior.
+     */
+    private void closeTabsFromPreviousProject(File previousProject, File newProject) {
+        closeTabsFromPreviousProject(tabPane, previousProject, newProject);
+        closeTabsFromPreviousProject(secondaryTabPane, previousProject, newProject);
+    }
+
+    private void closeTabsFromPreviousProject(TabPane pane, File previousProject, File newProject) {
+        if (pane == null) return;
+
+        List<Tab> toClose = new ArrayList<>();
+        for (Tab tab : new ArrayList<>(pane.getTabs())) {
+            File file = tabFileMap.get(tab);
+            if (file != null && isInside(file, previousProject) && !isInside(file, newProject)) {
+                toClose.add(tab);
+            }
+        }
+
+        for (Tab tab : toClose) {
+            pane.getTabs().remove(tab);
+            tabFileMap.remove(tab);
+        }
+    }
+
+    private static boolean isInside(File file, File directory) {
+        if (file == null || directory == null) return false;
+        try {
+            Path filePath = file.getAbsoluteFile().toPath().normalize();
+            Path directoryPath = directory.getAbsoluteFile().toPath().normalize();
+            return filePath.startsWith(directoryPath);
+        } catch (Exception ex) {
+            String filePath = file.getAbsolutePath().replace('\\', '/').toLowerCase(java.util.Locale.ROOT);
+            String directoryPath = directory.getAbsolutePath().replace('\\', '/').toLowerCase(java.util.Locale.ROOT);
+            return filePath.equals(directoryPath) || filePath.startsWith(directoryPath + "/");
+        }
     }
 
     /**
@@ -1967,12 +2016,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
             for (File file : filesToRestore) {
                 if (file == null || !file.isFile()) continue;
-                if (currentProjectDir == null) {
-                    File parent = file.getParentFile();
-                    if (parent != null && parent.isDirectory()) {
-                        setProyectoActual(parent);
-                    }
-                }
                 try {
                     openFileInEditorTab(file, false);
                 } catch (IOException ex) {
@@ -2267,11 +2310,24 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         }
     }
 
+    /** Reaplica el gutter de todos los editores tras cambiar su visibilidad. */
+    private void reapplyLineNumberGutters() {
+        reapplyLineNumberGutters(tabPane);
+        reapplyLineNumberGutters(secondaryTabPane);
+    }
+
+    private void reapplyLineNumberGutters(TabPane pane) {
+        if (pane == null) return;
+        for (Tab tab : new ArrayList<>(pane.getTabs())) {
+            applyDiagnosticsForTab(tab);
+        }
+    }
+
     private void clearDiagnosticsForTab(Tab tab) {
         CodeArea codeArea = getCodeAreaFromTab(tab);
         if (codeArea == null) return;
 
-        compilationDiagnosticsUiHelper.clear(codeArea);
+        compilationDiagnosticsUiHelper.clear(codeArea, configModel.isShowLineNumbers());
     }
 
     private void applyDiagnosticsForTab(Tab tab) {
@@ -2280,19 +2336,21 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
         clearDiagnosticsForTab(tab);
 
+        boolean showLineNumbers = configModel.isShowLineNumbers();
         File mappedFile = tabFileMap.get(tab);
         if (mappedFile == null) return;
 
         CompileLineDiagnostics diagnostics = compileDiagnosticsByFile.get(toFileKey(mappedFile));
         if (diagnostics == null) {
-            compilationDiagnosticsUiHelper.apply(codeArea, java.util.Collections.emptySet(), java.util.Collections.emptySet());
+            compilationDiagnosticsUiHelper.apply(codeArea, java.util.Collections.emptySet(),
+                java.util.Collections.emptySet(), showLineNumbers);
             return;
         }
 
         Set<Integer> errorLines = diagnostics.errors;
         Set<Integer> warningLines = diagnostics.warnings;
 
-        compilationDiagnosticsUiHelper.apply(codeArea, errorLines, warningLines);
+        compilationDiagnosticsUiHelper.apply(codeArea, errorLines, warningLines, showLineNumbers);
     }
 
     private CodeArea getCodeAreaFromTab(Tab tab) {

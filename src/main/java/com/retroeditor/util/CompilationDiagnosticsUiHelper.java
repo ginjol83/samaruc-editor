@@ -1,15 +1,8 @@
 package com.retroeditor.util;
 
-import java.util.HashSet;
 import java.util.Set;
-import java.util.function.IntFunction;
 
-import javafx.geometry.Pos;
-import javafx.scene.Node;
-import javafx.scene.control.Label;
-import javafx.scene.layout.HBox;
 import org.fxmisc.richtext.CodeArea;
-import org.fxmisc.richtext.LineNumberFactory;
 
 /**
  * Aplica estilos visuales de diagnosticos de compilacion sobre CodeArea.
@@ -20,66 +13,58 @@ public class CompilationDiagnosticsUiHelper {
     private static final String STYLE_COMPILE_WARNING_LINE = "compile-warning-line";
 
     public void clear(CodeArea codeArea) {
+        clear(codeArea, true);
+    }
+
+    public void clear(CodeArea codeArea, boolean showLineNumbers) {
         if (codeArea == null) return;
 
-        int paragraphs = codeArea.getParagraphs().size();
-        for (int i = 0; i < paragraphs; i++) {
-            codeArea.setParagraphStyle(i, java.util.Collections.emptyList());
-        }
+        EditorViewport.Snapshot viewport = EditorViewport.capture(codeArea);
+        try {
+            int paragraphs = codeArea.getParagraphs().size();
+            for (int i = 0; i < paragraphs; i++) {
+                codeArea.setParagraphStyle(i, java.util.Collections.emptyList());
+            }
 
-        applyGutter(codeArea, java.util.Collections.emptySet(), java.util.Collections.emptySet());
+            LineNumberGutter.apply(codeArea, showLineNumbers);
+        } finally {
+            EditorViewport.restore(codeArea, viewport);
+        }
     }
 
     public void apply(CodeArea codeArea, Set<Integer> errorLines, Set<Integer> warningLines) {
+        apply(codeArea, errorLines, warningLines, true);
+    }
+
+    public void apply(CodeArea codeArea, Set<Integer> errorLines, Set<Integer> warningLines,
+                      boolean showLineNumbers) {
         if (codeArea == null) return;
 
-        clear(codeArea);
+        EditorViewport.Snapshot viewport = EditorViewport.capture(codeArea);
+        try {
+            clear(codeArea, showLineNumbers);
 
-        Set<Integer> safeErrors = (errorLines != null) ? errorLines : java.util.Collections.emptySet();
-        Set<Integer> safeWarnings = (warningLines != null) ? warningLines : java.util.Collections.emptySet();
+            Set<Integer> safeErrors = (errorLines != null) ? errorLines : java.util.Collections.emptySet();
+            Set<Integer> safeWarnings = (warningLines != null) ? warningLines : java.util.Collections.emptySet();
 
-        int maxParagraphs = codeArea.getParagraphs().size();
-        for (Integer line : safeWarnings) {
-            if (line == null) continue;
-            int paragraphIndex = line - 1;
-            if (paragraphIndex < 0 || paragraphIndex >= maxParagraphs) continue;
-            codeArea.setParagraphStyle(paragraphIndex, java.util.Collections.singleton(STYLE_COMPILE_WARNING_LINE));
-        }
-
-        for (Integer line : safeErrors) {
-            if (line == null) continue;
-            int paragraphIndex = line - 1;
-            if (paragraphIndex < 0 || paragraphIndex >= maxParagraphs) continue;
-            codeArea.setParagraphStyle(paragraphIndex, java.util.Collections.singleton(STYLE_COMPILE_ERROR_LINE));
-        }
-
-        applyGutter(codeArea, safeErrors, safeWarnings);
-    }
-
-    private void applyGutter(CodeArea codeArea, Set<Integer> errorLines, Set<Integer> warningLines) {
-        final Set<Integer> errors = new HashSet<>(errorLines != null ? errorLines : java.util.Collections.emptySet());
-        final Set<Integer> warnings = new HashSet<>(warningLines != null ? warningLines : java.util.Collections.emptySet());
-
-        IntFunction<Node> lineNumbers = LineNumberFactory.get(codeArea);
-        codeArea.setParagraphGraphicFactory(paragraphIndex -> {
-            Node lineNumberNode = lineNumbers.apply(paragraphIndex);
-            int line = paragraphIndex + 1;
-
-            Label marker = new Label(" ");
-            marker.getStyleClass().add("diag-gutter-marker");
-
-            if (errors.contains(line)) {
-                marker.setText("●");
-                marker.getStyleClass().add("diag-gutter-marker-error");
-            } else if (warnings.contains(line)) {
-                marker.setText("●");
-                marker.getStyleClass().add("diag-gutter-marker-warning");
+            int maxParagraphs = codeArea.getParagraphs().size();
+            for (Integer line : safeWarnings) {
+                if (line == null) continue;
+                int paragraphIndex = line - 1;
+                if (paragraphIndex < 0 || paragraphIndex >= maxParagraphs) continue;
+                codeArea.setParagraphStyle(paragraphIndex, java.util.Collections.singleton(STYLE_COMPILE_WARNING_LINE));
             }
 
-            HBox gutter = new HBox(4, marker, lineNumberNode);
-            gutter.setAlignment(Pos.CENTER_RIGHT);
-            return gutter;
-        });
+            for (Integer line : safeErrors) {
+                if (line == null) continue;
+                int paragraphIndex = line - 1;
+                if (paragraphIndex < 0 || paragraphIndex >= maxParagraphs) continue;
+                codeArea.setParagraphStyle(paragraphIndex, java.util.Collections.singleton(STYLE_COMPILE_ERROR_LINE));
+            }
+
+            LineNumberGutter.apply(codeArea, showLineNumbers, safeErrors, safeWarnings);
+        } finally {
+            EditorViewport.restore(codeArea, viewport);
+        }
     }
 }
-
