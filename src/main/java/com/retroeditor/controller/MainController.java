@@ -1322,6 +1322,12 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 configModel.setConfigProperty("atari_basic_variant",
                         fxUtils.getLastCreatedAtariBasicVariant().name());
                 configRepository.save(userConfigFile, configModel.toProperties());
+            } else if (fxUtils.wasLastCreatedProjectSpectrumAsmTemplate()) {
+                configModel.applySpectrumProfile();
+                configRepository.save(userConfigFile, configModel.toProperties());
+            } else if (fxUtils.wasLastCreatedProjectAtariAsmTemplate()) {
+                configModel.applyAtariProfile();
+                configRepository.save(userConfigFile, configModel.toProperties());
             }
 
             UserActionMonitor.projectCreated(creado.getAbsolutePath());
@@ -1330,6 +1336,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             File defaultMainFile = new File(creado, "src/main.c");
             if (!defaultMainFile.isFile()) {
                 defaultMainFile = new File(creado, "src/main.bas");
+            }
+            if (!defaultMainFile.isFile()) {
+                defaultMainFile = new File(creado, "src/main.asm");
             }
             if (defaultMainFile.isFile()) {
                 openFileFromExplorer(defaultMainFile);

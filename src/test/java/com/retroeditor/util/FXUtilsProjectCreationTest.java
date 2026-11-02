@@ -171,6 +171,105 @@ class FXUtilsProjectCreationTest {
 
     @Test
     @SuppressWarnings({ "rawtypes", "unchecked" })
+    void createProjectFromAtariAsmTemplateWritesAsmAndAtariTarget() throws Exception {
+        FXUtils utils = new FXUtils();
+
+        Path projectDir = tempDir.resolve("atari-asm-project");
+        Files.createDirectories(projectDir);
+
+        Class templateClass = Class.forName("com.retroeditor.util.FXUtils$ProjectTemplate");
+        Object atariAsmTemplate = Enum.valueOf(templateClass, "ATARI_ASM");
+
+        Class optionsClass = Class.forName("com.retroeditor.util.FXUtils$ProjectCreationOptions");
+        Constructor ctor = optionsClass.getDeclaredConstructor(templateClass, boolean.class, boolean.class);
+        ctor.setAccessible(true);
+        Object options = ctor.newInstance(atariAsmTemplate, true, true);
+
+        Method createProjectMethod = FXUtils.class.getDeclaredMethod("createProjectFromTemplate", File.class, optionsClass);
+        createProjectMethod.setAccessible(true);
+        createProjectMethod.invoke(utils, projectDir.toFile(), options);
+
+        Path asmFile = projectDir.resolve("src/main.asm");
+        Assertions.assertTrue(Files.exists(asmFile), "Debe generarse src/main.asm");
+        Assertions.assertFalse(Files.exists(projectDir.resolve("src/main.c")), "No debe generarse src/main.c");
+
+        String asm = Files.readString(asmFile, StandardCharsets.UTF_8);
+        Assertions.assertTrue(asm.contains(".include \"atari.inc\""));
+        Assertions.assertTrue(asm.contains(".export start"));
+
+        String json = Files.readString(projectDir.resolve(".samarucws").resolve("settings.json"), StandardCharsets.UTF_8);
+        Assertions.assertTrue(json.contains("\"samaruc.target\": \"atari\""));
+        Assertions.assertTrue(json.contains("\"*.inc\": \"asm\""));
+
+        String gitignore = Files.readString(projectDir.resolve(".gitignore"), StandardCharsets.UTF_8);
+        Assertions.assertTrue(gitignore.contains("*.xex"));
+        Assertions.assertFalse(gitignore.contains("*.asm"), "El .gitignore no debe ocultar las fuentes .asm");
+    }
+
+    @Test
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    void reportsLastCreatedProjectAsAtariAsmTemplate() throws Exception {
+        FXUtils utils = new FXUtils();
+        Class templateClass = Class.forName("com.retroeditor.util.FXUtils$ProjectTemplate");
+        Object template = Enum.valueOf(templateClass, "ATARI_ASM");
+        Field templateField = FXUtils.class.getDeclaredField("lastCreatedProjectTemplate");
+        templateField.setAccessible(true);
+        templateField.set(utils, template);
+
+        Assertions.assertTrue(utils.wasLastCreatedProjectAtariAsmTemplate());
+    }
+
+    @Test
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    void createProjectFromSpectrumAsmTemplateWritesAsmAndSpectrumTarget() throws Exception {
+        FXUtils utils = new FXUtils();
+
+        Path projectDir = tempDir.resolve("zx-asm-project");
+        Files.createDirectories(projectDir);
+
+        Class templateClass = Class.forName("com.retroeditor.util.FXUtils$ProjectTemplate");
+        Object spectrumAsmTemplate = Enum.valueOf(templateClass, "SPECTRUM_ASM");
+
+        Class optionsClass = Class.forName("com.retroeditor.util.FXUtils$ProjectCreationOptions");
+        Constructor ctor = optionsClass.getDeclaredConstructor(templateClass, boolean.class, boolean.class);
+        ctor.setAccessible(true);
+        Object options = ctor.newInstance(spectrumAsmTemplate, true, true);
+
+        Method createProjectMethod = FXUtils.class.getDeclaredMethod("createProjectFromTemplate", File.class, optionsClass);
+        createProjectMethod.setAccessible(true);
+        createProjectMethod.invoke(utils, projectDir.toFile(), options);
+
+        Path asmFile = projectDir.resolve("src/main.asm");
+        Assertions.assertTrue(Files.exists(asmFile), "Debe generarse src/main.asm");
+        Assertions.assertFalse(Files.exists(projectDir.resolve("src/main.c")), "No debe generarse src/main.c");
+
+        String asm = Files.readString(asmFile, StandardCharsets.UTF_8);
+        Assertions.assertTrue(asm.contains("SECTION code_user"));
+        Assertions.assertTrue(asm.contains("PUBLIC _main"));
+
+        String json = Files.readString(projectDir.resolve(".samarucws").resolve("settings.json"), StandardCharsets.UTF_8);
+        Assertions.assertTrue(json.contains("\"samaruc.target\": \"spectrum\""));
+
+        String gitignore = Files.readString(projectDir.resolve(".gitignore"), StandardCharsets.UTF_8);
+        Assertions.assertTrue(gitignore.contains("*.tap"));
+        Assertions.assertFalse(gitignore.contains("*.asm"), "El .gitignore no debe ocultar las fuentes .asm");
+    }
+
+    @Test
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    void reportsLastCreatedProjectAsSpectrumAsmTemplate() throws Exception {
+        FXUtils utils = new FXUtils();
+        Class templateClass = Class.forName("com.retroeditor.util.FXUtils$ProjectTemplate");
+        Object template = Enum.valueOf(templateClass, "SPECTRUM_ASM");
+        Field templateField = FXUtils.class.getDeclaredField("lastCreatedProjectTemplate");
+        templateField.setAccessible(true);
+        templateField.set(utils, template);
+
+        Assertions.assertTrue(utils.wasLastCreatedProjectSpectrumAsmTemplate());
+    }
+
+    @Test
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     void createProjectFromSpectrumBasicTemplateWritesBasAndSpectrumTarget() throws Exception {
         FXUtils utils = new FXUtils();
 
@@ -215,6 +314,56 @@ class FXUtilsProjectCreationTest {
         templateField.set(utils, template);
 
         Assertions.assertTrue(utils.wasLastCreatedProjectSpectrumBasicTemplate());
+    }
+
+    @Test
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    void createProjectFromGameBoyAsmTemplateWritesAsmAndGameBoyTarget() throws Exception {
+        FXUtils utils = new FXUtils();
+
+        Path projectDir = tempDir.resolve("gb-asm-project");
+        Files.createDirectories(projectDir);
+
+        Class templateClass = Class.forName("com.retroeditor.util.FXUtils$ProjectTemplate");
+        Object gameBoyAsmTemplate = Enum.valueOf(templateClass, "GAMEBOY_ASM");
+
+        Class optionsClass = Class.forName("com.retroeditor.util.FXUtils$ProjectCreationOptions");
+        Constructor ctor = optionsClass.getDeclaredConstructor(templateClass, boolean.class, boolean.class);
+        ctor.setAccessible(true);
+        Object options = ctor.newInstance(gameBoyAsmTemplate, true, true);
+
+        Method createProjectMethod = FXUtils.class.getDeclaredMethod("createProjectFromTemplate", File.class, optionsClass);
+        createProjectMethod.setAccessible(true);
+        createProjectMethod.invoke(utils, projectDir.toFile(), options);
+
+        Path asmFile = projectDir.resolve("src/main.asm");
+        Assertions.assertTrue(Files.exists(asmFile), "Debe generarse src/main.asm");
+        Assertions.assertFalse(Files.exists(projectDir.resolve("src/main.c")), "No debe generarse src/main.c");
+
+        String asm = Files.readString(asmFile, StandardCharsets.UTF_8);
+        Assertions.assertTrue(asm.contains(".area _CODE"));
+        Assertions.assertTrue(asm.contains(".globl _main"));
+        Assertions.assertTrue(asm.contains("_main::"));
+
+        String json = Files.readString(projectDir.resolve(".samarucws").resolve("settings.json"), StandardCharsets.UTF_8);
+        Assertions.assertTrue(json.contains("\"samaruc.target\": \"gameboy\""));
+
+        String gitignore = Files.readString(projectDir.resolve(".gitignore"), StandardCharsets.UTF_8);
+        Assertions.assertTrue(gitignore.contains("*.gb"));
+        Assertions.assertFalse(gitignore.contains("*.asm"), "El .gitignore no debe ocultar las fuentes .asm");
+    }
+
+    @Test
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    void reportsLastCreatedProjectAsGameBoyAsmTemplate() throws Exception {
+        FXUtils utils = new FXUtils();
+        Class templateClass = Class.forName("com.retroeditor.util.FXUtils$ProjectTemplate");
+        Object template = Enum.valueOf(templateClass, "GAMEBOY_ASM");
+        Field templateField = FXUtils.class.getDeclaredField("lastCreatedProjectTemplate");
+        templateField.setAccessible(true);
+        templateField.set(utils, template);
+
+        Assertions.assertTrue(utils.wasLastCreatedProjectGameBoyTemplate());
     }
 
     @Test

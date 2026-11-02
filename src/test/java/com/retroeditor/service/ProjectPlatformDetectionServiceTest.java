@@ -26,6 +26,23 @@ class ProjectPlatformDetectionServiceTest {
     }
 
     @Test
+    void detectGameBoyAssemblyByGbdkDirectivesAndRegisters() throws IOException {
+        Files.writeString(tempDir.resolve("main.asm"),
+            "    .module main\n"
+                + "    .area _CODE\n"
+                + "    .globl _main\n"
+                + "_main::\n"
+                + "    ld a, #0xE4\n"
+                + "    ldh (_BGP), a\n"
+                + "    jr _main\n");
+
+        ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
+
+        Assertions.assertEquals(ProjectPlatformDetectionService.Platform.GAMEBOY, result.getPlatform());
+        Assertions.assertTrue(result.getConfidence() > 0);
+    }
+
+    @Test
     void detectSpectrumByConioAndBorder() throws IOException {
         Files.writeString(tempDir.resolve("main.c"), "#include <conio.h>\nvoid main(){ bordercolor(1); cputs(\"ZX\"); }");
 
@@ -219,6 +236,48 @@ class ProjectPlatformDetectionServiceTest {
     @Test
     void detectAtariByWorkspaceTarget() throws IOException {
         Files.writeString(tempDir.resolve("settings.json"), "{\"samaruc.target\": \"atari\"}");
+
+        ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
+
+        Assertions.assertEquals(ProjectPlatformDetectionService.Platform.ATARI, result.getPlatform());
+        Assertions.assertTrue(result.getConfidence() > 0);
+    }
+
+    @Test
+    void detectAtariByAssemblyIncludeAndOsCalls() throws IOException {
+        Files.writeString(tempDir.resolve("main.asm"),
+            "    .include \"atari.inc\"\n"
+                + "start:\n"
+                + "    lda #PUTCHR\n"
+                + "    sta ICCOM\n"
+                + "    jsr CIOV\n");
+
+        ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
+
+        Assertions.assertEquals(ProjectPlatformDetectionService.Platform.ATARI, result.getPlatform());
+        Assertions.assertTrue(result.getConfidence() > 0);
+    }
+
+    @Test
+    void detectSpectrumByAssemblyZccTargetAndOsCalls() throws IOException {
+        Files.writeString(tempDir.resolve("main.asm"),
+            "; zcc +zx -startup=0\n"
+                + "_main:\n"
+                + "    ld a, 2\n"
+                + "    out (254), a\n"
+                + "    rst 16\n");
+
+        ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
+
+        Assertions.assertEquals(ProjectPlatformDetectionService.Platform.SPECTRUM, result.getPlatform());
+        Assertions.assertTrue(result.getConfidence() > 0);
+    }
+
+    @Test
+    void detectAtariAssemblyByXexLinkerConfig() throws IOException {
+        Files.writeString(tempDir.resolve("main.s"), "start:\n    rts\n");
+        Files.writeString(tempDir.resolve("Makefile"),
+            "main.xex: main.s\n\tcl65 -t none -C atari-asm-xex.cfg -o main.xex main.s\n");
 
         ProjectPlatformDetectionService.DetectionResult result = service.detectProjectPlatform(tempDir.toFile());
 

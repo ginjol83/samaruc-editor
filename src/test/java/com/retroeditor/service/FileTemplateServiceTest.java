@@ -117,6 +117,46 @@ class FileTemplateServiceTest {
     }
 
     @Test
+    void exposesAtariAssemblyTemplate() {
+        FileTemplateService.FileTemplate atari = service.getTemplates().stream()
+            .filter(t -> "atari-asm".equals(t.id()))
+            .findFirst()
+            .orElseThrow();
+
+        assertEquals("main.asm", atari.fileName());
+        assertTrue(atari.content().contains(".include \"atari.inc\""));
+        assertTrue(atari.content().contains(".export start"));
+        assertTrue(atari.content().contains("jsr CIOV"));
+    }
+
+    @Test
+    void exposesZxAssemblyTemplate() {
+        FileTemplateService.FileTemplate zx = service.getTemplates().stream()
+            .filter(t -> "zx-asm".equals(t.id()))
+            .findFirst()
+            .orElseThrow();
+
+        assertEquals("main.asm", zx.fileName());
+        assertTrue(zx.content().contains("SECTION code_user"));
+        assertTrue(zx.content().contains("PUBLIC _main"));
+        assertTrue(zx.content().contains("rst 16"));
+    }
+
+    @Test
+    void exposesGameBoyAssemblyTemplate() {
+        FileTemplateService.FileTemplate gb = service.getTemplates().stream()
+            .filter(t -> "gb-asm".equals(t.id()))
+            .findFirst()
+            .orElseThrow();
+
+        assertEquals("main.asm", gb.fileName());
+        assertTrue(gb.content().contains(".area _CODE"));
+        assertTrue(gb.content().contains(".globl _main"));
+        assertTrue(gb.content().contains("_main::"));
+        assertTrue(gb.content().contains("ldh (_LCDC), a"));
+    }
+
+    @Test
     void exposesAtariBasicTemplate() {
         FileTemplateService.FileTemplate atari = service.getTemplates().stream()
             .filter(t -> "atari-bas".equals(t.id()))

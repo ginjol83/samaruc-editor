@@ -77,6 +77,8 @@ public class ProjectPlatformDetectionService {
 
             for (Path file : files) {
                 String fileName = file.getFileName() != null ? file.getFileName().toString().toLowerCase(Locale.ROOT) : "";
+                boolean assemblyFile = fileName.endsWith(".asm") || fileName.endsWith(".s");
+                boolean atariAsmFile = assemblyFile;
                 // Un fichero .bas es un listado de Atari BASIC: refuerza a ATARI sin
                 // descartar las senales C de otras plataformas del mismo proyecto.
                 if (fileName.endsWith(".bas")) {
@@ -148,6 +150,26 @@ public class ProjectPlatformDetectionService {
                     gameBoyScore += 1;
                     evidence.add("DISPLAY_ON");
                 }
+                if (assemblyFile && content.contains(".area _code")) {
+                    gameBoyScore += 8;
+                    evidence.add("asm .area _CODE");
+                }
+                if (assemblyFile && (content.contains("_lcdc") || content.contains("_bgp")
+                        || content.contains("_scrn0") || content.contains("_oamram")
+                        || content.contains("_vram"))) {
+                    gameBoyScore += 5;
+                    evidence.add("GB asm hardware registers");
+                }
+                if (assemblyFile && content.contains("_main::")
+                        && (content.contains(".globl") || content.contains(".module"))) {
+                    gameBoyScore += 5;
+                    evidence.add("GB asm _main::");
+                }
+                if (assemblyFile && content.contains("ldh (")
+                        && !content.contains("section code_user")) {
+                    gameBoyScore += 4;
+                    evidence.add("asm LDH");
+                }
 
                 boolean cpcSpecific = content.contains("<cpc.h>")
                     || content.contains("+cpc")
@@ -208,7 +230,38 @@ public class ProjectPlatformDetectionService {
                     spectrumScore += 2;
                     evidence.add("z88dk");
                 }
+                if (assemblyFile && content.contains("zcc +zx")) {
+                    spectrumScore += 8;
+                    evidence.add("asm zcc +zx");
+                }
+                if (assemblyFile && content.contains("rst 16")) {
+                    spectrumScore += 5;
+                    evidence.add("asm RST 16");
+                }
+                if (assemblyFile && (content.contains("out (254)") || content.contains("out ($fe)")
+                        || content.contains("out (#fe)"))) {
+                    spectrumScore += 5;
+                    evidence.add("asm OUT ($FE)");
+                }
+                if (assemblyFile
+                        && (content.contains("$4000") || content.contains("16384"))
+                        && (content.contains("$5800") || content.contains("22528"))) {
+                    spectrumScore += 4;
+                    evidence.add("Spectrum VRAM");
+                }
 
+                if (content.contains("atari-asm-xex.cfg")) {
+                    atariScore += 8;
+                    evidence.add("atari-asm-xex.cfg");
+                }
+                if (atariAsmFile && content.contains("atari.inc")) {
+                    atariScore += 8;
+                    evidence.add("atari.inc");
+                }
+                if (atariAsmFile && content.contains("iccom") && content.contains("ciov")) {
+                    atariScore += 4;
+                    evidence.add("CIOV/ICCOM");
+                }
                 if (content.contains("#include <atari.h>")) {
                     atariScore += 6;
                     evidence.add("atari.h");

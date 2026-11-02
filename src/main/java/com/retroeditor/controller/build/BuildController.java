@@ -243,6 +243,7 @@ public class BuildController {
         if (isSpectrumCompiler(selectedCompiler)) {
             String z88dkProfile = normalizeZ88dkProfile(configModel.getConfigProperty("z88dk_profile", Z88DK_PROFILE_SPECTRUM));
             boolean cpcProfile = Z88DK_PROFILE_CPC.equalsIgnoreCase(z88dkProfile);
+            boolean spectrumAssembly = Z88DK_PROFILE_SPECTRUM.equalsIgnoreCase(z88dkProfile) && isAssemblySource(file);
             String z88dkBin = resolveEffectiveZ88dkBin(configModel, selectedCompiler);
 
             if (z88dkBin == null || z88dkBin.isBlank()) {
@@ -263,22 +264,6 @@ public class BuildController {
             }
 
             String compiler = resolveCompilerExecutable(z88dkBin, "zcc");
-            String clibOption = configModel.getConfigProperty(
-                z88dkProfileKey(z88dkProfile, "clib_option"),
-                z88dkDefaultClib(z88dkProfile)
-            );
-            if (!Z88DK_PROFILE_SPECTRUM.equals(z88dkProfile)
-                    && (clibOption == null || ConfigModel.Z88DK_CLIB_NEW.equalsIgnoreCase(clibOption.trim()))) {
-                clibOption = ConfigModel.Z88DK_CLIB_DEFAULT;
-            }
-            boolean useCrtOrgCode = Boolean.parseBoolean(configModel.getConfigProperty(
-                z88dkProfileKey(z88dkProfile, "use_pragma_crt_org_code_32768"),
-                Z88DK_PROFILE_SPECTRUM.equals(z88dkProfile) ? "true" : "false"
-            ));
-            boolean useCreateApp = Boolean.parseBoolean(configModel.getConfigProperty(
-                z88dkProfileKey(z88dkProfile, "create_app"),
-                "true"
-            ));
             String spectrumOutputBase = new File(
                 outputDir,
                 cpcProfile ? resolveCpcOutputBaseName(sourceFileName) : outputBaseName
@@ -288,25 +273,56 @@ public class BuildController {
                 z88dkDefaultTarget(z88dkProfile)
             ));
             String z88dkExtraArgs = configModel.getConfigProperty(z88dkProfileKey(z88dkProfile, "extra_args"), "");
-            String subtype = z88dkDefaultSubtype(z88dkProfile);
 
             List<String> spectrumCmd = new ArrayList<>();
             spectrumCmd.add(compiler);
             spectrumCmd.add(z88dkTarget);
-            if (subtype != null && !containsSubtypeArgument(z88dkExtraArgs)) {
-                spectrumCmd.add("-subtype=" + subtype);
+
+            if (spectrumAssembly) {
+                // Ensamblador Z80 puro: z88dk enlaza contra su CRT, llama a _main y
+                // appmake genera un .tap arrancable con -create-app.
+                spectrumCmd.add("-startup=0");
+                compilerArgs.addMacroFlags(spectrumCmd, configModel.getConfigProperty(z88dkProfileKey(z88dkProfile, "defines"), ""));
+                compilerArgs.addIncludeFlags(spectrumCmd, configModel.getConfigProperty(z88dkProfileKey(z88dkProfile, "includes"), ""));
+                compilerArgs.addExtraArgs(spectrumCmd, z88dkExtraArgs);
+                spectrumCmd.add("-o");
+                spectrumCmd.add(spectrumOutputBase);
+                spectrumCmd.add(sourceFilePath);
+                spectrumCmd.add("-create-app");
+            } else {
+                String clibOption = configModel.getConfigProperty(
+                    z88dkProfileKey(z88dkProfile, "clib_option"),
+                    z88dkDefaultClib(z88dkProfile)
+                );
+                if (!Z88DK_PROFILE_SPECTRUM.equals(z88dkProfile)
+                        && (clibOption == null || ConfigModel.Z88DK_CLIB_NEW.equalsIgnoreCase(clibOption.trim()))) {
+                    clibOption = ConfigModel.Z88DK_CLIB_DEFAULT;
+                }
+                boolean useCrtOrgCode = Boolean.parseBoolean(configModel.getConfigProperty(
+                    z88dkProfileKey(z88dkProfile, "use_pragma_crt_org_code_32768"),
+                    Z88DK_PROFILE_SPECTRUM.equals(z88dkProfile) ? "true" : "false"
+                ));
+                boolean useCreateApp = Boolean.parseBoolean(configModel.getConfigProperty(
+                    z88dkProfileKey(z88dkProfile, "create_app"),
+                    "true"
+                ));
+                String subtype = z88dkDefaultSubtype(z88dkProfile);
+
+                if (subtype != null && !containsSubtypeArgument(z88dkExtraArgs)) {
+                    spectrumCmd.add("-subtype=" + subtype);
+                }
+                String clibArgument = resolveZ88dkClibArgument(clibOption);
+                if (clibArgument != null) spectrumCmd.add(clibArgument);
+                if (useCrtOrgCode) spectrumCmd.add("-pragma-define:CRT_ORG_CODE=32768");
+                compilerArgs.addMacroFlags(spectrumCmd, configModel.getConfigProperty(z88dkProfileKey(z88dkProfile, "defines"), ""));
+                compilerArgs.addIncludeFlags(spectrumCmd, configModel.getConfigProperty(z88dkProfileKey(z88dkProfile, "includes"), ""));
+                compilerArgs.addExtraArgs(spectrumCmd, z88dkExtraArgs);
+                spectrumCmd.add("-o");
+                spectrumCmd.add(spectrumOutputBase);
+                spectrumCmd.addAll(z88dkSupportSources(z88dkProfile, compiler));
+                spectrumCmd.add(sourceFilePath);
+                if (useCreateApp) spectrumCmd.add("-create-app");
             }
-            String clibArgument = resolveZ88dkClibArgument(clibOption);
-            if (clibArgument != null) spectrumCmd.add(clibArgument);
-            if (useCrtOrgCode) spectrumCmd.add("-pragma-define:CRT_ORG_CODE=32768");
-            compilerArgs.addMacroFlags(spectrumCmd, configModel.getConfigProperty(z88dkProfileKey(z88dkProfile, "defines"), ""));
-            compilerArgs.addIncludeFlags(spectrumCmd, configModel.getConfigProperty(z88dkProfileKey(z88dkProfile, "includes"), ""));
-            compilerArgs.addExtraArgs(spectrumCmd, z88dkExtraArgs);
-            spectrumCmd.add("-o");
-            spectrumCmd.add(spectrumOutputBase);
-            spectrumCmd.addAll(z88dkSupportSources(z88dkProfile, compiler));
-            spectrumCmd.add(sourceFilePath);
-            if (useCreateApp) spectrumCmd.add("-create-app");
             cmd = spectrumCmd.toArray(new String[0]);
 
         } else if (isGccCompiler(selectedCompiler)) {
@@ -403,16 +419,44 @@ public class BuildController {
             }
 
             String cc65Target = normalizeCc65Target(configModel.getConfigProperty("cc65_target", CC65_TARGET_ATARI));
+            boolean atariAssembly = CC65_TARGET_ATARI.equals(cc65Target) && isAssemblySource(file);
             String cc65TargetFlag = cc65TargetActual(cc65Target);
             String cc65ArtifactExtension = cc65ArtifactExtension(cc65Target);
             String outputArtifact = new File(outputDir, outputBaseName + cc65ArtifactExtension).getAbsolutePath();
             List<String> cc65Cmd = new ArrayList<>();
             cc65Cmd.add(cl65);
-            cc65Cmd.add("-t");
-            cc65Cmd.add(cc65TargetFlag);
-            String optLevel = configModel.getConfigProperty("cc65_opt_level", "none");
-            if (!optLevel.equals("none")) {
-                cc65Cmd.add(optLevel);
+            if (atariAssembly) {
+                File asmConfig = resolveCc65AsmConfig(cl65);
+                if (asmConfig == null) {
+                    Alert alert = new Alert(AlertType.ERROR);
+                    alert.setTitle("Error de compilación");
+                    alert.setHeaderText("No se encontró la configuración de Atari ASM");
+                    alert.setContentText("No se ha encontrado atari-asm-xex.cfg en la distribución de CC65. "
+                            + "Se esperaba en <cc65>/cfg/atari-asm-xex.cfg.");
+                    alert.showAndWait();
+
+                    terminalController.appendConsoleOutput(
+                            "ERROR: No se encontró <cc65>/cfg/atari-asm-xex.cfg para compilar ensamblador de Atari.",
+                            consoleOutputArea);
+                    return;
+                }
+                cc65Cmd.add("-t");
+                cc65Cmd.add("none");
+                cc65Cmd.add("-C");
+                cc65Cmd.add(asmConfig.getAbsolutePath());
+
+                File asmIncludeDir = resolveCc65AsmIncludeDir(cl65);
+                if (asmIncludeDir != null && asmIncludeDir.isDirectory()) {
+                    cc65Cmd.add("-I");
+                    cc65Cmd.add(asmIncludeDir.getAbsolutePath());
+                }
+            } else {
+                cc65Cmd.add("-t");
+                cc65Cmd.add(cc65TargetFlag);
+                String optLevel = configModel.getConfigProperty("cc65_opt_level", "none");
+                if (!optLevel.equals("none")) {
+                    cc65Cmd.add(optLevel);
+                }
             }
             compilerArgs.addMacroFlags(cc65Cmd, configModel.getConfigProperty("cc65_defines", ""));
             compilerArgs.addIncludeFlags(cc65Cmd, configModel.getConfigProperty("cc65_includes", ""));
@@ -439,19 +483,23 @@ public class BuildController {
             }
 
             String compiler = resolveCompilerExecutable(gbdkBinDir.getAbsolutePath(), "lcc");
+            boolean gbdkAssembly = isAssemblySource(file);
             List<String> gbdkCmd = new ArrayList<>();
             gbdkCmd.add(compiler);
 
-            // Opciones de optimización GBDK
-            String gbdkOptLevel = configModel.getConfigProperty("gbdk_opt_level", "none");
-            if (gbdkOptLevel != null && !gbdkOptLevel.equalsIgnoreCase("none") && !gbdkOptLevel.isBlank()) {
-                gbdkCmd.add(gbdkOptLevel);
-            }
-            if (Boolean.parseBoolean(configModel.getConfigProperty("gbdk_opt_speed", "false"))) {
-                gbdkCmd.add("--opt-code-speed");
-            }
-            if (Boolean.parseBoolean(configModel.getConfigProperty("gbdk_opt_size", "false"))) {
-                gbdkCmd.add("--opt-code-size");
+            // Las opciones de optimizacion son para el compilador C: lcc no las
+            // acepta cuando el fuente es ensamblador (SM83 / sdasgb).
+            if (!gbdkAssembly) {
+                String gbdkOptLevel = configModel.getConfigProperty("gbdk_opt_level", "none");
+                if (gbdkOptLevel != null && !gbdkOptLevel.equalsIgnoreCase("none") && !gbdkOptLevel.isBlank()) {
+                    gbdkCmd.add(gbdkOptLevel);
+                }
+                if (Boolean.parseBoolean(configModel.getConfigProperty("gbdk_opt_speed", "false"))) {
+                    gbdkCmd.add("--opt-code-speed");
+                }
+                if (Boolean.parseBoolean(configModel.getConfigProperty("gbdk_opt_size", "false"))) {
+                    gbdkCmd.add("--opt-code-size");
+                }
             }
 
             compilerArgs.addMacroFlags(gbdkCmd, configModel.getConfigProperty("gbdk_defines", ""));
@@ -1726,6 +1774,31 @@ public class BuildController {
         if (CC65_TARGET_NES.equals(normalizedTarget)) return ".nes";
         if (CC65_TARGET_C64.equals(normalizedTarget)) return ".prg";
         return ".xex";
+    }
+
+    private boolean isAssemblySource(File file) {
+        if (file == null) return false;
+        String name = file.getName().toLowerCase(Locale.ROOT);
+        return name.endsWith(".asm") || name.endsWith(".s");
+    }
+
+    private File resolveCc65AsmConfig(String cl65Path) {
+        File cc65Root = resolveCc65Root(cl65Path);
+        if (cc65Root == null) return null;
+        File config = new File(new File(cc65Root, "cfg"), "atari-asm-xex.cfg");
+        return config.isFile() ? config : null;
+    }
+
+    private File resolveCc65AsmIncludeDir(String cl65Path) {
+        File cc65Root = resolveCc65Root(cl65Path);
+        if (cc65Root == null) return null;
+        File asminc = new File(cc65Root, "asminc");
+        return asminc.isDirectory() ? asminc : null;
+    }
+
+    private File resolveCc65Root(String cl65Path) {
+        File binDir = new File(cl65Path).getParentFile();
+        return binDir != null ? binDir.getParentFile() : null;
     }
 
     private boolean isSpectrumCompiler(String compiler) {

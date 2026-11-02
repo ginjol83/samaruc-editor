@@ -340,6 +340,68 @@ class SyntaxHighlighterTest {
     }
 
     @Test
+    void highlightsAtari6502AssemblyDirectivesAndRegisters() {
+        String text = "    .segment \"CODE\"\n"
+            + "start:\n"
+            + "    lda #<message\n"
+            + "    ldx #0\n"
+            + "    asl a\n"
+            + "    rts\n";
+
+        StyleSpans<Collection<String>> spans = highlighter.computeHighlighting(text, "main.asm");
+
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("segment"), "asm-directive"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("start:"), "asm-label"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("lda"), "asm-instruction"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("ldx"), "asm-instruction"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("rts"), "asm-instruction"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf(" a\n") + 1, "asm-register"));
+    }
+
+    @Test
+    void highlightsSpectrumZ80AssemblyWithUppercaseMnemonics() {
+        String text = "    SECTION code_user\n"
+            + "    PUBLIC _main\n"
+            + "_main:\n"
+            + "    LD HL, message\n"
+            + "    LDIR\n"
+            + "    RST 16\n"
+            + "    OUT (254), A\n";
+
+        StyleSpans<Collection<String>> spans = highlighter.computeHighlighting(text, "main.asm");
+
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("SECTION"), "asm-directive"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("PUBLIC"), "asm-directive"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("_main:"), "asm-label"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("LD HL"), "asm-instruction"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("LDIR"), "asm-instruction"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("RST"), "asm-instruction"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("OUT"), "asm-instruction"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("HL,"), "asm-register"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf(" A\n") + 1, "asm-register"));
+    }
+
+    @Test
+    void highlightsGameBoySm83AssemblyDirectivesAndInstructions() {
+        String text = "    .module main\n"
+            + "    .area _CODE\n"
+            + "    .globl _main\n"
+            + "_main::\n"
+            + "    ldh (_LCDC), a\n"
+            + "    stop\n";
+
+        StyleSpans<Collection<String>> spans = highlighter.computeHighlighting(text, "main.asm");
+
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("module"), "asm-directive"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("area"), "asm-directive"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("globl"), "asm-directive"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("_main:"), "asm-label"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("ldh"), "asm-instruction"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf("stop"), "asm-instruction"));
+        Assertions.assertTrue(hasStyleAt(spans, text.indexOf(", a") + 2, "asm-register"));
+    }
+
+    @Test
     void highlightsAssemblySyntaxForSFiles() {
         String text = "org $4000\n"
             + "main:\n"

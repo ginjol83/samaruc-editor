@@ -77,21 +77,32 @@ public class SyntaxHighlighter {
     private static final String C64_FUNCTION_PATTERN = prefixedFunctionPattern("vic_", "sid_");
 
     private static final String[] ASM_INSTRUCTIONS = new String[] {
-        "adc", "add", "and", "bit", "call", "ccf", "cp", "cpl", "daa", "dec",
-        "di", "ei", "ex", "exx", "halt", "inc", "in", "jp", "jr", "ld", "ldd",
-        "ldi", "ldh", "nop", "or", "out", "pop", "push", "res", "ret", "reti",
-        "rl", "rla", "rlc", "rr", "rra", "rrc", "rst", "sbc", "scf", "set",
-        "sla", "sra", "srl", "sub", "swap", "xor"
+        "adc", "add", "and", "asl", "bcc", "bcs", "beq", "bit", "bmi", "bne",
+        "bpl", "brk", "bvc", "bvs", "call", "ccf", "clc", "cld", "cli", "clv",
+        "cmp", "cp", "cpd", "cpdr", "cpi", "cpir", "cpl", "cpx", "cpy", "daa",
+        "dec", "dex", "dey", "di", "djnz", "ei", "eor", "ex", "exx", "halt",
+        "im", "inc", "in", "ind", "indr", "ini", "inir", "iny", "jp", "jr",
+        "jsr", "ld", "lda", "ldd", "lddr", "ldh", "ldi", "ldio", "ldir", "ldx", "ldy",
+        "lsr", "neg", "nop", "or", "ora", "otdr", "otir", "out", "outd", "outi",
+        "pha", "php", "pla", "plp", "pop", "push", "res", "ret", "reti", "rl",
+        "rla", "rlc", "rld", "rlca", "rol", "ror", "rr", "rra", "rrc", "rrd",
+        "rrca", "rst", "rti", "rts", "sbc", "scf", "sed", "sei", "set", "sla",
+        "sl1", "sll", "sra", "srl", "sta", "stop", "stx", "sty", "sub", "swap", "tax",
+        "tay", "tsx", "txa", "txs", "tya", "xor"
     };
 
     private static final String[] ASM_DIRECTIVES = new String[] {
-        "db", "dw", "ds", "defb", "defw", "defm", "equ", "global",
-        "include", "incbin", "macro", "org", "public", "section", "set",
-        "if", "ifdef", "ifndef", "elif", "else", "endif", "endm", "rept", "endr"
+        "byte", "word", "db", "dw", "ds", "defb", "defc", "defs", "defw", "defm",
+        "defq", "defv", "define", "equ", "export", "extern", "global", "import",
+        "include", "incbin", "macro", "org", "public", "section", "segment", "set",
+        "zeropage", "charmap", "module", "endmodule", "phase", "dephase", "align",
+        "binary", "output", "if", "ifdef", "ifndef", "elif", "else", "endif",
+        "endm", "rept", "endr", "area", "globl", "local", "radix", "optsdcc",
+        "ascii", "asciz"
     };
 
     private static final String[] ASM_REGISTERS = new String[] {
-        "a", "b", "c", "d", "e", "h", "l", "af", "bc", "de", "hl", "ix", "iy", "sp", "i", "r"
+        "a", "b", "c", "d", "e", "h", "l", "x", "y", "af", "bc", "de", "hl", "ix", "iy", "sp", "i", "r"
     };
 
     private static final String  KEYWORD_PATTERN      = "\\b(" + String.join("|", KEYWORDS) + ")\\b";
@@ -179,7 +190,7 @@ public class SyntaxHighlighter {
                                                  + "|(?<ASMNUMBER>" + ASM_NUMBER_PATTERN + ")"
                                                  + "|(?<ASMCOMMENT>" + ASM_COMMENT_PATTERN + ")"
                                                  + "|(?<ASMSTRING>" + ASM_STRING_PATTERN + ")",
-                                               Pattern.MULTILINE
+                                               Pattern.MULTILINE | Pattern.CASE_INSENSITIVE
                                                );
 
     private static final Pattern MARKDOWN_PATTERN = Pattern.compile(

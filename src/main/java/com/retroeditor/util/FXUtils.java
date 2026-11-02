@@ -86,8 +86,10 @@ public class FXUtils {
         SPECTRUM,
         SPECTRUM_SCREEN,
         SPECTRUM_BASIC,
+        SPECTRUM_ASM,
         GAMEBOY,
         GAMEBOY_SPRITE,
+        GAMEBOY_ASM,
         TRANSLATOR,
         GITHUB,
         CPC,
@@ -100,6 +102,7 @@ public class FXUtils {
         CC65,
         CC65_C64,
         ATARI_BASIC,
+        ATARI_ASM,
         GENERIC,
         ASM,
         MAKEFILE
@@ -254,7 +257,8 @@ public class FXUtils {
 
     public boolean wasLastCreatedProjectGameBoyTemplate() {
         return lastCreatedProjectTemplate == ProjectTemplate.GAMEBOY
-            || lastCreatedProjectTemplate == ProjectTemplate.GAMEBOY_SPRITE;
+            || lastCreatedProjectTemplate == ProjectTemplate.GAMEBOY_SPRITE
+            || lastCreatedProjectTemplate == ProjectTemplate.GAMEBOY_ASM;
     }
 
     public boolean wasLastCreatedProjectSpectrumTemplate() {
@@ -299,9 +303,19 @@ public class FXUtils {
         return lastCreatedProjectTemplate == ProjectTemplate.ATARI_BASIC;
     }
 
+    /** True si el usuario eligió "Atari 8 bits ASM" en el asistente. */
+    public boolean wasLastCreatedProjectAtariAsmTemplate() {
+        return lastCreatedProjectTemplate == ProjectTemplate.ATARI_ASM;
+    }
+
     /** True si el usuario eligió "ZX Spectrum BASIC" en el asistente. */
     public boolean wasLastCreatedProjectSpectrumBasicTemplate() {
         return lastCreatedProjectTemplate == ProjectTemplate.SPECTRUM_BASIC;
+    }
+
+    /** True si el usuario eligió "ZX Spectrum ASM" en el asistente. */
+    public boolean wasLastCreatedProjectSpectrumAsmTemplate() {
+        return lastCreatedProjectTemplate == ProjectTemplate.SPECTRUM_ASM;
     }
 
     /** Variante XL/XE elegida al crear el ultimo proyecto Atari BASIC. */
@@ -1274,8 +1288,10 @@ public class FXUtils {
         labels.put(ProjectTemplate.SPECTRUM, msg(bundle, "dialog.project.new.template.option.spectrum", "Spectrum - Basico"));
         labels.put(ProjectTemplate.SPECTRUM_SCREEN, msg(bundle, "dialog.project.new.template.option.spectrumScreen", "Spectrum - Pantalla inicial"));
         labels.put(ProjectTemplate.SPECTRUM_BASIC, msg(bundle, "dialog.project.new.template.option.spectrumBasic", "ZX Spectrum BASIC - Hola Mundo"));
+        labels.put(ProjectTemplate.SPECTRUM_ASM, msg(bundle, "dialog.project.new.template.option.spectrumAsm", "ZX Spectrum ASM (Z80) - Hola Mundo"));
         labels.put(ProjectTemplate.GAMEBOY, msg(bundle, "dialog.project.new.template.option.gameboy", "Game Boy - Basico"));
         labels.put(ProjectTemplate.GAMEBOY_SPRITE, msg(bundle, "dialog.project.new.template.option.gameboySprite", "Game Boy - Sprite demo"));
+        labels.put(ProjectTemplate.GAMEBOY_ASM, msg(bundle, "dialog.project.new.template.option.gameboyAsm", "Game Boy ASM (SM83) - Hola Mundo"));
         labels.put(ProjectTemplate.CPC, msg(bundle, "dialog.project.new.template.option.cpc", "Amstrad CPC - Basico"));
         labels.put(ProjectTemplate.SMS, msg(bundle, "dialog.project.new.template.option.sms", "Master System - Basico"));
         labels.put(ProjectTemplate.GAME_GEAR, msg(bundle, "dialog.project.new.template.option.gameGear", "Game Gear - Basico"));
@@ -1286,6 +1302,7 @@ public class FXUtils {
         labels.put(ProjectTemplate.CC65, msg(bundle, "dialog.project.new.template.option.cc65", "CC65 (Atari XE/XL) - Basico"));
         labels.put(ProjectTemplate.CC65_C64, msg(bundle, "dialog.project.new.template.option.cc65C64", "CC65 (C64) - Basico"));
         labels.put(ProjectTemplate.ATARI_BASIC, msg(bundle, "dialog.project.new.template.option.atariBasic", "Atari BASIC - Hola Mundo"));
+        labels.put(ProjectTemplate.ATARI_ASM, msg(bundle, "dialog.project.new.template.option.atariAsm", "Atari 8 bits ASM (6502) - Hola Mundo"));
         labels.put(ProjectTemplate.GENERIC, msg(bundle, "dialog.project.new.template.option.generic", "C generico"));
         labels.put(ProjectTemplate.ASM, msg(bundle, "dialog.project.new.template.option.asm", "Ensamblador (z80 / Game Boy)"));
         labels.put(ProjectTemplate.MAKEFILE, msg(bundle, "dialog.project.new.template.option.makefile", "Makefile / Custom"));
@@ -1297,8 +1314,10 @@ public class FXUtils {
         descriptions.put(ProjectTemplate.SPECTRUM, msg(bundle, "dialog.project.new.template.description.spectrum", "Plantilla base para Spectrum con conio.h, pantalla limpia y espera de tecla."));
         descriptions.put(ProjectTemplate.SPECTRUM_SCREEN, msg(bundle, "dialog.project.new.template.description.spectrumScreen", "Ejemplo para Spectrum con mensaje de bienvenida y pausa por teclado."));
         descriptions.put(ProjectTemplate.SPECTRUM_BASIC, msg(bundle, "dialog.project.new.template.description.spectrumBasic", "Programa Hola Mundo en BASIC de ZX Spectrum listo para generar un .tap y ejecutar en JSpeccy."));
+        descriptions.put(ProjectTemplate.SPECTRUM_ASM, msg(bundle, "dialog.project.new.template.description.spectrumAsm", "Proyecto de ensamblador Z80 para ZX Spectrum con z88dk, listo para generar un .tap y ejecutar en JSpeccy."));
         descriptions.put(ProjectTemplate.GAMEBOY, msg(bundle, "dialog.project.new.template.description.gameboy", "Plantilla base de Game Boy con bucle principal y sincronizacion VBlank."));
         descriptions.put(ProjectTemplate.GAMEBOY_SPRITE, msg(bundle, "dialog.project.new.template.description.gameboySprite", "Demo de Game Boy con sprite cargado y mostrado en pantalla."));
+        descriptions.put(ProjectTemplate.GAMEBOY_ASM, msg(bundle, "dialog.project.new.template.description.gameboyAsm", "Proyecto de ensamblador SM83 para Game Boy con GBDK-2020, listo para generar un .gb y ejecutar en Emulicious."));
         descriptions.put(ProjectTemplate.CPC, msg(bundle, "dialog.project.new.template.description.cpc", "Plantilla basica para Amstrad CPC con Z88DK."));
         descriptions.put(ProjectTemplate.SMS, msg(bundle, "dialog.project.new.template.description.sms", "Plantilla basica para Sega Master System con Z88DK."));
         descriptions.put(ProjectTemplate.GAME_GEAR, msg(bundle, "dialog.project.new.template.description.gameGear", "Plantilla basica para Sega Game Gear con Z88DK."));
@@ -1309,6 +1328,7 @@ public class FXUtils {
         descriptions.put(ProjectTemplate.CC65, msg(bundle, "dialog.project.new.template.description.cc65", "Plantilla basica para Atari XE/XL con CC65."));
         descriptions.put(ProjectTemplate.CC65_C64, msg(bundle, "dialog.project.new.template.description.cc65C64", "Plantilla basica para Commodore 64 con CC65."));
         descriptions.put(ProjectTemplate.ATARI_BASIC, msg(bundle, "dialog.project.new.template.description.atariBasic", "Programa Hola Mundo en Atari BASIC listo para ejecutar en Altirra."));
+        descriptions.put(ProjectTemplate.ATARI_ASM, msg(bundle, "dialog.project.new.template.description.atariAsm", "Proyecto de ensamblador 6502 para Atari XL/XE con ca65 y ld65, listo para generar un .xex y ejecutar en Altirra."));
         descriptions.put(ProjectTemplate.GENERIC, msg(bundle, "dialog.project.new.template.description.generic", "Plantilla generica en C para cualquier plataforma."));
         descriptions.put(ProjectTemplate.ASM, msg(bundle, "dialog.project.new.template.description.asm", "Plantilla de ensamblador z80 para Game Boy / ZX."));
         descriptions.put(ProjectTemplate.MAKEFILE, msg(bundle, "dialog.project.new.template.description.makefile", "Proyecto basado en Makefile con estructura base."));
@@ -1417,7 +1437,8 @@ public class FXUtils {
             Files.writeString(projectPath.resolve("translation.smt"), getTranslatorSmtContent());
         } else {
             Files.createDirectories(srcPath);
-            if (template == ProjectTemplate.ASM) {
+            if (template == ProjectTemplate.ASM || template == ProjectTemplate.ATARI_ASM
+                    || template == ProjectTemplate.SPECTRUM_ASM || template == ProjectTemplate.GAMEBOY_ASM) {
                 Files.writeString(srcPath.resolve("main.asm"), getTemplateMainContent(template));
             } else if (template == ProjectTemplate.MAKEFILE) {
                 Files.writeString(srcPath.resolve("main.c"), getTemplateMainContent(template));
@@ -1486,7 +1507,7 @@ public class FXUtils {
             "    \"**/out\": true",
             "  },",
             "  \"files.associations\": {",
-            "    \"*.inc\": \"c\",",
+            "    \"*.inc\": \"asm\",",
             "    \"*.z80\": \"asm\",",
             "    \"*.s\": \"asm\",",
             "    \"*.json\": \"json\"",
@@ -1502,11 +1523,11 @@ public class FXUtils {
 
     private String resolveWorkspaceTarget(ProjectTemplate template) {
         if (template == ProjectTemplate.GAMEBOY || template == ProjectTemplate.GAMEBOY_SPRITE
-                || template == ProjectTemplate.TRANSLATOR) {
+                || template == ProjectTemplate.GAMEBOY_ASM || template == ProjectTemplate.TRANSLATOR) {
             return "gameboy";
         }
         if (template == ProjectTemplate.SPECTRUM || template == ProjectTemplate.SPECTRUM_SCREEN
-                || template == ProjectTemplate.SPECTRUM_BASIC) {
+                || template == ProjectTemplate.SPECTRUM_BASIC || template == ProjectTemplate.SPECTRUM_ASM) {
             return "spectrum";
         }
         if (template == ProjectTemplate.CPC) {
@@ -1533,7 +1554,7 @@ public class FXUtils {
         if (template == ProjectTemplate.CC65_C64) {
             return "c64";
         }
-        if (template == ProjectTemplate.ATARI_BASIC) {
+        if (template == ProjectTemplate.ATARI_BASIC || template == ProjectTemplate.ATARI_ASM) {
             return "atari";
         }
         if (template == ProjectTemplate.MAKEFILE) {
@@ -1545,7 +1566,8 @@ public class FXUtils {
     private String getReadmeContent(String projectName, ProjectTemplate template) {
         String normalizedName = projectName != null && !projectName.isBlank() ? projectName : "Nuevo Proyecto";
 
-        if (template == ProjectTemplate.GAMEBOY || template == ProjectTemplate.GAMEBOY_SPRITE) {
+        if (template == ProjectTemplate.GAMEBOY || template == ProjectTemplate.GAMEBOY_SPRITE
+                || template == ProjectTemplate.GAMEBOY_ASM) {
             return getGameBoyReadmeContent(normalizedName, template);
         }
 
@@ -1555,6 +1577,10 @@ public class FXUtils {
 
         if (template == ProjectTemplate.SPECTRUM_BASIC) {
             return getSpectrumBasicReadmeContent(normalizedName);
+        }
+
+        if (template == ProjectTemplate.SPECTRUM_ASM) {
+            return getSpectrumAsmReadmeContent(normalizedName);
         }
 
         if (template == ProjectTemplate.CPC) {
@@ -1567,6 +1593,10 @@ public class FXUtils {
 
         if (template == ProjectTemplate.ATARI_BASIC) {
             return getAtariBasicReadmeContent(normalizedName);
+        }
+
+        if (template == ProjectTemplate.ATARI_ASM) {
+            return getAtariAsmReadmeContent(normalizedName);
         }
 
         if (template == ProjectTemplate.SMS || template == ProjectTemplate.GAME_GEAR
@@ -1690,7 +1720,9 @@ public class FXUtils {
 
         String demoNote = template == ProjectTemplate.GAMEBOY_SPRITE
             ? "\nThis project uses the Game Boy sprite demo template."
-            : "";
+            : template == ProjectTemplate.GAMEBOY_ASM
+                ? "\nThis project uses the Game Boy SM83 assembly template (GBDK-2020)."
+                : "";
 
         return String.join("\n",
             "# " + projectName,
@@ -1699,7 +1731,9 @@ public class FXUtils {
             demoNote,
             "",
             "## Structure",
-            "- Main source file: `src/main.c`",
+            template == ProjectTemplate.GAMEBOY_ASM
+                ? "- Main source file: `src/main.asm`"
+                : "- Main source file: `src/main.c`",
             "- Build output: `out/`",
             "",
             "## Recommended Toolchain",
@@ -1834,6 +1868,51 @@ public class FXUtils {
         );
     }
 
+    private String getSpectrumAsmReadmeContent(String projectName) {
+        if (isSpanishReadme()) {
+            return getSpectrumAsmReadmeContentEs(projectName);
+        }
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "ZX Spectrum assembly project created with Samaruc.",
+            "",
+            "## Structure",
+            "- Main source file: `src/main.asm`",
+            "- Build output: `out/main.tap`",
+            "",
+            "## Recommended Toolchain",
+            "- z88dk (`zcc +zx`, `z80asm`)",
+            "- Emulator: JSpeccy",
+            "",
+            "## Notes",
+            "- The source must export `_main`; z88dk links against its CRT and creates a `.tap`.",
+            "- `.asm` and `.s` files are assembled with `-startup=0` and `-create-app`.",
+            ""
+        );
+    }
+
+    private String getSpectrumAsmReadmeContentEs(String projectName) {
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "Proyecto de ensamblador para ZX Spectrum creado con Samaruc.",
+            "",
+            "## Estructura",
+            "- Archivo principal: `src/main.asm`",
+            "- Salida de compilacion: `out/main.tap`",
+            "",
+            "## Toolchain recomendada",
+            "- z88dk (`zcc +zx`, `z80asm`)",
+            "- Emulador: JSpeccy",
+            "",
+            "## Notas",
+            "- La fuente debe exportar `_main`; z88dk enlaza con su CRT y genera un `.tap`.",
+            "- Los archivos `.asm` y `.s` se ensamblan con `-startup=0` y `-create-app`.",
+            ""
+        );
+    }
+
     private String getAtariBasicReadmeContent(String projectName) {
         if (isSpanishReadme()) {
             return getAtariBasicReadmeContentEs(projectName);
@@ -1863,6 +1942,51 @@ public class FXUtils {
             "",
             "## Ejecucion",
             "- Ejecuta desde Samaruc: el editor genera una imagen ATR y la abre en Altirra.",
+            ""
+        );
+    }
+
+    private String getAtariAsmReadmeContent(String projectName) {
+        if (isSpanishReadme()) {
+            return getAtariAsmReadmeContentEs(projectName);
+        }
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "Atari 8-bit assembly project created with Samaruc.",
+            "",
+            "## Structure",
+            "- Main source file: `src/main.asm`",
+            "- Build output: `out/main.xex`",
+            "",
+            "## Recommended Toolchain",
+            "- CC65 (`ca65` + `ld65` with `atari-asm-xex.cfg`)",
+            "- Emulator: Altirra",
+            "",
+            "## Notes",
+            "- The source must export a `start` symbol; the build creates a `.xex` with RUNAD pointing to it.",
+            "- `.asm` and `.s` files are compiled as standalone Atari assembly programs.",
+            ""
+        );
+    }
+
+    private String getAtariAsmReadmeContentEs(String projectName) {
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "Proyecto de ensamblador para Atari 8 bits creado con Samaruc.",
+            "",
+            "## Estructura",
+            "- Archivo principal: `src/main.asm`",
+            "- Salida de compilacion: `out/main.xex`",
+            "",
+            "## Toolchain recomendada",
+            "- CC65 (`ca65` + `ld65` con `atari-asm-xex.cfg`)",
+            "- Emulador: Altirra",
+            "",
+            "## Notas",
+            "- La fuente debe exportar el simbolo `start`; la compilacion genera un `.xex` con RUNAD apuntando a el.",
+            "- Los archivos `.asm` y `.s` se compilan como programas de ensamblador de Atari independientes.",
             ""
         );
     }
@@ -1917,6 +2041,10 @@ public class FXUtils {
     }
 
     private String getGameBoyReadmeContentEs(String projectName, ProjectTemplate template) {
+        if (template == ProjectTemplate.GAMEBOY_ASM) {
+            return getGameBoyAsmReadmeContentEs(projectName);
+        }
+
         String demoNote = template == ProjectTemplate.GAMEBOY_SPRITE
             ? "\nEste proyecto usa la plantilla de demo con sprite para Game Boy."
             : "";
@@ -1936,6 +2064,27 @@ public class FXUtils {
             "",
             "## Notas",
             "- Si usas Makefile, intenta generar artefactos en `out/`.",
+            ""
+        );
+    }
+
+    private String getGameBoyAsmReadmeContentEs(String projectName) {
+        return String.join("\n",
+            "# " + projectName,
+            "",
+            "Proyecto de ensamblador de Game Boy creado con Samaruc.",
+            "",
+            "## Estructura",
+            "- Archivo principal: `src/main.asm`",
+            "- Salida de compilacion: `out/main.gb`",
+            "",
+            "## Toolchain recomendada",
+            "- GBDK-2020 (`lcc`, `sdasgb`)",
+            "- Emulador: Emulicious",
+            "",
+            "## Notas",
+            "- El fuente debe exportar `_main` con `.globl`; GBDK enlaza su CRT y llama a `_main`.",
+            "- No uses `.org` en esta plantilla: el CRT y el linker colocan el codigo.",
             ""
         );
     }
@@ -1975,10 +2124,11 @@ public class FXUtils {
         StringBuilder sb = new StringBuilder();
         appendGitignoreBase(sb);
 
-        if (template == ProjectTemplate.GAMEBOY || template == ProjectTemplate.GAMEBOY_SPRITE) {
+        if (template == ProjectTemplate.GAMEBOY || template == ProjectTemplate.GAMEBOY_SPRITE
+                || template == ProjectTemplate.GAMEBOY_ASM) {
             appendGameBoyGitignore(sb);
         } else if (template == ProjectTemplate.SPECTRUM || template == ProjectTemplate.SPECTRUM_SCREEN
-                || template == ProjectTemplate.SPECTRUM_BASIC) {
+                || template == ProjectTemplate.SPECTRUM_BASIC || template == ProjectTemplate.SPECTRUM_ASM) {
             appendSpectrumGitignore(sb);
         } else if (template == ProjectTemplate.SMS || template == ProjectTemplate.GAME_GEAR) {
             appendSmsGitignore(sb);
@@ -1992,7 +2142,7 @@ public class FXUtils {
             appendCc65Gitignore(sb);
         } else if (template == ProjectTemplate.CC65_C64) {
             appendC64Gitignore(sb);
-        } else if (template == ProjectTemplate.ATARI_BASIC) {
+        } else if (template == ProjectTemplate.ATARI_BASIC || template == ProjectTemplate.ATARI_ASM) {
             appendAtariGitignore(sb);
         } else {
             appendGenericPlatformGitignore(sb);
@@ -2014,8 +2164,7 @@ public class FXUtils {
         sb.append("*.map\n");
         sb.append("*.sym\n");
         sb.append("*.noi\n");
-        sb.append("*.lst\n");
-        sb.append("*.asm\n\n");
+        sb.append("*.lst\n\n");
     }
 
     private void appendSpectrumGitignore(StringBuilder sb) {
@@ -2089,7 +2238,7 @@ public class FXUtils {
     }
 
     private void appendAtariGitignore(StringBuilder sb) {
-        sb.append("# Atari BASIC outputs\n");
+        sb.append("# Atari 8-bit outputs\n");
         sb.append("*.atr\n");
         sb.append("*.atx\n");
         sb.append("*.xex\n");
@@ -2147,6 +2296,20 @@ public class FXUtils {
                 "}",
                 ""
             );
+        }
+
+        if (template == ProjectTemplate.GAMEBOY_ASM) {
+            return loadResourceTemplate("/templates/gb_asm_main.asm",
+                "; Plantilla de ensamblador SM83 para Game Boy (GBDK-2020)\n"
+                    + "    .module gb_asm_main\n"
+                    + "    .area _CODE\n"
+                    + "    .globl _main\n"
+                    + "_main::\n"
+                    + "    di\n"
+                    + "loop:\n"
+                    + "    halt\n"
+                    + "    nop\n"
+                    + "    jr loop\n");
         }
 
         if (template == ProjectTemplate.GAMEBOY_SPRITE) {
@@ -2263,8 +2426,14 @@ public class FXUtils {
         if (template == ProjectTemplate.SPECTRUM_BASIC) {
             return loadResourceTemplate("/templates/sinclair_basic_main.bas", "10 PRINT \"HOLA MUNDO\"\n20 STOP\n");
         }
+        if (template == ProjectTemplate.SPECTRUM_ASM) {
+            return loadResourceTemplate("/templates/zx_asm_main.asm");
+        }
         if (template == ProjectTemplate.GENERIC || template == ProjectTemplate.MAKEFILE) {
             return loadResourceTemplate("/templates/generic_main.c");
+        }
+        if (template == ProjectTemplate.ATARI_ASM) {
+            return loadResourceTemplate("/templates/atari_asm_main.asm");
         }
         if (template == ProjectTemplate.ASM) {
             return loadResourceTemplate("/templates/asm_main.asm");

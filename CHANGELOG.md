@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.5 - 2026-11-02
+
+### Añadido
+- **Soporte de ensamblador para ZX Spectrum (Z80), Atari 8-bit (6502) y Game Boy (SM83)** en la creación de proyectos y en la plantilla de "nuevo archivo". Cada plataforma genera su `src/main.asm`, README y `.gitignore` propios, aplica el perfil de compilador correspondiente y abre el fuente al terminar.
+- **Compilación integrada de los tres ensambladores**: ZX Spectrum con `zcc +zx -startup=0` y `-create-app` (Z88DK), Atari con `cl65 -t none` y `atari-asm-xex.cfg` (CC65) y Game Boy con `lcc` (GBDK-2020). Los ejemplos `hello_zx.asm`, `hello_atari.asm` y `hello_gb.asm` compilan a `.tap`, `.xex` y `.gb` respectivamente.
+- **Detección automática de proyectos de ensamblador** por sus directivas y registros característicos (`SECTION code_user`/`RST 16`, `.segment`/`lda`/`rts`, `.area _CODE`/`_main::`/`ldh`), sin confundir unas plataformas con otras.
+- **Resaltado de sintaxis ampliado** para directivas y mnemónicos de Z80/SM83 y SDCC (`.area`, `.globl`, `.module`, `.radix`, `ldh`, `ldio`, `stop`, etc.), con soporte de mayúsculas.
+- Tests de plantillas, detección de plataforma, resaltado y creación de proyectos para los tres ensambladores, además de las claves de i18n en los seis bundles.
+
+### Corregido
+- **Game Boy ASM con GBDK**: el build ya no pasa las opciones de optimización de C (`-O1`, `--opt-code-speed`, `--opt-code-size`) cuando el fuente es `.asm` o `.s`, que hacían fallar a `lcc`.
+
 ## 1.3.4 - 2026-10-30
 
 ### Añadido
