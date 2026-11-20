@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.6 - 2026-11-20
+
+### Añadido
+- **Animaciones de sprites nombradas**: secuencias reutilizables de frames con nombre propio, desplazamiento X/Y por paso, marcadores de inicio y fin de bucle y *onion skinning* en la vista previa. El generador emite tablas y macros específicas por plataforma y conserva nombres únicos aunque se dupliquen las animaciones.
+- **Exportación de BASIC de Atari a XEX autoarrancable**: empaquetador de segmentos, escritor de formato XEX y cargador 6502 que reubica el programa y repara los punteros BASIC desde `MEMLO`. La compilación de proyectos Atari genera ahora ATR y XEX; verificado en Altirra con BASIC Rev. B/C.
+- **`BuildArtifactService`**: centraliza la resolución de targets y artefactos de compilación, con tests de regresión para perfil Atari (`-t atari`), prioridad de `.gg` sobre `.sms` en Game Gear y `-subtype=dsk` para CPC.
+- **Atajo de teclado para los atajos** en el menú Ayuda, con ancla propia en el manual y logging de acción.
+
+### Corregido
+- **Multi-cursor**: escritura, borrado, flechas y Escape se aplican a todos los cursores.
+- **Viewport del editor**: restaurar una vista ya no desplaza el texto al reaplicar resaltado o diagnósticos.
+- **Duplicación de líneas y plegado**: corrección de casos límite con líneas finales y cálculo de espacios en blanco.
+
+### Eliminado
+- **Traductor de ROM de Game Boy** (controlador, modelo, servicios y tests) y los documentos de seguimiento obsoletos de `docs/`.
+
 ## 1.3.5 - 2026-11-02
 
 ### Añadido
