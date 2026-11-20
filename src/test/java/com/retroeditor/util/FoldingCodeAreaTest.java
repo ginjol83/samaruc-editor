@@ -1,5 +1,6 @@
 package com.retroeditor.util;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -68,6 +69,24 @@ class FoldingCodeAreaTest {
         assertEquals(0, FoldingCodeArea.lineStartOffset("aa\nbb\ncc\n", 1));
         assertEquals(3, FoldingCodeArea.lineStartOffset("aa\nbb\ncc\n", 2));
         assertEquals(6, FoldingCodeArea.lineStartOffset("aa\nbb\ncc\n", 3));
+    }
+
+    @Test
+    void whitespaceRunSelectsWhitespaceAroundPosition() {
+        assertArrayEquals(new int[] {3, 6}, FoldingCodeArea.whitespaceRunAt("foo   bar", 4));
+        assertArrayEquals(new int[] {0, 2}, FoldingCodeArea.whitespaceRunAt("  foo", 1));
+    }
+
+    @Test
+    void whitespaceRunHandlesTrailingWhitespaceAtEnd() {
+        assertArrayEquals(new int[] {3, 6}, FoldingCodeArea.whitespaceRunAt("foo   ", 6));
+    }
+
+    @Test
+    void whitespaceRunIsNullOnWordCharacters() {
+        assertNull(FoldingCodeArea.whitespaceRunAt("foo   bar", 0));
+        assertNull(FoldingCodeArea.whitespaceRunAt("foo", 0));
+        assertNull(FoldingCodeArea.whitespaceRunAt("", 0));
     }
 
     @Test

@@ -61,6 +61,37 @@ public class FoldingCodeArea extends CodeArea {
         attachOrphanGuard();
     }
 
+    @Override
+    public void selectWord() {
+        int paragraph = getCurrentParagraph();
+        int[] range = whitespaceRunAt(getText(paragraph), getCaretColumn());
+        if (range != null) {
+            selectRange(paragraph, range[0], paragraph, range[1]);
+            return;
+        }
+        super.selectWord();
+    }
+
+    static int[] whitespaceRunAt(String text, int position) {
+        if (text == null || text.isEmpty()) return null;
+        int pos = Math.max(0, Math.min(position, text.length()));
+        if (pos == text.length()) {
+            if (pos == 0 || !Character.isWhitespace(text.charAt(pos - 1))) return null;
+            pos--;
+        } else if (!Character.isWhitespace(text.charAt(pos))) {
+            return null;
+        }
+        int start = pos;
+        while (start > 0 && Character.isWhitespace(text.charAt(start - 1))) {
+            start--;
+        }
+        int end = pos + 1;
+        while (end < text.length() && Character.isWhitespace(text.charAt(end))) {
+            end++;
+        }
+        return new int[] { start, end };
+    }
+
     /** Desplazamiento (0-based) del inicio de la lÃ­nea dada, lÃ­neas 1-based. */
     static int lineStartOffset(String text, int line) {
         if (text == null || line <= 1) return text == null ? 0 : 0;

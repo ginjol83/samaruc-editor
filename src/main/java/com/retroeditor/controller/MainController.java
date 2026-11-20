@@ -52,7 +52,6 @@ import com.retroeditor.service.ai.OpenCodeRuntime;
 import com.retroeditor.service.ai.OpenCodeServerBridge;
 import com.retroeditor.controller.tools.UnifiedPngToCController;
 import com.retroeditor.controller.tools.GameBoyAudioEditorController;
-import com.retroeditor.controller.tools.TranslatorTabManager;
 import com.retroeditor.controller.tools.GitHubRepoBrowserController;
 import com.retroeditor.controller.terminal.TerminalController;
 import com.retroeditor.controller.search.ProjectContextPort;
@@ -86,7 +85,6 @@ import com.retroeditor.service.ProjectStatisticsService;
 import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.service.ConfigRepository;
 import com.retroeditor.service.WorkspaceService;
-import com.retroeditor.service.TranslatorPersistenceService;
 import com.retroeditor.service.tilemap.TilemapPersistenceService;
 import com.retroeditor.service.zxspectrum.ZxScreenPersistenceService;
 import com.retroeditor.service.CodeFormatterService;
@@ -107,6 +105,8 @@ import com.retroeditor.service.CodeFoldingService;
 import com.retroeditor.service.atari.AtariBasicExportService;
 import com.retroeditor.service.atari.basic.AtariBasicSyntaxException;
 import com.retroeditor.service.atari.basic.AtariBasicVariant;
+import com.retroeditor.service.atari.xex.AtariBasicXexExportService;
+import com.retroeditor.service.atari.xex.XexException;
 import com.retroeditor.service.git.GitService;
 import com.retroeditor.service.git.GitModels;
 import com.retroeditor.service.git.GitOperationsException;
@@ -206,7 +206,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private final FileOptionsController   fileOptionsController   = new FileOptionsController();
     private final UnifiedPngToCController pngToCConverterController   = new UnifiedPngToCController();
     private final GameBoyAudioEditorController    gameBoyAudioEditorController    = new GameBoyAudioEditorController();
-    private final TranslatorTabManager            translatorTabManager            = new TranslatorTabManager();
     private final GitHubRepoBrowserController     gitHubRepoBrowserController     = new GitHubRepoBrowserController();
     private final GitPanelController              gitPanelController              = new GitPanelController();
     private final GitHubShareService              gitHubShareService              = new GitHubShareService();
@@ -306,7 +305,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private MenuItem menuItemTileEditor;
     @FXML private MenuItem menuItemTilemapEditor;
     @FXML private MenuItem menuItemZxScreenEditor;
-    @FXML private MenuItem menuItemRomTextTranslator;
     @FXML private MenuItem menuItemGitHubRepos;
     @FXML private MenuItem menuItemGitPanel;
     @FXML private MenuItem menuItemViewDiff;
@@ -325,6 +323,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private MenuItem menuItemInsertSnippet;
     @FXML private MenuItem menuItemManageSnippets;
     @FXML private MenuItem menuItemManual;
+    @FXML private MenuItem menuItemKeyboardShortcuts;
     @FXML private MenuItem menuItemBasicManual;
     @FXML private MenuItem menuItemGbdkDocs;
     @FXML private MenuItem menuItemZ88dkDocs;
@@ -338,7 +337,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private MenuItem menuItemAbrirProyecto;
     @FXML private MenuItem menuItemNuevo;
     @FXML private MenuItem menuItemNuevoPlantilla;
-    @FXML private MenuItem menuItemNuevoTraduccion;
     @FXML private MenuItem menuItemAbrir;
     @FXML private MenuItem menuItemSalir;
     @FXML private MenuItem menuItemCerrar;
@@ -352,6 +350,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     @FXML private MenuItem menuItemCompilarYEjecutar;
     @FXML private MenuItem menuItemEjecutar;
     @FXML private MenuItem menuItemExportAtr;
+    @FXML private MenuItem menuItemExportXex;
     @FXML private MenuItem menuItemDeshacer;
     @FXML private MenuItem menuItemGuardarComo;
 
@@ -854,6 +853,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemCompilar      != null) menuItemCompilar.setText(bundle.getString("button.compile"));
         if (menuItemEjecutar      != null) menuItemEjecutar.setText(bundle.getString("button.run"));
         if (menuItemExportAtr     != null) menuItemExportAtr.setText(bundle.getString("menu.export.atr"));
+        if (menuItemExportXex     != null) menuItemExportXex.setText(bundle.getString("menu.export.xex"));
         if (menuItemDeshacer      != null) menuItemDeshacer.setText(bundle.getString("button.undo"));
         if (menuItemRehacer       != null) menuItemRehacer.setText(bundle.getString("button.redo"));
         if (menuItemCortar        != null) menuItemCortar.setText(bundle.getString("button.cut"));
@@ -874,6 +874,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemInsertSnippet != null) menuItemInsertSnippet.setText(bundle.getString("menu.edit.snippets.insert"));
         if (menuItemManageSnippets != null) menuItemManageSnippets.setText(bundle.getString("menu.edit.snippets.manage"));
         if (menuItemManual        != null) menuItemManual.setText(bundle.getString("menu.help.manual"));
+        if (menuItemKeyboardShortcuts != null) menuItemKeyboardShortcuts.setText(bundle.getString("menu.help.keyboardShortcuts"));
         if (menuItemBasicManual   != null) menuItemBasicManual.setText(bundle.getString("menu.help.basicManual"));
         if (menuItemGbdkDocs      != null) menuItemGbdkDocs.setText(bundle.getString("menu.help.gbdkDocs"));
         if (menuItemZ88dkDocs     != null) menuItemZ88dkDocs.setText(bundle.getString("menu.help.z88dkDocs"));
@@ -1276,6 +1277,81 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     @FXML
+    private void onExportXex(ActionEvent event) {
+        Tab tab = fxUtils.getSelectedTab(tabPane);
+        File source = tab != null ? tabFileMap.get(tab) : null;
+        if (source == null || !BasicDialectResolver.isBasicFile(source)) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle(msg("menu.export.xex", "Exportar XEX"));
+            alert.setHeaderText(msg("menu.export.xex", "Exportar XEX"));
+            alert.setContentText(msg("atari.export.xexNoSource",
+                    "Abre un fichero .bas para exportar un XEX (requiere Atari BASIC Rev. B/C)."));
+            alert.showAndWait();
+            return;
+        }
+        if (basicDialectResolver.resolve(source, currentProjectDir) != BasicDialect.ATARI) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle(msg("menu.export.xex", "Exportar XEX"));
+            alert.setHeaderText(msg("menu.export.xex", "Exportar XEX"));
+            alert.setContentText(msg("atari.export.xexNotAtari",
+                    "Este .bas no parece un programa Atari BASIC. Fija el dialecto con 'Herramientas > Dialecto BASIC...' antes de exportar el XEX."));
+            alert.showAndWait();
+            return;
+        }
+
+        BuildSync sync = ensureFileSyncedBeforeBuild();
+        if (sync == BuildSync.ABORT) return;
+        if (sync == BuildSync.PROCEED_UNCHANGED) {
+            boolean saved = fileOptionsController.onSaveFile(event, tabPane, tabFileMap, editorModel);
+            if (!saved) return;
+        }
+
+        String name = source.getName();
+        int dot = name.lastIndexOf('.');
+        String baseName = dot >= 0 ? name.substring(0, dot) : name;
+
+        javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
+        chooser.setTitle(msg("menu.export.xex", "Exportar XEX"));
+        chooser.getExtensionFilters().add(new javafx.stage.FileChooser.ExtensionFilter("Atari XEX (*.xex)", "*.xex"));
+        chooser.setInitialFileName(baseName + ".xex");
+        File target = chooser.showSaveDialog(getStage());
+        if (target == null) return;
+
+        AtariBasicVariant variant = AtariBasicVariant.fromConfig(
+                configModel.getConfigProperty("atari_basic_variant", AtariBasicVariant.ATARI_BASIC.name()));
+        try {
+            new AtariBasicXexExportService().exportToXex(source.toPath(), target.toPath(), variant);
+            terminalController.appendConsoleOutput(
+                    msgFmt("atari.info.xexExported", "XEX exportado: {0}", target.getName()), consoleOutputArea);
+            terminalController.appendConsoleOutput(
+                    msg("atari.info.xexRequiresBasic",
+                            "El XEX requiere Atari BASIC Rev. B/C activo para ejecutarse."), consoleOutputArea);
+        } catch (AtariBasicSyntaxException ex) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle(msg("atari.error.syntax.title", "Error de sintaxis Atari BASIC"));
+            alert.setHeaderText(msg("atari.error.syntax.header", "No se pudo generar el programa Atari BASIC"));
+            alert.setContentText(ex.getMessage());
+            alert.showAndWait();
+            terminalController.appendConsoleOutput(
+                    msg("atari.error.syntax.prefix", "Error de sintaxis Atari BASIC") + ": " + ex.getMessage(), consoleOutputArea);
+        } catch (XexException ex) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle(msg("menu.export.xex", "Exportar XEX"));
+            alert.setHeaderText(msg("atari.error.xex.header", "No se pudo empaquetar el XEX"));
+            alert.setContentText(ex.getMessage());
+            alert.showAndWait();
+            terminalController.appendConsoleOutput(
+                    msgFmt("atari.error.xex", "Error al empaquetar el XEX: {0}", ex.getMessage()), consoleOutputArea);
+        } catch (IOException ex) {
+            Alert alert = new Alert(Alert.AlertType.ERROR);
+            alert.setTitle(msg("menu.export.xex", "Exportar XEX"));
+            alert.setHeaderText(msg("atari.error.export.xex.header", "No se pudo escribir el XEX"));
+            alert.setContentText(ex.getMessage());
+            alert.showAndWait();
+        }
+    }
+
+    @FXML
     public void onFormatCode(ActionEvent event) {
         Tab tab = fxUtils.getSelectedTab(tabPane);
         if (tab == null) return;
@@ -1291,7 +1367,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private void onNuevoProyecto(ActionEvent event) {
         File creado = fxUtils.createNewProject(getStage(), bundle, resolveInitialProjectDirectory());
         if (creado != null) {
-            if (fxUtils.wasLastCreatedProjectGameBoyTemplate() || fxUtils.wasLastCreatedProjectTranslatorTemplate()) {
+            if (fxUtils.wasLastCreatedProjectGameBoyTemplate()) {
                 configModel.applyGameBoyProfile();
                 configRepository.save(userConfigFile, configModel.toProperties());
             } else if (fxUtils.wasLastCreatedProjectSpectrumTemplate()) {
@@ -1342,11 +1418,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             }
             if (defaultMainFile.isFile()) {
                 openFileFromExplorer(defaultMainFile);
-            } else {
-                File translatorFile = new File(creado, "translation.smt");
-                if (translatorFile.isFile()) {
-                    openFileFromExplorer(translatorFile);
-                }
             }
         } else {
             if (fxUtils.wasLastCreatedProjectGitHubTemplate()) {
@@ -1650,15 +1721,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             }
         }
 
-        if (TranslatorPersistenceService.isSmtFile(file)) {
-            Tab translatorTab = translatorTabManager.openTranslatorTab(file, fxUtils, tabPane, bundle);
-            if (translatorTab != null) {
-                tabFileMap.put(translatorTab, file.getAbsoluteFile());
-            }
-            persistSessionState();
-            return;
-        }
-
         OpenChoice openChoice = shouldAskOpenMode(file) ? askHowToOpenFile(file) : OpenChoice.EDITOR_TEXT;
         if (openChoice == OpenChoice.CANCEL) return;
         if (openChoice == OpenChoice.SYSTEM_DEFAULT) {
@@ -1734,15 +1796,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     private void openFileInEditorTab(File file, boolean forceSingleByteText) throws IOException {
-        if (TranslatorPersistenceService.isSmtFile(file)) {
-            Tab translatorTab = translatorTabManager.openTranslatorTab(file, fxUtils, tabPane, bundle);
-            if (translatorTab != null) {
-                tabFileMap.put(translatorTab, file.getAbsoluteFile());
-            }
-            persistSessionState();
-            return;
-        }
-
         if (TileEditorController.isTileFile(file)) {
             openTileEditorTab(file);
             return;
@@ -2612,26 +2665,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     @FXML
-    private void onNewTranslatorFile(ActionEvent event) {
-        if (this.currentProjectDir == null) {
-            Alert alert = new Alert(Alert.AlertType.WARNING);
-            alert.setTitle(bundle.getString("alert.project.notOpen.title"));
-            alert.setHeaderText(null);
-            alert.setContentText(bundle.getString("alert.project.notOpen.content"));
-            alert.showAndWait();
-            return;
-        }
-        Tab translatorTab = translatorTabManager.createNewTranslator(currentProjectDir, fxUtils, tabPane, bundle);
-        if (translatorTab != null) {
-            File smtFile = translatorTabManager.getFileForTab(translatorTab);
-            if (smtFile != null) {
-                tabFileMap.put(translatorTab, smtFile);
-            }
-        }
-        persistSessionState();
-    }
-
-    @FXML
     private void onNuevoArchivoDesdePlantilla(ActionEvent event) {
         if (this.currentProjectDir == null) {
             Alert alert = new Alert(Alert.AlertType.WARNING);
@@ -2902,17 +2935,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             }
             return;
         }
-        if (selectedTab != null && translatorTabManager.isTranslatorTab(selectedTab)) {
-            File smtFile = tabFileMap.get(selectedTab);
-            if (smtFile != null) {
-                translatorTabManager.saveTranslatorTab(selectedTab, smtFile);
-                if (projectExplorerController != null) {
-                    projectExplorerController.refreshTree();
-                }
-                persistSessionState();
-            }
-            return;
-        }
         if (!resolveExternalChangeBeforeSave(selectedTab)) {
             return;
         }
@@ -3072,12 +3094,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                     if (tile != null && tile.saveCurrentProject()) {
                         savedAny = true;
                     }
-                } else if (translatorTabManager.isTranslatorTab(tab)) {
-                    File smtFile = tabFileMap.get(tab);
-                    if (smtFile != null) {
-                        translatorTabManager.saveTranslatorTab(tab, smtFile);
-                        savedAny = true;
-                    }
                 } else {
                     boolean saved = fileOptionsController.onSaveFile(event, tabPane, tabFileMap, editorModel);
                     if (!saved) {
@@ -3152,24 +3168,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (selectedTab != null && isTileEditorTab(selectedTab)) {
             TileEditorController tile = getTileEditorController(selectedTab);
             if (tile != null && tile.saveProjectAs()) {
-                if (projectExplorerController != null) {
-                    projectExplorerController.refreshTree();
-                }
-                persistSessionState();
-            }
-            return;
-        }
-        if (selectedTab != null && translatorTabManager.isTranslatorTab(selectedTab)) {
-            javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
-            fileChooser.setTitle("Guardar como");
-            fileChooser.getExtensionFilters().add(new javafx.stage.FileChooser.ExtensionFilter("Archivos de traducción", "*.smt"));
-            String defaultName = fxUtils.getDefaultFileName(selectedTab);
-            fileChooser.setInitialFileName(defaultName);
-            File file = fileChooser.showSaveDialog(getStage());
-            if (file != null) {
-                tabFileMap.put(selectedTab, file);
-                translatorTabManager.saveTranslatorTab(selectedTab, file);
-                selectedTab.setText(file.getName());
                 if (projectExplorerController != null) {
                     projectExplorerController.refreshTree();
                 }
@@ -3868,18 +3866,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         Node node = gameBoyAudioEditorController.createNode(currentProjectDir, bundle, onExported);
         Tab toolTab = fxUtils.addToolTab(title, node, tabPane);
         toolTab.setOnClosed(e -> gameBoyAudioEditorController.closeTool());
-    }
-
-    @FXML
-    private void onOpenRomTextTranslator(ActionEvent event) {
-        Tab translatorTab = translatorTabManager.createNewTranslator(currentProjectDir, fxUtils, tabPane, bundle);
-        if (translatorTab != null) {
-            File smtFile = translatorTabManager.getFileForTab(translatorTab);
-            if (smtFile != null) {
-                tabFileMap.put(translatorTab, smtFile);
-            }
-        }
-        persistSessionState();
     }
 
     @FXML
@@ -4601,6 +4587,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private void onOpenManual()                               { helpController.onOpenManual(); }
 
     @FXML
+    private void onOpenKeyboardShortcuts()                    { helpController.onOpenKeyboardShortcuts(); }
+
+    @FXML
     private void onOpenBasicManual()                          { helpController.onOpenBasicManual(); }
 
     @FXML
@@ -4918,7 +4907,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemAbrirProyecto != null) menuItemAbrirProyecto.setText(bundle.getString("button.openProject"));
         if (menuItemNuevo       != null) menuItemNuevo.setText(bundle.getString("button.new"));
         if (menuItemNuevoPlantilla != null) menuItemNuevoPlantilla.setText(bundle.getString("menu.file.newFromTemplate"));
-        if (menuItemNuevoTraduccion != null) menuItemNuevoTraduccion.setText(bundle.getString("menu.file.newTranslator"));
         if (menuItemAbrir       != null) menuItemAbrir.setText(bundle.getString("button.open"));
         if (menuItemGuardar     != null) menuItemGuardar.setText(bundle.getString("button.save"));
         if (menuItemGuardarComo != null) menuItemGuardarComo.setText(bundle.getString("button.saveAs"));
@@ -4928,6 +4916,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemCompilar    != null) menuItemCompilar.setText(bundle.getString("button.compile"));
         if (menuItemEjecutar    != null) menuItemEjecutar.setText(bundle.getString("button.run"));
         if (menuItemExportAtr   != null) menuItemExportAtr.setText(bundle.getString("menu.export.atr"));
+        if (menuItemExportXex   != null) menuItemExportXex.setText(bundle.getString("menu.export.xex"));
         if (menuItemDeshacer    != null) menuItemDeshacer.setText(bundle.getString("button.undo"));
         if (menuItemRehacer     != null) menuItemRehacer.setText(bundle.getString("button.redo"));
         if (menuItemCortar      != null) menuItemCortar.setText(bundle.getString("button.cut"));
@@ -4939,7 +4928,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemExtractFunction != null) menuItemExtractFunction.setText(bundle.getString("menu.refactor.extractFunction"));
         if (menuItemTileEditor  != null) menuItemTileEditor.setText(bundle.getString("menu.tools.tileEditor"));
         if (menuItemPngToC  != null) menuItemPngToC.setText(bundle.getString("menu.tools.pngToC"));
-        if (menuItemRomTextTranslator != null) menuItemRomTextTranslator.setText(bundle.getString("menu.tools.romTextTranslator"));
         if (menuItemGitHubRepos != null) menuItemGitHubRepos.setText(bundle.getString("menu.tools.githubRepos"));
         if (menuItemGitPanel    != null) menuItemGitPanel.setText(bundle.getString("menu.git.panel"));
         if (menuItemViewDiff    != null) menuItemViewDiff.setText(bundle.getString("menu.git.viewDiff"));
@@ -4954,6 +4942,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemInsertSnippet != null) menuItemInsertSnippet.setText(bundle.getString("menu.edit.snippets.insert"));
         if (menuItemManageSnippets != null) menuItemManageSnippets.setText(bundle.getString("menu.edit.snippets.manage"));
         if (menuItemManual      != null) menuItemManual.setText(bundle.getString("menu.help.manual"));
+        if (menuItemKeyboardShortcuts != null) menuItemKeyboardShortcuts.setText(bundle.getString("menu.help.keyboardShortcuts"));
         if (menuItemBasicManual != null) menuItemBasicManual.setText(bundle.getString("menu.help.basicManual"));
         if (menuItemGbdkDocs    != null) menuItemGbdkDocs.setText(bundle.getString("menu.help.gbdkDocs"));
         if (menuItemZ88dkDocs   != null) menuItemZ88dkDocs.setText(bundle.getString("menu.help.z88dkDocs"));
@@ -5906,10 +5895,10 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         commands.add(new CommandPalette.Entry(msg("menu.tools.tilemapEditor", "Editor de Mapas de Tiles"), h, () -> onOpenTilemapEditor(null)));
         commands.add(new CommandPalette.Entry(msg("menu.tools.zxScreenEditor", "Editor de Pantalla ZX"), h, () -> onOpenZxScreenEditor(null)));
         commands.add(new CommandPalette.Entry(msg("menu.tools.pngToC", "Convertir PNG a C"), h, () -> onOpenPngToCConverter(null)));
-        commands.add(new CommandPalette.Entry(msg("menu.tools.romTextTranslator", "Traductor de texto Game Boy"), h, () -> onOpenRomTextTranslator(null)));
         commands.add(new CommandPalette.Entry(msg("menu.tools.githubRepos", "Repositorios de GitHub"), h, () -> onOpenGitHubRepoBrowser(null)));
         commands.add(new CommandPalette.Entry(msg("menu.recent.files", "Archivos recientes"), h, this::showRecentFilesInPalette));
         commands.add(new CommandPalette.Entry(msg("menu.help.manual", "Manual"), h, () -> onOpenManual()));
+        commands.add(new CommandPalette.Entry(msg("menu.help.keyboardShortcuts", "Atajos de teclado"), h, () -> onOpenKeyboardShortcuts()));
         commands.add(new CommandPalette.Entry(msg("menu.help.basicManual", "Manual de BASIC"), h, () -> onOpenBasicManual()));
         commands.add(new CommandPalette.Entry(msg("menu.help.gbdkDocs", "Documentación GBDK"), h, () -> onOpenGbdkDocs()));
         commands.add(new CommandPalette.Entry(msg("menu.help.z88dkDocs", "Documentación Z88DK"), h, () -> onOpenZ88dkDocs()));
@@ -5976,7 +5965,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (name.endsWith(".c") || name.endsWith(".h") || name.endsWith(".asm")
             || name.endsWith(".s") || name.endsWith(".md") || name.endsWith(".markdown")
             || name.endsWith(".txt") || name.equals("makefile") || name.endsWith(".mk")
-            || name.endsWith(".smt") || name.endsWith(".cfg") || name.endsWith(".bas")) {
+            || name.endsWith(".cfg") || name.endsWith(".bas")) {
             return !name.equals("dependency-reduced-pom.xml");
         }
         return false;

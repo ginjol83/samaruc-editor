@@ -81,7 +81,6 @@ public class TodoScanService {
             || name.endsWith(".s")
             || name.endsWith(".md")
             || name.endsWith(".txt")
-            || name.endsWith(".smt")
             || name.equals("makefile")
             || name.endsWith(".mk");
     }

@@ -71,9 +71,9 @@
 - [ ] **Tracker de Audio Multi-Canal Mejorado**: Exportación directa a formatos de driver populares (Arkos Tracker, AY/YM, Beep/PSG drivers).
 
 ### 6. Nuevas Plataformas y SDKs Retro
-- [ ] **MSX y MSX2 (SDCC / C-BIOS)**: Soporte completo de plantillas, compilación y emulación (openMSX).
-- [ ] **NES / Famicom (CC65 / Mesen)**: Plantillas y compilación para desarrollo de juegos de 8 bits en NES.
+- [x] **MSX (Z88DK / openMSX)**: Plantillas, compilación, detección, editor de tiles/audio y emulación integrada. MSX2 queda fuera del alcance actual.
+- [x] **NES / Famicom (CC65 / Mesen)**: Plantillas, compilación, detección, editor de tiles/audio y emulación integrada.
 
 ### 7. Ecosistema, Plugins e Inteligencia Artificial
-- [ ] **SDK de Plugins Oficial y Documentado**: Facilidad para que la comunidad desarrolle extensiones empaquetadas (`.samaruc-plugin`) con acceso seguro al modelo de eventos del IDE.
+- [ ] **SDK de Plugins Oficial y Documentado**: El manual in-app (`manual-plugins.html`) y la API (`util/plugin`) ya existen; falta documentación versionada y un formato de paquete estable (`.samaruc-plugin`).
 - [ ] **Asistente IA Local / LLM Assistant (Ollama / Local API)**: Integración opcional con modelos locales para sugerir optimizaciones de código ensamblador, explicar rutinas retro complejas o generar esqueletos de juego.

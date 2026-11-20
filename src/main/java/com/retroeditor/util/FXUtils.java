@@ -90,7 +90,6 @@ public class FXUtils {
         GAMEBOY,
         GAMEBOY_SPRITE,
         GAMEBOY_ASM,
-        TRANSLATOR,
         GITHUB,
         CPC,
         SMS,
@@ -203,10 +202,27 @@ public class FXUtils {
     }
 
     private void attachCodeAreaDoubleClickHandler(CodeArea codeArea) {
+        codeArea.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, event -> {
+            if (event.getClickCount() == 2
+                    && event.isPrimaryButtonDown()
+                    && !event.isShiftDown()
+                    && selectWhitespaceUnderCursor(codeArea, event.getX(), event.getY())) {
+                event.consume();
+            }
+        });
         codeArea.setOnMouseClicked(event -> {
-            if (event.getClickCount() == 2 && doubleClickHandler != null) {
-                int caret = codeArea.getCaretPosition();
+            if (event.getClickCount() == 2) {
+                if (selectWhitespaceUnderCursor(codeArea, event.getX(), event.getY())) {
+                    event.consume();
+                    return;
+                }
+                if (doubleClickHandler == null) return;
+                String selection = codeArea.getSelectedText();
+                if (selection == null || selection.isBlank()) {
+                    return;
+                }
                 String text = codeArea.getText();
+                int caret = codeArea.getCaretPosition();
                 int end = caret;
                 while (end < text.length() && isWordCharStatic(text.charAt(end))) {
                     end++;
@@ -231,6 +247,21 @@ public class FXUtils {
                 }
             }
         });
+    }
+
+    private static boolean selectWhitespaceUnderCursor(CodeArea codeArea, double x, double y) {
+        var hit = codeArea.hit(x, y);
+        if (hit.getCharacterIndex().isEmpty()) return false;
+        int charIndex = hit.getCharacterIndex().getAsInt();
+        String text = codeArea.getText();
+        if (charIndex < 0 || charIndex >= text.length()) return false;
+        if (!Character.isWhitespace(text.charAt(charIndex))) return false;
+        var position = codeArea.offsetToPosition(charIndex, TwoDimensional.Bias.Forward);
+        int paragraph = position.getMajor();
+        int[] range = FoldingCodeArea.whitespaceRunAt(codeArea.getText(paragraph), position.getMinor());
+        if (range == null) return false;
+        codeArea.selectRange(paragraph, range[0], paragraph, range[1]);
+        return true;
     }
 
     private static boolean isWordCharStatic(char c) {
@@ -292,10 +323,6 @@ public class FXUtils {
 
     public boolean wasLastCreatedProjectCc65C64Template() {
         return lastCreatedProjectTemplate == ProjectTemplate.CC65_C64;
-    }
-
-    public boolean wasLastCreatedProjectTranslatorTemplate() {
-        return lastCreatedProjectTemplate == ProjectTemplate.TRANSLATOR;
     }
 
     /** True si el usuario eligió "Atari BASIC" en el asistente. */
@@ -389,24 +416,37 @@ public class FXUtils {
      */
     private void attachViewportPreservation(CodeArea codeArea) {
         if (codeArea == null) return;
-        final AtomicReference<EditorViewport.Snapshot> lastViewport =
-                new AtomicReference<>(EditorViewport.capture(codeArea));
+        final AtomicReference<EditorViewport.Snapshot> lastViewport = new AtomicReference<>();
         codeArea.estimatedScrollYProperty().addListener((obs, oldY, newY) -> {
             if (codeArea.isFocused()) {
                 lastViewport.set(EditorViewport.capture(codeArea));
             }
         });
         codeArea.focusedProperty().addListener((obs, wasFocused, isFocused) -> {
-            EditorViewport.Snapshot previous = lastViewport.get();
-            if (isFocused) {
-                if (previous != null && previous.getCaretPosition() == codeArea.getCaretPosition()) {
-                    Platform.runLater(() -> EditorViewport.restore(codeArea, previous));
+            if (!isFocused) {
+                if (lastViewport.get() == null) {
+                    lastViewport.set(EditorViewport.capture(codeArea));
                 }
+                return;
+            }
+            EditorViewport.Snapshot previous = lastViewport.get();
+            if (previous == null || previous.getCaretPosition() != codeArea.getCaretPosition()) {
+                lastViewport.set(EditorViewport.capture(codeArea));
+                return;
+            }
+            // RichTextFX puede recolocar el viewport al principio al recuperar el
+            // foco. Solo restauramos en ese caso: si la posicion visible sigue
+            // siendo la nuestra, no hay nada que corregir y evitamos saltos.
+            if (codeArea.firstVisibleParToAllParIndex() == 0 && previous.getFirstVisibleParagraph() > 0) {
+                Platform.runLater(() -> {
+                    if (codeArea.isFocused()
+                            && codeArea.getCaretPosition() == previous.getCaretPosition()
+                            && codeArea.firstVisibleParToAllParIndex() == 0) {
+                        EditorViewport.restore(codeArea, previous);
+                    }
+                });
             } else {
-                EditorViewport.Snapshot snapshot = previous != null
-                        ? previous
-                        : EditorViewport.capture(codeArea);
-                Platform.runLater(() -> EditorViewport.restore(codeArea, snapshot));
+                lastViewport.set(EditorViewport.capture(codeArea));
             }
         });
     }
@@ -753,17 +793,6 @@ public class FXUtils {
         tab.setContent(node);
         tab.setClosable(true);
         tab.getProperties().put(TAB_PROP_BASE_TITLE, title != null ? title : "");
-        tabPane.getTabs().add(tab);
-        tabPane.getSelectionModel().select(tab);
-        return tab;
-    }
-
-    public Tab addTranslatorTab(String title, Node node, TabPane tabPane) {
-        Tab tab = new Tab(title != null ? title : "");
-        tab.setContent(node);
-        tab.setClosable(true);
-        tab.getProperties().put(TAB_PROP_BASE_TITLE, title != null ? title : "");
-        applyFileTypeIcon(tab, title);
         tabPane.getTabs().add(tab);
         tabPane.getSelectionModel().select(tab);
         return tab;
@@ -1432,23 +1461,18 @@ public class FXUtils {
         Path projectPath = projectDir.toPath();
         Path srcPath = projectPath.resolve("src");
 
-        if (template == ProjectTemplate.TRANSLATOR) {
-            Files.createDirectories(projectPath);
-            Files.writeString(projectPath.resolve("translation.smt"), getTranslatorSmtContent());
+        Files.createDirectories(srcPath);
+        if (template == ProjectTemplate.ASM || template == ProjectTemplate.ATARI_ASM
+                || template == ProjectTemplate.SPECTRUM_ASM || template == ProjectTemplate.GAMEBOY_ASM) {
+            Files.writeString(srcPath.resolve("main.asm"), getTemplateMainContent(template));
+        } else if (template == ProjectTemplate.MAKEFILE) {
+            Files.writeString(srcPath.resolve("main.c"), getTemplateMainContent(template));
+            Files.writeString(projectPath.resolve("Makefile"), getMakefileContent());
+        } else if (template == ProjectTemplate.ATARI_BASIC
+                || template == ProjectTemplate.SPECTRUM_BASIC) {
+            Files.writeString(srcPath.resolve("main.bas"), getTemplateMainContent(template));
         } else {
-            Files.createDirectories(srcPath);
-            if (template == ProjectTemplate.ASM || template == ProjectTemplate.ATARI_ASM
-                    || template == ProjectTemplate.SPECTRUM_ASM || template == ProjectTemplate.GAMEBOY_ASM) {
-                Files.writeString(srcPath.resolve("main.asm"), getTemplateMainContent(template));
-            } else if (template == ProjectTemplate.MAKEFILE) {
-                Files.writeString(srcPath.resolve("main.c"), getTemplateMainContent(template));
-                Files.writeString(projectPath.resolve("Makefile"), getMakefileContent());
-            } else if (template == ProjectTemplate.ATARI_BASIC
-                    || template == ProjectTemplate.SPECTRUM_BASIC) {
-                Files.writeString(srcPath.resolve("main.bas"), getTemplateMainContent(template));
-            } else {
-                Files.writeString(srcPath.resolve("main.c"), getTemplateMainContent(template));
-            }
+            Files.writeString(srcPath.resolve("main.c"), getTemplateMainContent(template));
         }
 
         if (options != null && options.createReadme) {
@@ -1475,19 +1499,6 @@ public class FXUtils {
             "",
             "clean:",
             "\trm -rf out",
-            ""
-        );
-    }
-
-    private String getTranslatorSmtContent() {
-        return String.join("\n",
-            "{",
-            "  \"version\": 1,",
-            "  \"romPath\": \"\",",
-            "  \"fontTable\": \"pokemon\",",
-            "  \"encoding\": \"SENTINEL_0x50\",",
-            "  \"entries\": []",
-            "}",
             ""
         );
     }
@@ -1523,7 +1534,7 @@ public class FXUtils {
 
     private String resolveWorkspaceTarget(ProjectTemplate template) {
         if (template == ProjectTemplate.GAMEBOY || template == ProjectTemplate.GAMEBOY_SPRITE
-                || template == ProjectTemplate.GAMEBOY_ASM || template == ProjectTemplate.TRANSLATOR) {
+                || template == ProjectTemplate.GAMEBOY_ASM) {
             return "gameboy";
         }
         if (template == ProjectTemplate.SPECTRUM || template == ProjectTemplate.SPECTRUM_SCREEN
@@ -2720,6 +2731,11 @@ public class FXUtils {
                 event.consume();
                 return;
             }
+            if (ctrlLike && !event.isShiftDown() && !event.isAltDown() && code == KeyCode.D) {
+                duplicateSelectedLines(codeArea);
+                event.consume();
+                return;
+            }
             if (event.isAltDown() && !ctrlLike && (code == KeyCode.UP || code == KeyCode.DOWN)) {
                 boolean up = code == KeyCode.UP;
                 if (event.isShiftDown()) {
@@ -2821,15 +2837,24 @@ public class FXUtils {
         }
     }
 
-    private void duplicateSelectedLines(CodeArea area) {
+    void duplicateSelectedLines(CodeArea area) {
         int[] b = lineBlockBounds(area);
         int start = b[0], end = b[1];
-        String blockLine = area.getText().substring(start, end);
-        String insertion = end >= area.getLength() ? blockLine + "\n" : blockLine;
-        area.insertText(start, insertion);
-        int copyEnd = start + insertion.length();
-        area.selectRange(start, Math.min(copyEnd, area.getLength()));
-        area.moveTo(start);
+        int caret = area.getCaretPosition();
+        boolean hadSelection = area.getSelection().getLength() > 0;
+        String block = area.getText().substring(start, end);
+        boolean endsWithNewline = block.endsWith("\n");
+        String insertion = endsWithNewline ? block : "\n" + block;
+        int newStart = end + (endsWithNewline ? 0 : 1);
+        area.insertText(end, insertion);
+        int copyEnd = Math.min(newStart + block.length(), area.getLength());
+        int relativeCaret = Math.max(0, Math.min(caret - start, block.length()));
+        int newCaret = Math.min(newStart + relativeCaret, area.getLength());
+        if (hadSelection && copyEnd > newStart) {
+            area.selectRange(newStart, copyEnd);
+        } else {
+            area.moveTo(newCaret);
+        }
         area.requestFollowCaret();
     }
 

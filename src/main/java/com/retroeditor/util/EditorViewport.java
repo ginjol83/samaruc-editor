@@ -15,17 +15,24 @@ public final class EditorViewport {
     /** Fotografia del viewport en un momento concreto. */
     public static final class Snapshot {
         private final int firstVisibleParagraph;
+        private final double estimatedScrollX;
         private final double estimatedScrollY;
         private final int caretPosition;
 
-        private Snapshot(int firstVisibleParagraph, double estimatedScrollY, int caretPosition) {
+        private Snapshot(int firstVisibleParagraph, double estimatedScrollX,
+                         double estimatedScrollY, int caretPosition) {
             this.firstVisibleParagraph = firstVisibleParagraph;
+            this.estimatedScrollX = estimatedScrollX;
             this.estimatedScrollY = estimatedScrollY;
             this.caretPosition = caretPosition;
         }
 
         public int getCaretPosition() {
             return caretPosition;
+        }
+
+        public int getFirstVisibleParagraph() {
+            return firstVisibleParagraph;
         }
     }
 
@@ -42,8 +49,12 @@ public final class EditorViewport {
         if (area == null) return null;
         try {
             int firstVisible = area.firstVisibleParToAllParIndex();
+            Double scrollX = area.estimatedScrollXProperty().getValue();
             Double scrollY = area.estimatedScrollYProperty().getValue();
-            return new Snapshot(firstVisible, scrollY != null ? scrollY : 0.0, area.getCaretPosition());
+            return new Snapshot(firstVisible,
+                    scrollX != null ? scrollX : 0.0,
+                    scrollY != null ? scrollY : 0.0,
+                    area.getCaretPosition());
         } catch (Exception ignored) {
             return null;
         }
@@ -61,14 +72,26 @@ public final class EditorViewport {
             int paragraphCount = area.getParagraphs().size();
             if (paragraphCount == 0) return;
 
-            if (snapshot.firstVisibleParagraph >= 0) {
+            // Restaurar el desplazamiento exacto en pixeles. Reencuadrar el
+            // parrafo visible con showParagraphAtTop movia el texto cada vez
+            // que se reaplicaban estilos (por ejemplo, al pulsar cualquier
+            // tecla) porque alineaba arriba un parrafo que estaba a medias.
+            boolean scrolled = isScrollable(snapshot.estimatedScrollY)
+                    || isScrollable(snapshot.estimatedScrollX);
+            if (scrolled) {
+                area.scrollXToPixel(snapshot.estimatedScrollX);
+                area.scrollYToPixel(snapshot.estimatedScrollY);
+            }
+            if (!scrolled && snapshot.firstVisibleParagraph >= 0) {
                 int paragraph = Math.min(snapshot.firstVisibleParagraph, paragraphCount - 1);
                 area.showParagraphAtTop(paragraph);
-            } else if (snapshot.estimatedScrollY > 0) {
-                area.estimatedScrollYProperty().setValue(snapshot.estimatedScrollY);
             }
         } catch (Exception ignored) {
         }
+    }
+
+    private static boolean isScrollable(double offset) {
+        return Double.isFinite(offset) && offset > 0;
     }
 
     /**

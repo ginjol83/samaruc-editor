@@ -35,11 +35,7 @@ public final class AtariBasicExportService {
         if (outputAtr == null) {
             throw new IllegalArgumentException("La ruta de destino es obligatoria");
         }
-        String source = preprocess(
-                Files.readString(sourceBas, StandardCharsets.UTF_8)
-                        .replace("\r\n", "\n")
-                        .replace('\r', '\n'),
-                sourceBas);
+        String source = preprocess(readSource(sourceBas), sourceBas);
         byte[] image = buildImage(source, entryName, variant);
         Path parent = outputAtr.toAbsolutePath().getParent();
         if (parent != null) {
@@ -62,11 +58,7 @@ public final class AtariBasicExportService {
         if (outputBas == null) {
             throw new IllegalArgumentException("La ruta de destino es obligatoria");
         }
-        String source = preprocess(
-                Files.readString(sourceBas, StandardCharsets.UTF_8)
-                        .replace("\r\n", "\n")
-                        .replace('\r', '\n'),
-                sourceBas);
+        String source = preprocess(readSource(sourceBas), sourceBas);
         byte[] tokenized = tokenize(source, variant);
         Path parent = outputBas.toAbsolutePath().getParent();
         if (parent != null) {
@@ -82,6 +74,19 @@ public final class AtariBasicExportService {
         return buildImage(source == null ? "" : source, entryName, variant);
     }
 
+    /**
+     * Tokeniza una fuente {@code .bas} aplicando las inclusiones y la
+     * transpilacion de Samaruc BASIC, pero sin envolverla en ATR ni BASIC.
+     */
+    public byte[] tokenizeSource(Path sourceBas, AtariBasicVariant variant)
+            throws IOException, AtariBasicSyntaxException {
+        if (sourceBas == null) {
+            throw new IllegalArgumentException("La ruta de origen es obligatoria");
+        }
+        String source = preprocess(readSource(sourceBas), sourceBas);
+        return tokenize(source, variant);
+    }
+
     /** Programa tokenizado en memoria, sin cabecera de disco. */
     public byte[] exportToBasicBytes(String source, AtariBasicVariant variant)
             throws AtariBasicSyntaxException {
@@ -94,6 +99,12 @@ public final class AtariBasicExportService {
         AtrImageWriter writer = new AtrImageWriter();
         writer.addFile(resolveEntryName(entryName), tokenized);
         return writer.toByteArray();
+    }
+
+    private static String readSource(Path sourceBas) throws IOException {
+        return Files.readString(sourceBas, StandardCharsets.UTF_8)
+                .replace("\r\n", "\n")
+                .replace('\r', '\n');
     }
 
     private static byte[] tokenize(String source, AtariBasicVariant variant) throws AtariBasicSyntaxException {

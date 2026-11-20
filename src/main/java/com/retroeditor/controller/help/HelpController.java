@@ -35,6 +35,21 @@ public class HelpController {
     }
 
     /**
+     * Abre el manual de usuario directamente en la sección de atajos de teclado.
+     */
+    public void onOpenKeyboardShortcuts() {
+        UserActionMonitor.keyboardShortcutsOpened();
+        openHtmlWindow(
+            "/manual.html",
+            "Atajos de teclado",
+            "<html><body><h1>Atajos de teclado no disponibles</h1></body></html>",
+            820,
+            680,
+            "atajos-teclado"
+        );
+    }
+
+    /**
      * Abre el manual de BASIC (inclusiones y rangos de numeracion) en una ventana WebView.
      */
     public void onOpenBasicManual() {
@@ -139,11 +154,20 @@ public class HelpController {
     }
 
     private void openHtmlWindow(String resourcePath, String title, String fallbackHtml, int width, int height) {
+        openHtmlWindow(resourcePath, title, fallbackHtml, width, height, null);
+    }
+
+    private void openHtmlWindow(String resourcePath, String title, String fallbackHtml, int width, int height,
+                                String anchor) {
         javafx.scene.web.WebView webView = new javafx.scene.web.WebView();
         URL url = getClass().getResource(resourcePath);
 
         if (url != null) {
-            webView.getEngine().load(url.toExternalForm());
+            String location = url.toExternalForm();
+            if (anchor != null && !anchor.isBlank()) {
+                location += "#" + anchor;
+            }
+            webView.getEngine().load(location);
         } else {
             webView.getEngine().loadContent(fallbackHtml);
         }

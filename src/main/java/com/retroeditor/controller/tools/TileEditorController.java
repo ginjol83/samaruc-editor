@@ -19,9 +19,12 @@ import java.util.prefs.Preferences;
 import javax.imageio.ImageIO;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.retroeditor.model.SpriteAnimation;
+import com.retroeditor.model.SpriteAnimationStep;
 import com.retroeditor.model.SpriteFrame;
 import com.retroeditor.service.gameboy.GameBoyColorQuantizer;
 import com.retroeditor.service.sprite.SpriteAnimationCodeGenerator;
+import com.retroeditor.service.sprite.SpriteAnimationService;
 import com.retroeditor.service.zxspectrum.ColorQuantizer;
 import com.retroeditor.service.zxspectrum.ZxSpectrumColor;
 
@@ -37,11 +40,15 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.ColorPicker;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
+import javafx.scene.control.ListView;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.Spinner;
+import javafx.scene.control.SpinnerValueFactory;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputControl;
@@ -120,6 +127,7 @@ public class TileEditorController {
         private int[][] pixels;
         private String symbol;
         private List<SpriteFrame> frames;
+        private List<SpriteAnimation> animations;
 
         public TileProjectData() {}
 
@@ -143,6 +151,8 @@ public class TileEditorController {
         public void setSymbol(String symbol) { this.symbol = symbol; }
         public List<SpriteFrame> getFrames() { return frames; }
         public void setFrames(List<SpriteFrame> frames) { this.frames = frames; }
+        public List<SpriteAnimation> getAnimations() { return animations; }
+        public void setAnimations(List<SpriteAnimation> animations) { this.animations = animations; }
     }
 
     private static final int DEFAULT_CELL_SIZE = 24;
@@ -174,6 +184,23 @@ public class TileEditorController {
 
     private PlatformMode currentPlatform = PlatformMode.GAMEBOY;
     private final List<SpriteFrame> frames = new ArrayList<>();
+    private final List<SpriteAnimation> animations = new ArrayList<>();
+    private final SpriteAnimationService animationService = new SpriteAnimationService();
+    private int currentAnimationIndex = -1;
+    private int currentAnimationStepIndex = -1;
+    private int previewAnimationStep = 0;
+    private boolean animationsUpdating;
+    private boolean onionSkinEnabled = true;
+    private ComboBox<SpriteAnimation> animationChoice;
+    private TextField animationNameField;
+    private ListView<SpriteAnimationStep> animationStepsView;
+    private Spinner<Integer> stepOffsetXSpinner;
+    private Spinner<Integer> stepOffsetYSpinner;
+    private Spinner<Integer> loopStartSpinner;
+    private Spinner<Integer> loopEndSpinner;
+    private CheckBox loopCheck;
+    private CheckBox onionSkinToggle;
+    private Canvas animationPreviewCanvas;
     private int currentFrameIndex = 0;
     private int currentWidth = 8;
     private int currentHeight = 8;
@@ -225,7 +252,8 @@ public class TileEditorController {
     private final Preferences prefs = Preferences.userNodeForPackage(TileEditorController.class);
     private static final double THUMB_DISPLAY_HEIGHT = 44;
 
-    private record EditorSnapshot(List<SpriteFrame> frames, int frameIndex) {}
+    private record EditorSnapshot(List<SpriteFrame> frames, int frameIndex,
+            List<SpriteAnimation> animations, int animationIndex, int animationStepIndex) {}
     private final SpriteAnimationCodeGenerator animCodeGenerator = new SpriteAnimationCodeGenerator();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -370,6 +398,7 @@ public class TileEditorController {
                 framesCopy.add(new SpriteFrame(deepCopyPixels(f.getPixels()), f.getDurationVbls()));
             }
             data.setFrames(framesCopy);
+            data.setAnimations(animationService.copyAll(animations));
             objectMapper.writerWithDefaultPrettyPrinter().writeValue(file, data);
             lastUsedDirectory = file.getParentFile();
             currentFile = file;
@@ -434,6 +463,16 @@ public class TileEditorController {
         if (frames.isEmpty()) {
             throw new IllegalArgumentException(msg(bundle, "tool.tileEditor.noFrames", "El archivo no contiene ningún frame."));
         }
+        animations.clear();
+        if (data.getAnimations() != null) {
+            for (SpriteAnimation animation : animationService.copyAll(data.getAnimations())) {
+                animationService.normalize(animation, frames.size());
+                animations.add(animation);
+            }
+        }
+        currentAnimationIndex = animations.isEmpty() ? -1 : 0;
+        currentAnimationStepIndex = currentAnimation() != null && !currentAnimation().getSteps().isEmpty() ? 0 : -1;
+        previewAnimationStep = Math.max(0, currentAnimationStepIndex);
         currentFrameIndex = 0;
         pixels = frames.get(0).getPixels();
         currentWidth = pixels[0].length;
@@ -479,6 +518,7 @@ public class TileEditorController {
         redrawCanvas(canvas);
         updateDurationInfo();
         updateFilmstrip();
+        refreshAnimationUi();
         updateAction.run();
     }
 
@@ -553,7 +593,14 @@ public class TileEditorController {
         previewLabel.setStyle("-fx-text-fill: gray; -fx-font-size: 11px;");
         VBox previewPane = new VBox(4, previewLabel, previewCanvas);
         previewPane.setAlignment(Pos.TOP_LEFT);
-        HBox canvasRow = new HBox(12, canvas, previewPane);
+
+        animationPreviewCanvas = new Canvas(currentWidth * 3, currentHeight * 3);
+        Label animationPreviewLabel = new Label(msg(bundle, "tool.tileEditor.animationPreview", "Preview animación"));
+        animationPreviewLabel.setStyle("-fx-text-fill: gray; -fx-font-size: 11px;");
+        VBox animationPreviewPane = new VBox(4, animationPreviewLabel, animationPreviewCanvas);
+        animationPreviewPane.setAlignment(Pos.TOP_LEFT);
+
+        HBox canvasRow = new HBox(12, canvas, previewPane, animationPreviewPane);
         canvasRow.setAlignment(Pos.TOP_LEFT);
 
         filmstripBox = new HBox(6);
@@ -565,6 +612,69 @@ public class TileEditorController {
         filmstripHint.setStyle("-fx-text-fill: gray; -fx-font-size: 11px;");
         VBox filmstripPane = new VBox(4, new HBox(8, filmstripLabel, filmstripHint), filmstripBox);
         updateFilmstrip();
+
+        animationChoice = new ComboBox<>();
+        animationChoice.setPrefWidth(190);
+        animationChoice.setVisibleRowCount(8);
+        Button newAnimationButton = new Button(msg(bundle, "tool.tileEditor.newAnimation", "+ Nueva"));
+        Button deleteAnimationButton = new Button(msg(bundle, "tool.tileEditor.deleteAnimation", "Borrar"));
+        animationNameField = new TextField();
+        animationNameField.setPrefWidth(170);
+        Button addAnimationStepButton = new Button(msg(bundle, "tool.tileEditor.addAnimationStep", "+ Frame actual"));
+        Button removeAnimationStepButton = new Button(msg(bundle, "tool.tileEditor.removeAnimationStep", "Quitar paso"));
+        Button moveStepUpButton = new Button(msg(bundle, "tool.tileEditor.moveStepUp", "Subir"));
+        Button moveStepDownButton = new Button(msg(bundle, "tool.tileEditor.moveStepDown", "Bajar"));
+        animationStepsView = new ListView<>();
+        animationStepsView.setPrefSize(330, 112);
+        animationStepsView.setCellFactory(view -> new ListCell<>() {
+            @Override
+            protected void updateItem(SpriteAnimationStep item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    return;
+                }
+                setText(fmt(msg(bundle, "tool.tileEditor.animationStepFormat",
+                        "{0}. Frame {1} (X:{2} Y:{3})"),
+                        getIndex() + 1, item.getFrameIndex() + 1, item.getOffsetX(), item.getOffsetY()));
+            }
+        });
+        stepOffsetXSpinner = new Spinner<>(-128, 127, 0);
+        stepOffsetXSpinner.setPrefWidth(75);
+        stepOffsetYSpinner = new Spinner<>(-128, 127, 0);
+        stepOffsetYSpinner.setPrefWidth(75);
+        loopStartSpinner = new Spinner<>(1, 2, 1);
+        loopStartSpinner.setPrefWidth(70);
+        loopEndSpinner = new Spinner<>(1, 2, 1);
+        loopEndSpinner.setPrefWidth(70);
+        loopCheck = new CheckBox(msg(bundle, "tool.tileEditor.loop", "Bucle"));
+        loopCheck.setSelected(true);
+        onionSkinToggle = new CheckBox(msg(bundle, "tool.tileEditor.onionSkin", "Onion skin"));
+        onionSkinToggle.setTooltip(new Tooltip(msg(bundle, "tool.tileEditor.onionSkinTip",
+                "Muestra el paso anterior y el siguiente semitransparentes en el preview de animación.")));
+        onionSkinToggle.setSelected(true);
+
+        HBox animationHeader = new HBox(8,
+                new Label(msg(bundle, "tool.tileEditor.animationSequences", "Animaciones:")),
+                animationChoice, newAnimationButton, deleteAnimationButton);
+        animationHeader.setAlignment(Pos.CENTER_LEFT);
+        HBox animationNameRow = new HBox(8,
+                new Label(msg(bundle, "tool.tileEditor.animationName", "Nombre:")), animationNameField,
+                addAnimationStepButton, removeAnimationStepButton, moveStepUpButton, moveStepDownButton);
+        animationNameRow.setAlignment(Pos.CENTER_LEFT);
+        HBox animationOffsetRow = new HBox(8,
+                new Label(msg(bundle, "tool.tileEditor.stepOffsets", "Offset X/Y:")),
+                stepOffsetXSpinner, stepOffsetYSpinner,
+                new Separator(), loopCheck,
+                new Label(msg(bundle, "tool.tileEditor.loopStart", "Inicio:")), loopStartSpinner,
+                new Label(msg(bundle, "tool.tileEditor.loopEnd", "Fin:")), loopEndSpinner,
+                new Separator(), onionSkinToggle);
+        animationOffsetRow.setAlignment(Pos.CENTER_LEFT);
+        VBox animationEditor = new VBox(6,
+                new HBox(8, new Label(msg(bundle, "tool.tileEditor.animationSteps", "Pasos:")),
+                        animationStepsView),
+                animationNameRow, animationOffsetRow);
+        VBox animationPane = new VBox(6, animationHeader, animationEditor);
 
         Label zoomLabel = new Label("100%");
         Button zoomOutButton = new Button("-");
@@ -647,6 +757,26 @@ public class TileEditorController {
                 if (lastNanos == 0) { lastNanos = now; return; }
                 long delta = now - lastNanos;
                 lastNanos = now;
+                SpriteAnimation animation = currentAnimation();
+                if (animation != null && !animation.getSteps().isEmpty()) {
+                    int stepIndex = Math.max(0, Math.min(animation.getSteps().size() - 1, previewAnimationStep));
+                    SpriteAnimationStep step = animation.getSteps().get(stepIndex);
+                    int frameIndex = Math.max(0, Math.min(frames.size() - 1, step.getFrameIndex()));
+                    long durNanos = frames.get(frameIndex).getDurationVbls()
+                            * 1_000_000_000L / refreshRateFor(currentPlatform);
+                    accNanos += delta;
+                    if (accNanos >= durNanos) {
+                        accNanos = 0;
+                        int next = animationService.nextStepIndex(animation, stepIndex);
+                        if (next < 0) {
+                            stopPreview();
+                            return;
+                        }
+                        previewAnimationStep = next;
+                        showAnimationStepInEditor(next);
+                    }
+                    return;
+                }
                 long durNanos = frames.get(currentFrameIndex).getDurationVbls() * 1_000_000_000L / refreshRateFor(currentPlatform);
                 accNanos += delta;
                 if (accNanos >= durNanos) {
@@ -664,19 +794,22 @@ public class TileEditorController {
             SpriteFrame template = frames.get(currentFrameIndex);
             SpriteFrame newFrame = new SpriteFrame(deepCopyPixels(template.getPixels()), template.getDurationVbls());
             pushUndoState();
+            animationService.insertFrameAt(animations, currentFrameIndex + 1);
             frames.add(currentFrameIndex + 1, newFrame);
             switchToFrame(currentFrameIndex + 1, canvas, frameLabel, durationSpinner, updateAction);
+            refreshAnimationUi();
             markDirty();
         });
 
         deleteFrameButton.setOnAction(e -> {
             if (frames.size() <= 1) return;
-            previewTimer.stop();
-            previewActive = false;
-            playButton.setText(msg(bundle, "tool.tileEditor.play", "▶ Anim"));
+            stopPreview();
             pushUndoState();
-            frames.remove(currentFrameIndex);
-            switchToFrame(Math.min(currentFrameIndex, frames.size() - 1), canvas, frameLabel, durationSpinner, updateAction);
+            int removedIndex = currentFrameIndex;
+            frames.remove(removedIndex);
+            animationService.removeFrameAt(animations, removedIndex, frames.size());
+            switchToFrame(Math.min(removedIndex, frames.size() - 1), canvas, frameLabel, durationSpinner, updateAction);
+            refreshAnimationUi();
             markDirty();
         });
 
@@ -693,14 +826,77 @@ public class TileEditorController {
 
         playButton.setOnAction(e -> {
             if (previewActive) {
-                previewTimer.stop();
-                previewActive = false;
-                playButton.setText(msg(bundle, "tool.tileEditor.play", "▶ Anim"));
+                stopPreview();
             } else {
+                SpriteAnimation animation = currentAnimation();
+                previewAnimationStep = animation != null && !animation.getSteps().isEmpty()
+                        ? Math.max(0, currentAnimationStepIndex) : 0;
+                if (animation != null && !animation.getSteps().isEmpty()) {
+                    showAnimationStepInEditor(previewAnimationStep);
+                }
                 previewActive = true;
                 playButton.setText(msg(bundle, "tool.tileEditor.stop", "⏸ Parar"));
                 previewTimer.start();
             }
+        });
+
+        newAnimationButton.setOnAction(e -> createAnimation());
+        deleteAnimationButton.setOnAction(e -> deleteCurrentAnimation());
+        animationChoice.valueProperty().addListener((obs, oldV, newV) -> {
+            if (animationsUpdating) return;
+            currentAnimationIndex = animationChoice.getSelectionModel().getSelectedIndex();
+            currentAnimationStepIndex = newV != null && !newV.getSteps().isEmpty() ? 0 : -1;
+            previewAnimationStep = Math.max(0, currentAnimationStepIndex);
+            refreshAnimationUi();
+            if (currentAnimationStepIndex >= 0) showAnimationStepInEditor(currentAnimationStepIndex);
+        });
+        animationNameField.textProperty().addListener((obs, oldV, newV) -> {
+            if (animationsUpdating) return;
+            SpriteAnimation animation = currentAnimation();
+            if (animation == null || (newV != null && newV.equals(animation.getName()))) return;
+            animation.setName(newV != null ? newV : "");
+            animationsUpdating = true;
+            try {
+                if (currentAnimationIndex >= 0 && currentAnimationIndex < animationChoice.getItems().size()) {
+                    animationChoice.getItems().set(currentAnimationIndex, animation);
+                    animationChoice.getSelectionModel().select(currentAnimationIndex);
+                }
+            } finally {
+                animationsUpdating = false;
+            }
+            markDirty();
+            updateAction.run();
+        });
+        animationStepsView.getSelectionModel().selectedIndexProperty().addListener((obs, oldV, newV) -> {
+            if (animationsUpdating) return;
+            currentAnimationStepIndex = newV != null ? newV.intValue() : -1;
+            previewAnimationStep = Math.max(0, currentAnimationStepIndex);
+            refreshAnimationStepDetails();
+            if (currentAnimationStepIndex >= 0) {
+                showAnimationStepInEditor(currentAnimationStepIndex);
+            } else {
+                redrawAnimationPreview();
+            }
+        });
+        addAnimationStepButton.setOnAction(e -> addCurrentFrameToAnimation());
+        removeAnimationStepButton.setOnAction(e -> removeCurrentAnimationStep());
+        moveStepUpButton.setOnAction(e -> moveCurrentAnimationStep(-1));
+        moveStepDownButton.setOnAction(e -> moveCurrentAnimationStep(1));
+        stepOffsetXSpinner.valueProperty().addListener((obs, oldV, newV) -> updateAnimationStepOffsets());
+        stepOffsetYSpinner.valueProperty().addListener((obs, oldV, newV) -> updateAnimationStepOffsets());
+        loopStartSpinner.valueProperty().addListener((obs, oldV, newV) -> updateAnimationLoop());
+        loopEndSpinner.valueProperty().addListener((obs, oldV, newV) -> updateAnimationLoop());
+        loopCheck.selectedProperty().addListener((obs, oldV, newV) -> {
+            if (animationsUpdating) return;
+            SpriteAnimation animation = currentAnimation();
+            if (animation == null) return;
+            animation.setLoop(newV != null && newV);
+            markDirty();
+            updateAction.run();
+        });
+        onionSkinToggle.selectedProperty().addListener((obs, oldV, newV) -> {
+            onionSkinEnabled = newV != null && newV;
+            redrawAnimationPreview();
         });
 
         platformChoice.valueProperty().addListener((obs, oldV, newV) -> {
@@ -1059,7 +1255,8 @@ if (blockColorMode()) {
         HBox codeHeader = new HBox(8, projectRow, spacer2, showCodeToggle);
         codeHeader.setAlignment(Pos.CENTER_LEFT);
 
-        VBox center = new VBox(10, editorTop, animBar, canvasRow, filmstripPane, zoomBar, shortcutsLabel, editRow, codeHeader, outputArea);
+        VBox center = new VBox(10, editorTop, animBar, canvasRow, filmstripPane, animationPane,
+                zoomBar, shortcutsLabel, editRow, codeHeader, outputArea);
         center.setPadding(new Insets(10));
 
         contentScrollPane = new ScrollPane(center);
@@ -1073,6 +1270,7 @@ redrawCanvas(canvas);
         updateDurationInfo();
         updateMouseInfo();
         loadPrefs();
+        refreshAnimationUi();
         redrawCanvas(canvas);
 
         rootNode.addEventFilter(KeyEvent.KEY_PRESSED, e -> {
@@ -1513,6 +1711,7 @@ redrawCanvas(canvas);
                 g.fillRect(x, y, 1, 1);
             }
         }
+        redrawAnimationPreview();
     }
 
     private void paintThumb(GraphicsContext g, SpriteFrame f, double scale) {
@@ -1572,9 +1771,11 @@ redrawCanvas(canvas);
                     pushUndoState();
                     SpriteFrame moved = frames.remove(from);
                     frames.add(target, moved);
+                    animationService.remapAfterFrameMove(animations, from, target);
                     currentFrameIndex = target;
                     markDirty();
                     updateFilmstrip();
+                    refreshAnimationUi();
                     redrawCanvas(canvas);
                     updateAction.run();
                     if (frameLabel != null) frameLabel.setText(fmt(msg(bundle, "tool.tileEditor.frameFormat", "Frame {0}/{1}"), currentFrameIndex + 1, frames.size()));
@@ -1583,6 +1784,339 @@ redrawCanvas(canvas);
             });
             filmstripBox.getChildren().add(item);
         }
+    }
+
+    private SpriteAnimation currentAnimation() {
+        return currentAnimationIndex >= 0 && currentAnimationIndex < animations.size()
+                ? animations.get(currentAnimationIndex) : null;
+    }
+
+    private SpriteAnimationStep currentAnimationStep() {
+        SpriteAnimation animation = currentAnimation();
+        if (animation == null || currentAnimationStepIndex < 0
+                || currentAnimationStepIndex >= animation.getSteps().size()) {
+            return null;
+        }
+        return animation.getSteps().get(currentAnimationStepIndex);
+    }
+
+    private void refreshAnimationUi() {
+        if (animationChoice == null) return;
+        animationsUpdating = true;
+        try {
+            if (animations.isEmpty()) {
+                currentAnimationIndex = -1;
+            } else if (currentAnimationIndex < 0 || currentAnimationIndex >= animations.size()) {
+                currentAnimationIndex = animations.size() - 1;
+            }
+            animationChoice.getItems().setAll(animations);
+            if (currentAnimationIndex >= 0) {
+                animationChoice.getSelectionModel().select(currentAnimationIndex);
+            } else {
+                animationChoice.getSelectionModel().clearSelection();
+            }
+
+            SpriteAnimation animation = currentAnimation();
+            if (animation == null) {
+                currentAnimationStepIndex = -1;
+                animationNameField.setText("");
+                animationStepsView.getItems().clear();
+            } else {
+                if (animation.getSteps().isEmpty()) {
+                    currentAnimationStepIndex = -1;
+                } else if (currentAnimationStepIndex < 0
+                        || currentAnimationStepIndex >= animation.getSteps().size()) {
+                    currentAnimationStepIndex = 0;
+                }
+                animationNameField.setText(animation.getName());
+                animationStepsView.getItems().setAll(animation.getSteps());
+                if (currentAnimationStepIndex >= 0) {
+                    animationStepsView.getSelectionModel().select(currentAnimationStepIndex);
+                } else {
+                    animationStepsView.getSelectionModel().clearSelection();
+                }
+                configureLoopSpinners(animation);
+            }
+
+            boolean hasAnimation = animation != null;
+            boolean hasStep = currentAnimationStep() != null;
+            animationNameField.setDisable(!hasAnimation);
+            animationStepsView.setDisable(!hasAnimation);
+            stepOffsetXSpinner.setDisable(!hasStep);
+            stepOffsetYSpinner.setDisable(!hasStep);
+            loopCheck.setDisable(!hasAnimation);
+            loopStartSpinner.setDisable(!hasAnimation);
+            loopEndSpinner.setDisable(!hasAnimation);
+        } finally {
+            animationsUpdating = false;
+        }
+        refreshAnimationStepDetails();
+        redrawAnimationPreview();
+    }
+
+    private void refreshAnimationStepDetails() {
+        SpriteAnimation animation = currentAnimation();
+        SpriteAnimationStep step = currentAnimationStep();
+        animationsUpdating = true;
+        try {
+            if (step != null) {
+                stepOffsetXSpinner.getValueFactory().setValue(step.getOffsetX());
+                stepOffsetYSpinner.getValueFactory().setValue(step.getOffsetY());
+            } else {
+                stepOffsetXSpinner.getValueFactory().setValue(0);
+                stepOffsetYSpinner.getValueFactory().setValue(0);
+            }
+            if (animation != null) {
+                loopCheck.setSelected(animation.isLoop());
+                configureLoopSpinners(animation);
+            }
+        } finally {
+            animationsUpdating = false;
+        }
+    }
+
+    private void configureLoopSpinners(SpriteAnimation animation) {
+        int count = animation != null ? animation.getSteps().size() : 0;
+        int max = Math.max(1, count);
+        int start = count == 0 ? 0 : Math.max(0, Math.min(count - 1, animation.getLoopStart()));
+        int end = count == 0 ? 0 : animation.getLoopEnd() < 0
+                ? count - 1 : Math.max(0, Math.min(count - 1, animation.getLoopEnd()));
+        loopStartSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, max, start + 1));
+        loopEndSpinner.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(1, max, end + 1));
+    }
+
+    private void createAnimation() {
+        String baseName = msg(bundle, "tool.tileEditor.newAnimationName", "Animación {0}");
+        String name = baseName.replace("{0}", String.valueOf(animations.size() + 1));
+        int suffix = 2;
+        while (animationNameExists(name)) {
+            name = baseName.replace("{0}", String.valueOf(animations.size() + suffix));
+            suffix++;
+        }
+        SpriteAnimation animation = new SpriteAnimation(name);
+        animation.getSteps().add(new SpriteAnimationStep(currentFrameIndex, 0, 0));
+        animation.setLoopStart(0);
+        animation.setLoopEnd(0);
+        pushUndoState();
+        animations.add(animation);
+        currentAnimationIndex = animations.size() - 1;
+        currentAnimationStepIndex = 0;
+        previewAnimationStep = 0;
+        refreshAnimationUi();
+        markDirty();
+        updateAction.run();
+    }
+
+    private boolean animationNameExists(String name) {
+        for (SpriteAnimation animation : animations) {
+            if (animation != null && animation.getName() != null
+                    && animation.getName().equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void deleteCurrentAnimation() {
+        SpriteAnimation animation = currentAnimation();
+        if (animation == null) return;
+        pushUndoState();
+        animations.remove(currentAnimationIndex);
+        currentAnimationIndex = animations.isEmpty() ? -1 : Math.min(currentAnimationIndex, animations.size() - 1);
+        currentAnimationStepIndex = -1;
+        previewAnimationStep = 0;
+        refreshAnimationUi();
+        markDirty();
+        updateAction.run();
+    }
+
+    private void addCurrentFrameToAnimation() {
+        SpriteAnimation animation = currentAnimation();
+        if (animation == null) {
+            createAnimation();
+            return;
+        }
+        pushUndoState();
+        animation.getSteps().add(new SpriteAnimationStep(currentFrameIndex, 0, 0));
+        currentAnimationStepIndex = animation.getSteps().size() - 1;
+        previewAnimationStep = currentAnimationStepIndex;
+        animationService.normalize(animation, frames.size());
+        refreshAnimationUi();
+        markDirty();
+        updateAction.run();
+    }
+
+    private void removeCurrentAnimationStep() {
+        SpriteAnimation animation = currentAnimation();
+        if (animation == null || currentAnimationStepIndex < 0
+                || currentAnimationStepIndex >= animation.getSteps().size()) {
+            return;
+        }
+        pushUndoState();
+        animation.getSteps().remove(currentAnimationStepIndex);
+        if (animation.getSteps().isEmpty()) {
+            currentAnimationStepIndex = -1;
+        } else {
+            currentAnimationStepIndex = Math.min(currentAnimationStepIndex, animation.getSteps().size() - 1);
+        }
+        previewAnimationStep = Math.max(0, currentAnimationStepIndex);
+        animationService.normalize(animation, frames.size());
+        refreshAnimationUi();
+        markDirty();
+        updateAction.run();
+    }
+
+    private void moveCurrentAnimationStep(int delta) {
+        SpriteAnimation animation = currentAnimation();
+        if (animation == null || currentAnimationStepIndex < 0) return;
+        int target = currentAnimationStepIndex + delta;
+        if (target < 0 || target >= animation.getSteps().size()) return;
+        pushUndoState();
+        SpriteAnimationStep step = animation.getSteps().remove(currentAnimationStepIndex);
+        animation.getSteps().add(target, step);
+        currentAnimationStepIndex = target;
+        previewAnimationStep = target;
+        refreshAnimationUi();
+        markDirty();
+        updateAction.run();
+    }
+
+    private void updateAnimationStepOffsets() {
+        if (animationsUpdating) return;
+        SpriteAnimationStep step = currentAnimationStep();
+        if (step == null) return;
+        step.setOffsetX(stepOffsetXSpinner.getValue());
+        step.setOffsetY(stepOffsetYSpinner.getValue());
+        markDirty();
+        redrawAnimationPreview();
+        updateAction.run();
+    }
+
+    private void updateAnimationLoop() {
+        if (animationsUpdating) return;
+        SpriteAnimation animation = currentAnimation();
+        if (animation == null || animation.getSteps().isEmpty()) return;
+        int start = Math.max(0, Math.min(animation.getSteps().size() - 1, loopStartSpinner.getValue() - 1));
+        int end = Math.max(0, Math.min(animation.getSteps().size() - 1, loopEndSpinner.getValue() - 1));
+        if (start > end) {
+            start = end;
+        }
+        animation.setLoopStart(start);
+        animation.setLoopEnd(end);
+        animationsUpdating = true;
+        try {
+            loopStartSpinner.getValueFactory().setValue(start + 1);
+            loopEndSpinner.getValueFactory().setValue(end + 1);
+        } finally {
+            animationsUpdating = false;
+        }
+        markDirty();
+        updateAction.run();
+    }
+
+    private void showAnimationStepInEditor(int stepIndex) {
+        SpriteAnimation animation = currentAnimation();
+        if (animation == null || stepIndex < 0 || stepIndex >= animation.getSteps().size()) return;
+        SpriteAnimationStep step = animation.getSteps().get(stepIndex);
+        currentAnimationStepIndex = stepIndex;
+        previewAnimationStep = stepIndex;
+        if (step.getFrameIndex() >= 0 && step.getFrameIndex() < frames.size()
+                && step.getFrameIndex() != currentFrameIndex) {
+            moveToFrame(step.getFrameIndex());
+        }
+        animationsUpdating = true;
+        try {
+            if (animationStepsView.getSelectionModel().getSelectedIndex() != stepIndex) {
+                animationStepsView.getSelectionModel().select(stepIndex);
+            }
+            stepOffsetXSpinner.getValueFactory().setValue(step.getOffsetX());
+            stepOffsetYSpinner.getValueFactory().setValue(step.getOffsetY());
+        } finally {
+            animationsUpdating = false;
+        }
+        redrawAnimationPreview();
+    }
+
+    private void stopPreview() {
+        if (previewTimer != null) previewTimer.stop();
+        previewActive = false;
+        if (playButton != null) {
+            playButton.setText(msg(bundle, "tool.tileEditor.play", "▶ Anim"));
+        }
+    }
+
+    private void redrawAnimationPreview() {
+        if (animationPreviewCanvas == null) return;
+        SpriteAnimation animation = currentAnimation();
+        if (animation == null || animation.getSteps().isEmpty()) {
+            animationPreviewCanvas.setWidth(Math.max(1, currentWidth * 3));
+            animationPreviewCanvas.setHeight(Math.max(1, currentHeight * 3));
+            animationPreviewCanvas.getGraphicsContext2D().clearRect(0, 0,
+                    animationPreviewCanvas.getWidth(), animationPreviewCanvas.getHeight());
+            return;
+        }
+        int stepIndex = previewActive ? previewAnimationStep : currentAnimationStepIndex;
+        stepIndex = Math.max(0, Math.min(animation.getSteps().size() - 1, stepIndex));
+        int previous = stepIndex - 1;
+        int next = stepIndex + 1;
+        if (previous < 0) previous = animation.isLoop() ? animation.getSteps().size() - 1 : -1;
+        if (next >= animation.getSteps().size()) next = animation.isLoop() ? 0 : -1;
+
+        int minOffsetX = 0;
+        int maxOffsetX = 0;
+        int minOffsetY = 0;
+        int maxOffsetY = 0;
+        int[] candidateSteps = new int[] { stepIndex, previous, next };
+        for (int candidate : candidateSteps) {
+            if (candidate < 0 || candidate >= animation.getSteps().size()) continue;
+            SpriteAnimationStep step = animation.getSteps().get(candidate);
+            minOffsetX = Math.min(minOffsetX, step.getOffsetX());
+            maxOffsetX = Math.max(maxOffsetX, step.getOffsetX());
+            minOffsetY = Math.min(minOffsetY, step.getOffsetY());
+            maxOffsetY = Math.max(maxOffsetY, step.getOffsetY());
+        }
+        int margin = 6;
+        int width = Math.max(1, currentWidth + (maxOffsetX - minOffsetX) + margin * 2);
+        int height = Math.max(1, currentHeight + (maxOffsetY - minOffsetY) + margin * 2);
+        double scale = 3.0;
+        animationPreviewCanvas.setWidth(width * scale);
+        animationPreviewCanvas.setHeight(height * scale);
+        GraphicsContext g = animationPreviewCanvas.getGraphicsContext2D();
+        g.clearRect(0, 0, animationPreviewCanvas.getWidth(), animationPreviewCanvas.getHeight());
+        g.setFill(Color.web("#202020"));
+        g.fillRect(0, 0, animationPreviewCanvas.getWidth(), animationPreviewCanvas.getHeight());
+        int originX = margin - minOffsetX;
+        int originY = margin - minOffsetY;
+
+        if (onionSkinEnabled && animation.getSteps().size() > 1) {
+            if (previous >= 0) {
+                drawAnimationStep(g, animation.getSteps().get(previous), originX, originY, scale, 0.35);
+            }
+            if (next >= 0 && next != previous) {
+                drawAnimationStep(g, animation.getSteps().get(next), originX, originY, scale, 0.35);
+            }
+        }
+        drawAnimationStep(g, animation.getSteps().get(stepIndex), originX, originY, scale, 1.0);
+    }
+
+    private void drawAnimationStep(GraphicsContext g, SpriteAnimationStep step, int originX,
+            int originY, double scale, double alpha) {
+        if (step == null || step.getFrameIndex() < 0 || step.getFrameIndex() >= frames.size()) return;
+        SpriteFrame frame = frames.get(step.getFrameIndex());
+        int[][] framePixels = frame.getPixels();
+        if (framePixels == null) return;
+        g.save();
+        g.setGlobalAlpha(alpha);
+        for (int y = 0; y < framePixels.length; y++) {
+            for (int x = 0; x < framePixels[y].length; x++) {
+                int value = framePixels[y][x];
+                if (value == 0) continue;
+                g.setFill(paletteColorForIndex(value));
+                g.fillRect((originX + step.getOffsetX() + x) * scale,
+                        (originY + step.getOffsetY() + y) * scale, scale, scale);
+            }
+        }
+        g.restore();
     }
 
     private void loadPrefs() {
@@ -1836,7 +2370,8 @@ redrawCanvas(canvas);
     }
 
     private EditorSnapshot captureSnapshot() {
-        return new EditorSnapshot(deepCopyFrames(frames), currentFrameIndex);
+        return new EditorSnapshot(deepCopyFrames(frames), currentFrameIndex,
+                animationService.copyAll(animations), currentAnimationIndex, currentAnimationStepIndex);
     }
 
     private void pushUndoState() {
@@ -1881,6 +2416,11 @@ redrawCanvas(canvas);
         }
         frames.clear();
         frames.addAll(snap.frames());
+        animations.clear();
+        animations.addAll(animationService.copyAll(snap.animations()));
+        currentAnimationIndex = Math.min(snap.animationIndex(), animations.size() - 1);
+        currentAnimationStepIndex = snap.animationStepIndex();
+        previewAnimationStep = Math.max(0, currentAnimationStepIndex);
         currentFrameIndex = Math.min(snap.frameIndex(), frames.size() - 1);
         if (currentFrameIndex < 0) currentFrameIndex = 0;
         SpriteFrame f = frames.get(currentFrameIndex);
@@ -1898,6 +2438,7 @@ redrawCanvas(canvas);
         if (durationSpinner != null) durationSpinner.getValueFactory().setValue(f.getDurationVbls());
         updateDurationInfo();
         updateFilmstrip();
+        refreshAnimationUi();
         if (updateAction != null) updateAction.run();
         markDirty();
     }
@@ -2016,6 +2557,7 @@ redrawCanvas(canvas);
         }
         updateDurationInfo();
         updateFilmstrip();
+        redrawAnimationPreview();
         if (updateAction != null) updateAction.run();
     }
 
@@ -2260,7 +2802,12 @@ redrawCanvas(canvas);
             case NES: platform = SpriteAnimationCodeGenerator.Platform.NES; break;
             default: platform = SpriteAnimationCodeGenerator.Platform.GAMEBOY;
         }
-        outputArea.setText(animCodeGenerator.generate(platform, framePixels, durations, symbolName, options));
+        List<SpriteAnimation> animationCopies = animationService.copyAll(animations);
+        for (SpriteAnimation animation : animationCopies) {
+            animationService.normalize(animation, frames.size());
+        }
+        outputArea.setText(animCodeGenerator.generate(platform, framePixels, durations, symbolName,
+                options, animationCopies));
     }
 
     private void exportCodeToProject(File currentProjectDir, String code, String symbolName, ResourceBundle bundle, Consumer<File> onExported) {

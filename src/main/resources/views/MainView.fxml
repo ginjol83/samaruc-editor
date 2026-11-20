@@ -19,7 +19,6 @@
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemNuevo" text="Nuevo" onAction="#onNewTab" />
                         <MenuItem fx:id="menuItemNuevoPlantilla" text="Nuevo archivo desde plantilla..." onAction="#onNuevoArchivoDesdePlantilla" />
-                        <MenuItem fx:id="menuItemNuevoTraduccion" text="Nuevo archivo de traducción..." onAction="#onNewTranslatorFile" />
                         <MenuItem fx:id="menuItemAbrir" text="Abrir" onAction="#onOpenFile" />
                         <MenuItem fx:id="menuItemGuardar" text="Guardar" onAction="#onSaveFile" />
                         <MenuItem fx:id="menuItemGuardarTodo" text="Guardar todo" onAction="#onSaveAllFiles" />
@@ -37,6 +36,7 @@
                         <MenuItem fx:id="menuItemEjecutar" text="Ejecutar" onAction="#onEjecutar" />
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemExportAtr" text="Exportar ATR..." onAction="#onExportAtr" />
+                        <MenuItem fx:id="menuItemExportXex" text="Exportar XEX..." onAction="#onExportXex" />
                     </Menu>
                     <Menu fx:id="menuEdicion" text="Edición">
                         <MenuItem fx:id="menuItemDeshacer" text="Deshacer" onAction="#onUndo" />
@@ -80,7 +80,6 @@
                         <MenuItem fx:id="menuItemZxScreenEditor" text="Editor de Pantalla ZX" onAction="#onOpenZxScreenEditor" />
                         <MenuItem fx:id="menuItemGameBoyAudioEditor" text="Editor de audio" onAction="#onOpenGameBoyAudioEditor" />
                         <MenuItem fx:id="menuItemPngToC" text="Convertir PNG a C" onAction="#onOpenPngToCConverter" />
-                        <MenuItem fx:id="menuItemRomTextTranslator" text="Traductor de texto Game Boy" onAction="#onOpenRomTextTranslator" />
                         <SeparatorMenuItem />
                         <MenuItem fx:id="menuItemGitHubRepos" text="Repositorios de GitHub" onAction="#onOpenGitHubRepoBrowser" />
                         <MenuItem fx:id="menuItemProjectStats" text="Estadísticas del proyecto" onAction="#onOpenProjectStats" />
@@ -105,6 +104,7 @@
 
                     <Menu fx:id="menuAyuda" text="Ayuda">
                         <MenuItem fx:id="menuItemManual" text="Manual" onAction="#onOpenManual" />
+                        <MenuItem fx:id="menuItemKeyboardShortcuts" text="Atajos de teclado" onAction="#onOpenKeyboardShortcuts" />
                         <MenuItem fx:id="menuItemBasicManual" text="Manual de BASIC" onAction="#onOpenBasicManual" />
                         <MenuItem fx:id="menuItemGbdkDocs" text="Documentación GBDK-2020" onAction="#onOpenGbdkDocs" />
                         <MenuItem fx:id="menuItemZ88dkDocs" text="Documentación Z88DK" onAction="#onOpenZ88dkDocs" />

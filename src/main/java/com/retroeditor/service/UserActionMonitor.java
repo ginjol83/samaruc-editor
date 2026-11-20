@@ -187,6 +187,10 @@ public final class UserActionMonitor {
         AppLogger.logMonitor("HELP_MANUAL", tr("log.monitor.help.manual", "Manual abierto"));
     }
 
+    public static void keyboardShortcutsOpened() {
+        AppLogger.logMonitor("HELP_KEYBOARD_SHORTCUTS", tr("log.monitor.help.keyboard.shortcuts", "Atajos de teclado abiertos"));
+    }
+
     public static void basicManualOpened() {
         AppLogger.logMonitor("HELP_BASIC_MANUAL", tr("log.monitor.help.basic.manual", "Manual de BASIC abierto"));
     }

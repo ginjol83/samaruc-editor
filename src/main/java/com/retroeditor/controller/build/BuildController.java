@@ -29,9 +29,12 @@ import com.retroeditor.emulator.EmulatorLauncher;
 import com.retroeditor.model.ConfigModel;
 import com.retroeditor.service.NativeGccBuildService;
 import com.retroeditor.service.UserActionMonitor;
+import com.retroeditor.service.build.BuildArtifactService;
 import com.retroeditor.service.atari.AtariBasicExportService;
 import com.retroeditor.service.atari.basic.AtariBasicSyntaxException;
 import com.retroeditor.service.atari.basic.AtariBasicVariant;
+import com.retroeditor.service.atari.xex.AtariBasicXexExportService;
+import com.retroeditor.service.atari.xex.XexException;
 import com.retroeditor.service.basic.BasicDialect;
 import com.retroeditor.service.basic.BasicDialectResolver;
 import com.retroeditor.service.basic.BasicDialectStore;
@@ -114,6 +117,7 @@ public class BuildController {
     private TerminalController embeddedTerminalController;
     private final CompilerArgs compilerArgs = new CompilerArgs();
     private final NativeGccBuildService nativeGccBuildService = new NativeGccBuildService();
+    private final BuildArtifactService buildArtifactService = new BuildArtifactService();
     private final AtomicReference<Process> activeCompilationProcess = new AtomicReference<>();
     private final AtomicReference<Thread> activeCompilationThread = new AtomicReference<>();
     private final BooleanProperty compilationRunning = new SimpleBooleanProperty(false);
@@ -420,7 +424,6 @@ public class BuildController {
 
             String cc65Target = normalizeCc65Target(configModel.getConfigProperty("cc65_target", CC65_TARGET_ATARI));
             boolean atariAssembly = CC65_TARGET_ATARI.equals(cc65Target) && isAssemblySource(file);
-            String cc65TargetFlag = cc65TargetActual(cc65Target);
             String cc65ArtifactExtension = cc65ArtifactExtension(cc65Target);
             String outputArtifact = new File(outputDir, outputBaseName + cc65ArtifactExtension).getAbsolutePath();
             List<String> cc65Cmd = new ArrayList<>();
@@ -451,8 +454,7 @@ public class BuildController {
                     cc65Cmd.add(asmIncludeDir.getAbsolutePath());
                 }
             } else {
-                cc65Cmd.add("-t");
-                cc65Cmd.add(cc65TargetFlag);
+                cc65Cmd.addAll(buildArtifactService.cc65TargetArguments(cc65Target));
                 String optLevel = configModel.getConfigProperty("cc65_opt_level", "none");
                 if (!optLevel.equals("none")) {
                     cc65Cmd.add(optLevel);
@@ -892,13 +894,16 @@ public class BuildController {
 
     /**
      * Flujo "Compilar" de un proyecto Atari BASIC: valida la sintaxis y deja la
-     * imagen ATR en la carpeta de salida, sin lanzar el emulador.
+     * imagen ATR y el ejecutable XEX en la carpeta de salida, sin lanzar el
+     * emulador.
      */
     private void compileAtariBasic(File sourceFile,
                                    File projectRootDir,
                                    StyleClassedTextArea consoleOutputArea,
                                    ConfigModel configModel) {
-        buildAtariBasicAtr(sourceFile, projectRootDir, consoleOutputArea, configModel);
+        if (buildAtariBasicAtr(sourceFile, projectRootDir, consoleOutputArea, configModel) != null) {
+            buildAtariBasicXex(sourceFile, projectRootDir, consoleOutputArea, configModel);
+        }
     }
 
     /**
@@ -968,6 +973,45 @@ public class BuildController {
         return null;
     }
 
+    /**
+     * Tokeniza la fuente Atari BASIC y escribe un XEX autoarrancable en la
+     * carpeta de salida. El XEX necesita Atari BASIC Rev. B/C activo.
+     */
+    private File buildAtariBasicXex(File sourceFile,
+                                    File projectRootDir,
+                                    StyleClassedTextArea consoleOutputArea,
+                                    ConfigModel configModel) {
+        try {
+            File outputDir = resolveOutputDirectory(sourceFile, projectRootDir);
+            if (!outputDir.isDirectory() && !outputDir.mkdirs()) {
+                terminalController.appendConsoleOutput(
+                        msgFmt("atari.error.outputDir", "No se pudo crear la carpeta de salida: {0}", outputDir),
+                        consoleOutputArea);
+                return null;
+            }
+            File xexFile = new File(outputDir, baseNameOf(sourceFile) + ".xex");
+            new AtariBasicXexExportService().exportToXex(
+                    sourceFile.toPath(),
+                    xexFile.toPath(),
+                    atariVariantFor(configModel));
+            terminalController.appendConsoleOutput(
+                    msgFmt("atari.info.xexGenerated", "XEX generado: {0}", xexFile.getName()),
+                    consoleOutputArea);
+            terminalController.appendConsoleOutput(
+                    msg("atari.info.xexRequiresBasic",
+                            "El XEX requiere Atari BASIC Rev. B/C activo para ejecutarse."),
+                    consoleOutputArea);
+            return xexFile;
+        } catch (AtariBasicSyntaxException ex) {
+            reportAtariSyntaxError(ex, consoleOutputArea);
+        } catch (XexException ex) {
+            reportAtariXexError(ex, consoleOutputArea);
+        } catch (IOException ex) {
+            reportAtariWriteError(ex, consoleOutputArea);
+        }
+        return null;
+    }
+
     private static String baseNameOf(File sourceFile) {
         String name = sourceFile.getName();
         int dot = name.lastIndexOf('.');
@@ -995,6 +1039,17 @@ public class BuildController {
         terminalController.appendConsoleOutput(
                 msgFmt("atari.error.write", "Error al generar la salida Atari BASIC: {0}", ex.getMessage()),
                 consoleOutputArea);
+    }
+
+    private void reportAtariXexError(XexException ex, StyleClassedTextArea consoleOutputArea) {
+        terminalController.appendConsoleOutput(
+                msgFmt("atari.error.xex", "Error al empaquetar el XEX: {0}", ex.getMessage()),
+                consoleOutputArea);
+        Alert alert = new Alert(AlertType.ERROR);
+        alert.setTitle(msg("atari.error.xex.title", "Error al empaquetar el XEX"));
+        alert.setHeaderText(msg("atari.error.xex.header", "No se pudo empaquetar el XEX"));
+        alert.setContentText(ex.getMessage());
+        alert.showAndWait();
     }
 
     /**
@@ -1524,8 +1579,9 @@ public class BuildController {
         }
     }
 
-    private void launchSms(File sourceFile, File projectRootDir, StyleClassedTextArea consoleOutputArea, Stage ownerStage) {
-        File smsArtifact = resolveSmsArtifact(sourceFile, projectRootDir);
+    private void launchSms(File sourceFile, File projectRootDir, String z88dkProfile,
+                           StyleClassedTextArea consoleOutputArea, Stage ownerStage) {
+        File smsArtifact = resolveSmsArtifact(sourceFile, projectRootDir, z88dkProfile);
 
         if (smsArtifact == null || !smsArtifact.exists()) {
             terminalController.appendConsoleOutput(
@@ -1759,21 +1815,11 @@ public class BuildController {
     }
 
     private String normalizeCc65Target(String target) {
-        if (target != null && target.trim().equalsIgnoreCase(CC65_TARGET_C64)) return CC65_TARGET_C64;
-        if (target != null && target.trim().equalsIgnoreCase(CC65_TARGET_NES)) return CC65_TARGET_NES;
-        return CC65_TARGET_ATARI;
-    }
-
-    private String cc65TargetActual(String normalizedTarget) {
-        if (CC65_TARGET_NES.equals(normalizedTarget)) return "nes";
-        if (CC65_TARGET_C64.equals(normalizedTarget)) return "c64";
-        return "atari";
+        return buildArtifactService.normalizeCc65Target(target);
     }
 
     private String cc65ArtifactExtension(String normalizedTarget) {
-        if (CC65_TARGET_NES.equals(normalizedTarget)) return ".nes";
-        if (CC65_TARGET_C64.equals(normalizedTarget)) return ".prg";
-        return ".xex";
+        return buildArtifactService.cc65ArtifactExtension(normalizedTarget);
     }
 
     private boolean isAssemblySource(File file) {
@@ -2322,7 +2368,7 @@ public class BuildController {
 
         if (EMULATOR_EMULICIOUS.equalsIgnoreCase(selectedEmulator)) {
             if (Z88DK_PROFILE_SMS.equals(z88dkProfileForRun) || Z88DK_PROFILE_GAME_GEAR.equals(z88dkProfileForRun)) {
-                launchSms(sourceFile, projectRootDir, consoleOutputArea, ownerStage);
+                launchSms(sourceFile, projectRootDir, z88dkProfileForRun, consoleOutputArea, ownerStage);
             } else {
                 launchCoffeeGb(sourceFile, projectRootDir, consoleOutputArea, ownerStage);
             }
@@ -2382,14 +2428,7 @@ public class BuildController {
     }
 
     private File resolveCc65Artifact(File sourceFile, File projectRootDir, String cc65Target) {
-        List<String> extensions;
-        if (CC65_TARGET_NES.equals(cc65Target)) {
-            extensions = Arrays.asList(".nes");
-        } else if (CC65_TARGET_C64.equals(cc65Target)) {
-            extensions = Arrays.asList(".prg", ".d64");
-        } else {
-            extensions = Arrays.asList(".xex", ".com", ".atr", ".exe");
-        }
+        List<String> extensions = buildArtifactService.cc65ArtifactExtensions(cc65Target);
 
         for (String extension : extensions) {
             File artifact = buildOutputFile(sourceFile, extension, projectRootDir);
@@ -2414,16 +2453,17 @@ public class BuildController {
     }
 
     /** Localiza el artefacto SMS/Game Gear (.sms/.gg) generado por zcc en la carpeta de salida. */
-    private File resolveSmsArtifact(File sourceFile, File projectRootDir) {
-        for (String extension : new String[] { ".sms", ".gg" }) {
+    private File resolveSmsArtifact(File sourceFile, File projectRootDir, String z88dkProfile) {
+        List<String> extensions = buildArtifactService.smsRomExtensions(z88dkProfile);
+        for (String extension : extensions) {
             File artifact = buildOutputFile(sourceFile, extension, projectRootDir);
             if (artifact.exists()) return artifact;
         }
 
         File outputDir = resolveOutputDirectory(sourceFile, projectRootDir);
-        File fallbackArtifact = findNewestArtifact(outputDir, SMS_ROM_EXTENSIONS);
-        if (fallbackArtifact != null) {
-            return fallbackArtifact;
+        for (String extension : extensions) {
+            File artifact = findNewestArtifact(outputDir, List.of(getExtensionName(extension)));
+            if (artifact != null) return artifact;
         }
 
         return null;
@@ -2793,11 +2833,7 @@ public class BuildController {
     }
 
     private String normalizeZ88dkProfile(String profile) {
-        if (Z88DK_PROFILE_CPC.equalsIgnoreCase(profile)) return Z88DK_PROFILE_CPC;
-        if (Z88DK_PROFILE_SMS.equalsIgnoreCase(profile)) return Z88DK_PROFILE_SMS;
-        if (Z88DK_PROFILE_GAME_GEAR.equalsIgnoreCase(profile)) return Z88DK_PROFILE_GAME_GEAR;
-        if (Z88DK_PROFILE_MSX.equalsIgnoreCase(profile)) return Z88DK_PROFILE_MSX;
-        return Z88DK_PROFILE_SPECTRUM;
+        return buildArtifactService.normalizeZ88dkProfile(profile);
     }
 
     private String profileLabel(String z88dkProfile) {
@@ -2878,11 +2914,7 @@ public class BuildController {
 
     /** Subtype por defecto que obliga zcc para generar el artefacto adecuado. */
     private String z88dkDefaultSubtype(String z88dkProfile) {
-        String z = normalizeZ88dkProfile(z88dkProfile);
-        if (Z88DK_PROFILE_CPC.equals(z)) return "dsk";
-        if (Z88DK_PROFILE_MSX.equals(z)) return "rom";
-        if (Z88DK_PROFILE_GAME_GEAR.equals(z)) return "gamegear";
-        return null;
+        return buildArtifactService.z88dkDefaultSubtype(z88dkProfile);
     }
 
     private String normalizeConfiguredPath(String configuredPath) {

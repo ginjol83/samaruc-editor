@@ -1,6 +1,13 @@
 package com.retroeditor.service.sprite;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+
+import com.retroeditor.model.SpriteAnimation;
+import com.retroeditor.model.SpriteAnimationStep;
 
 /**
  * Generador de código C para animaciones de sprites en las plataformas
@@ -45,23 +52,35 @@ public class SpriteAnimationCodeGenerator {
      */
     public String generate(Platform platform, List<int[][]> frames, List<Integer> durationsVbls,
                            String symbolName, Options options) {
+        return generate(platform, frames, durationsVbls, symbolName, options, null);
+    }
+
+    /**
+     * Genera el código C e incluye tablas con las animaciones nombradas. Las
+     * tablas son independientes de la plataforma y reutilizan los frames ya
+     * emitidos.
+     */
+    public String generate(Platform platform, List<int[][]> frames, List<Integer> durationsVbls,
+                           String symbolName, Options options, List<SpriteAnimation> animations) {
         if (frames == null || frames.isEmpty()) {
             throw new IllegalArgumentException("Se necesita al menos un frame.");
         }
         Options opts = options != null ? options : Options.DEFAULT;
         String symbol = sanitizeSymbol(symbolName);
+        String code;
         switch (platform) {
-            case GAMEBOY:       return generateGameBoy(frames, durationsVbls, symbol, opts);
-            case ZX_SPECTRUM:   return generateZx(frames, durationsVbls, symbol, opts);
-            case ATARI:         return generateAtari(frames, durationsVbls, symbol, opts);
-            case C64:           return generateC64(frames, durationsVbls, symbol, opts);
-            case CPC:           return generateCpc(frames, durationsVbls, symbol, opts);
-            case MASTER_SYSTEM: return generateSms(frames, durationsVbls, symbol, opts);
-            case GAME_GEAR:     return generateGameGear(frames, durationsVbls, symbol, opts);
-            case MSX:           return generateMsx(frames, durationsVbls, symbol, opts);
-            case NES:           return generateNes(frames, durationsVbls, symbol, opts);
+            case GAMEBOY:       code = generateGameBoy(frames, durationsVbls, symbol, opts); break;
+            case ZX_SPECTRUM:   code = generateZx(frames, durationsVbls, symbol, opts); break;
+            case ATARI:         code = generateAtari(frames, durationsVbls, symbol, opts); break;
+            case C64:           code = generateC64(frames, durationsVbls, symbol, opts); break;
+            case CPC:           code = generateCpc(frames, durationsVbls, symbol, opts); break;
+            case MASTER_SYSTEM: code = generateSms(frames, durationsVbls, symbol, opts); break;
+            case GAME_GEAR:     code = generateGameGear(frames, durationsVbls, symbol, opts); break;
+            case MSX:           code = generateMsx(frames, durationsVbls, symbol, opts); break;
+            case NES:           code = generateNes(frames, durationsVbls, symbol, opts); break;
             default:            throw new IllegalArgumentException("Plataforma no soportada: " + platform);
         }
+        return code + generateAnimationTables(symbol, opts, animations);
     }
 
     // ------------------------------------------------------------------
@@ -799,6 +818,76 @@ public class SpriteAnimationCodeGenerator {
           .append("   }\n")
           .append("*/\n");
         return sb.toString();
+    }
+
+    private String generateAnimationTables(String symbol, Options options, List<SpriteAnimation> animations) {
+        if (animations == null || animations.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        Set<String> usedNames = new HashSet<>();
+        boolean wroteHeader = false;
+        for (SpriteAnimation animation : animations) {
+            if (animation == null || animation.getSteps() == null || animation.getSteps().isEmpty()) continue;
+            List<Integer> frameIndices = new ArrayList<>();
+            List<Integer> offsetsX = new ArrayList<>();
+            List<Integer> offsetsY = new ArrayList<>();
+            for (SpriteAnimationStep step : animation.getSteps()) {
+                if (step == null) continue;
+                frameIndices.add(step.getFrameIndex());
+                offsetsX.add(step.getOffsetX());
+                offsetsY.add(step.getOffsetY());
+            }
+            if (frameIndices.isEmpty()) continue;
+            if (!wroteHeader) {
+                sb.append("\n// Named sprite animations\n");
+                wroteHeader = true;
+            }
+            String baseName = animation.getName() != null && !animation.getName().isBlank()
+                    ? sanitizeSymbol(animation.getName()).toLowerCase(Locale.ROOT) : "animation";
+            String name = baseName;
+            int suffix = 2;
+            while (!usedNames.add(name.toLowerCase(Locale.ROOT))) {
+                name = baseName + "_" + suffix++;
+            }
+            String prefix = symbol + "_anim_" + name;
+            String up = prefix.toUpperCase(Locale.ROOT);
+            int stepCount = frameIndices.size();
+            int loopStart = Math.max(0, Math.min(stepCount - 1, animation.getLoopStart()));
+            int loopEnd = animation.getLoopEnd() < 0
+                    ? stepCount - 1 : Math.max(0, Math.min(stepCount - 1, animation.getLoopEnd()));
+            if (loopStart > loopEnd) {
+                int swap = loopStart;
+                loopStart = loopEnd;
+                loopEnd = swap;
+            }
+            String size = sizeExpr(options.includeDefines(), up + "_STEP_COUNT", stepCount);
+
+            if (options.includeDefines()) {
+                sb.append("#define ").append(up).append("_STEP_COUNT ").append(stepCount).append("\n");
+                sb.append("#define ").append(up).append("_LOOP ").append(animation.isLoop() ? 1 : 0).append("\n");
+                sb.append("#define ").append(up).append("_LOOP_START ").append(loopStart).append("\n");
+                sb.append("#define ").append(up).append("_LOOP_END ").append(loopEnd).append("\n");
+            }
+
+            sb.append("static const unsigned char ").append(prefix).append("_frames[")
+              .append(size).append("] = {");
+            appendIntList(sb, frameIndices);
+            sb.append("};\n");
+            sb.append("static const signed char ").append(prefix).append("_offset_x[")
+              .append(size).append("] = {");
+            appendIntList(sb, offsetsX);
+            sb.append("};\n");
+            sb.append("static const signed char ").append(prefix).append("_offset_y[")
+              .append(size).append("] = {");
+            appendIntList(sb, offsetsY);
+            sb.append("};\n\n");
+        }
+        return sb.toString();
+    }
+
+    private void appendIntList(StringBuilder sb, List<Integer> values) {
+        for (int i = 0; i < values.size(); i++) {
+            sb.append(i == 0 ? "" : ", ").append(values.get(i));
+        }
     }
 
     // ------------------------------------------------------------------

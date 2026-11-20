@@ -84,7 +84,7 @@
       <tr><th>Dialecto</th><th>Estado</th></tr>
     </thead>
     <tbody>
-      <tr><td>Atari BASIC</td><td>Integrado: tokeniza, ejecuta en Altirra y exporta ATR.</td></tr>
+      <tr><td>Atari BASIC</td><td>Integrado: tokeniza, ejecuta en Altirra, exporta ATR y XEX autoarrancable.</td></tr>
       <tr><td>ZX Spectrum (Sinclair BASIC)</td><td>Integrado: tokeniza a cinta <code>.tap</code> y ejecuta en JSpeccy.</td></tr>
       <tr><td>CPC, C64, MSX</td><td>Deteccion y resaltado; la compilacion integrada aun no esta disponible.</td></tr>
       <tr><td>Generico</td><td>Editor de texto sin toolchain.</td></tr>
@@ -96,11 +96,13 @@
   <p>Con un <code>.bas</code> de Atari abierto en la pestana activa:</p>
   <ul>
     <li><strong>Ejecutar</strong>: genera la imagen BASIC tokenizada en <code>out/&lt;nombre&gt;.bas</code> y abre Altirra, que carga y ejecuta el programa directamente.</li>
-    <li><strong>Compilar</strong>: genera la imagen de disco <code>out/&lt;nombre&gt;.atr</code> (artefacto de distribucion), sin lanzar el emulador.</li>
+    <li><strong>Compilar</strong>: genera la imagen de disco <code>out/&lt;nombre&gt;.atr</code> (artefacto de distribucion) y el ejecutable <code>out/&lt;nombre&gt;.xex</code>, sin lanzar el emulador.</li>
     <li><strong>Compilar y ejecutar</strong>: ambas cosas.</li>
     <li><strong>Compilacion/&gt;Ejecucion &gt; Exportar ATR...</strong>: tokeniza el fichero activo y guarda un <code>.atr</code> donde indiques.</li>
+    <li><strong>Compilacion/&gt;Ejecucion &gt; Exportar XEX...</strong>: tokeniza el fichero activo y guarda un <code>.xex</code> autoarrancable donde indiques.</li>
   </ul>
   <p class="note small">La variante de Atari BASIC (estandar / XL / XE) se elige al crear el proyecto y se guarda como <code>atari_basic_variant</code>.</p>
+  <p class="note small">El <code>.xex</code> incluye un cargador 6502 que reubica el programa tokenizado en <code>LOMEM</code> y arranca el interprete. Necesita Atari BASIC Rev. B/C activo; no funciona con Altirra BASIC.</p>
   <div class="back-to-top"><a href="#top">Volver arriba</a></div>
 
   <h2 id="includes">3) Dividir el programa en varios ficheros (INCLUDE)</h2>

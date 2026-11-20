@@ -8,11 +8,11 @@ import com.retroeditor.model.ConfigModel;
  * Traduce la plataforma detectada de un proyecto al perfil de compilacion que le
  * corresponde, y comprueba si el perfil ya activo es ese.
  *
- * <p>No todas las plataformas detectadas tienen toolchain integrada: SMS y Game
- * Gear se detectan y se emulan, pero todavia no se compilan desde el editor. Para
- * esas, {@link #profileFor} devuelve {@link Optional#empty()} en vez de devolver
- * el perfil de otra maquina, que es lo que hacia el mapeo directo del controlador
- * (un proyecto SMS se ofrecia como ZX Spectrum).
+ * <p>Las nueve plataformas con toolchain integrada tienen su propio perfil. Solo
+ * {@link #profileFor} devuelve {@link Optional#empty()} para plataformas sin
+ * perfil (UNKNOWN) o para {@code null}, en vez de devolver el perfil de otra
+ * maquina, que es lo que hacia el mapeo directo del controlador (un proyecto SMS
+ * se ofrecia como ZX Spectrum).
  */
 public class ProjectProfileService {
 

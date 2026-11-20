@@ -9,6 +9,9 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import com.retroeditor.model.SpriteAnimation;
+import com.retroeditor.model.SpriteAnimationStep;
+
 class SpriteAnimationCodeGeneratorTest {
 
     private final SpriteAnimationCodeGenerator gen = new SpriteAnimationCodeGenerator();
@@ -89,6 +92,43 @@ class SpriteAnimationCodeGeneratorTest {
 
         assertTrue(code.contains("unsigned char mi_sprite_[]"));
         assertFalse(code.contains("mi sprite"));
+    }
+
+    @Test
+    void namedAnimationsEmitStepFrameOffsetsAndLoopMarkers() {
+        SpriteAnimation walk = new SpriteAnimation("Walk cycle");
+        walk.setLoopStart(1);
+        walk.setLoopEnd(2);
+        walk.setSteps(List.of(
+                new SpriteAnimationStep(0, 0, 0),
+                new SpriteAnimationStep(1, -1, 0),
+                new SpriteAnimationStep(1, 1, -2)));
+
+        String code = gen.generate(SpriteAnimationCodeGenerator.Platform.GAMEBOY,
+                frames(8, 8, 2), List.of(2, 3), "hero", CONST_DEFINES,
+                List.of(walk));
+
+        assertTrue(code.contains("#define HERO_ANIM_WALK_CYCLE_STEP_COUNT 3"));
+        assertTrue(code.contains("#define HERO_ANIM_WALK_CYCLE_LOOP_START 1"));
+        assertTrue(code.contains("#define HERO_ANIM_WALK_CYCLE_LOOP_END 2"));
+        assertTrue(code.contains("static const unsigned char hero_anim_walk_cycle_frames[HERO_ANIM_WALK_CYCLE_STEP_COUNT] = {0, 1, 1};"));
+        assertTrue(code.contains("static const signed char hero_anim_walk_cycle_offset_x[HERO_ANIM_WALK_CYCLE_STEP_COUNT] = {0, -1, 1};"));
+        assertTrue(code.contains("static const signed char hero_anim_walk_cycle_offset_y[HERO_ANIM_WALK_CYCLE_STEP_COUNT] = {0, 0, -2};"));
+    }
+
+    @Test
+    void duplicateAnimationNamesGetUniqueSymbols() {
+        SpriteAnimation first = new SpriteAnimation("walk");
+        first.setSteps(List.of(new SpriteAnimationStep(0, 0, 0)));
+        SpriteAnimation second = new SpriteAnimation("walk");
+        second.setSteps(List.of(new SpriteAnimationStep(1, 0, 0)));
+
+        String code = gen.generate(SpriteAnimationCodeGenerator.Platform.ATARI,
+                frames(8, 8, 2), List.of(4, 4), "hero", CONST_DEFINES,
+                List.of(first, second));
+
+        assertTrue(code.contains("hero_anim_walk_frames"));
+        assertTrue(code.contains("hero_anim_walk_2_frames"));
     }
 
     @Test

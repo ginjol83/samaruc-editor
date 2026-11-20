@@ -14,7 +14,7 @@ import java.util.TreeMap;
 public final class FileTypeIcons {
 
     public enum Kind {
-        C, HEADER, ASM, MARKDOWN, TEXT, JSON, BASIC, TILE, TILEMAP, SMT, IMAGE, ROM, AUDIO,
+        C, HEADER, ASM, MARKDOWN, TEXT, JSON, BASIC, TILE, TILEMAP, IMAGE, ROM, AUDIO,
         MAKE, DIRECTORY, GENERIC
     }
 
@@ -22,7 +22,7 @@ public final class FileTypeIcons {
         C("file-icon-c"), HEADER("file-icon-header"), ASM("file-icon-asm"),
         MARKDOWN("file-icon-md"), TEXT("file-icon-text"), JSON("file-icon-json"),
         BASIC("file-icon-basic"),
-        TILE("file-icon-tile"), TILEMAP("file-icon-tile"), SMT("file-icon-smt"), IMAGE("file-icon-image"),
+        TILE("file-icon-tile"), TILEMAP("file-icon-tile"), IMAGE("file-icon-image"),
         ROM("file-icon-rom"), AUDIO("file-icon-audio"), MAKE("file-icon-make"),
         DIRECTORY("file-icon-dir"), GENERIC("file-icon-generic");
 
@@ -50,7 +50,6 @@ public final class FileTypeIcons {
         KIND_GLYPH.put(Kind.BASIC, "fas-terminal");
         KIND_GLYPH.put(Kind.TILE, "fas-th-large");
         KIND_GLYPH.put(Kind.TILEMAP, "fas-th-large");
-        KIND_GLYPH.put(Kind.SMT, "fas-language");
         KIND_GLYPH.put(Kind.IMAGE, "fas-file-image");
         KIND_GLYPH.put(Kind.ROM, "fas-gamepad");
         KIND_GLYPH.put(Kind.AUDIO, "fas-music");
@@ -67,7 +66,6 @@ public final class FileTypeIcons {
         EXT_KIND.put("bas", Kind.BASIC);
         EXT_KIND.put("tile", Kind.TILE);
         EXT_KIND.put("tilemap", Kind.TILEMAP);
-        EXT_KIND.put("smt", Kind.SMT);
         for (String ext : new String[]{"png", "jpg", "jpeg", "gif", "bmp", "svg", "ico", "tga"}) EXT_KIND.put(ext, Kind.IMAGE);
         for (String ext : new String[]{"gb", "gbc", "rom", "bin", "tap", "tzx", "sna", "crt", "dsk", "edsk", "cdt", "hex"}) EXT_KIND.put(ext, Kind.ROM);
         for (String ext : new String[]{"wav", "vgm", "mod", "s3m", "xm", "sfx", "ay"}) EXT_KIND.put(ext, Kind.AUDIO);
