@@ -4,6 +4,7 @@ package com.retroeditor.controller.projectExplorer;
 import java.awt.Desktop;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Optional;
 
 import com.retroeditor.controller.MainController;
@@ -553,6 +554,39 @@ public class ProjectExplorerController {
         
         // selecciona y desplaza
         treeView.getSelectionModel().select(found);
+        treeView.scrollTo(treeView.getSelectionModel().getSelectedIndex());
+    }
+
+    /**
+     * Selecciona en el árbol el archivo abierto en una pestaña, expandiendo
+     * los directorios intermedios (el árbol carga sus hijos de forma diferida).
+     */
+    public void revealFile(File file) {
+        if (file == null || treeView == null) return;
+        FileTreeItem root = (FileTreeItem) treeView.getRoot();
+        if (root == null || root.getFile() == null) return;
+
+        Path rootPath = root.getFile().toPath().toAbsolutePath().normalize();
+        Path target = file.toPath().toAbsolutePath().normalize();
+        if (!target.startsWith(rootPath)) return;
+
+        FileTreeItem current = root;
+        current.setExpanded(true);
+        for (Path segment : rootPath.relativize(target)) {
+            FileTreeItem child = null;
+            for (javafx.scene.control.TreeItem<String> candidate : current.getChildren()) {
+                if (candidate instanceof FileTreeItem item && item.getFile() != null
+                        && item.getFile().getName().equals(segment.toString())) {
+                    child = item;
+                    break;
+                }
+            }
+            if (child == null) return;
+            current = child;
+            if (child.getFile().isDirectory()) child.setExpanded(true);
+        }
+
+        treeView.getSelectionModel().select(current);
         treeView.scrollTo(treeView.getSelectionModel().getSelectedIndex());
     }
 

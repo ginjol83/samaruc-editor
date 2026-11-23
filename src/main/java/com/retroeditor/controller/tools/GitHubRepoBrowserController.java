@@ -7,6 +7,7 @@ import java.util.ResourceBundle;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.concurrent.CompletableFuture;
 
 import com.retroeditor.service.github.*;
 
@@ -749,6 +750,9 @@ Button btnClone = new Button(msg("tool.github.clone", "Clonar"));
                 if (onCloned != null) onCloned.accept(item.toFile());
             });
 
+            Button btnPull = new Button(msg("tool.github.pull", "Pull"));
+            btnPull.setOnAction(e -> pullClonedRepo(item));
+
             Button btnDelete = new Button(msg("tool.github.delete", "Eliminar"));
             btnDelete.setOnAction(e -> {
                 try {
@@ -759,13 +763,46 @@ Button btnClone = new Button(msg("tool.github.clone", "Clonar"));
                 }
             });
 
-            HBox buttons = new HBox(6, btnOpen, btnDelete);
+            HBox buttons = new HBox(6, btnOpen, btnPull, btnDelete);
             buttons.setAlignment(Pos.CENTER_RIGHT);
 
             VBox box = new VBox(2, lblName, lblPath, buttons);
             box.setPadding(new Insets(4));
             setGraphic(box);
         }
+    }
+
+    private void pullClonedRepo(Path dir) {
+        if (!gitService.isRepository(dir)) {
+            lblStatus.setText(msg("git.panel.notRepo", "No es un repositorio git."));
+            return;
+        }
+        lblStatus.setText(msg("tool.github.pulling", "Actualizando repositorio..."));
+        CompletableFuture.runAsync(() -> {
+            try {
+                String branch;
+                try {
+                    branch = gitService.currentBranch(dir).current().orElse("main");
+                } catch (Exception ex) {
+                    branch = "main";
+                }
+                String token = tokenStore != null ? tokenStore.get() : "";
+                if (token == null || token.isBlank()) {
+                    token = System.getenv(GitHubAuthService.TOKEN_ENV);
+                }
+                com.retroeditor.service.git.GitService.GitCredentials credentials =
+                    token == null || token.isBlank() ? null
+                        : new com.retroeditor.service.git.GitService.GitCredentials(token);
+                gitService.pull(dir, "origin", branch, credentials);
+                String done = msg("tool.github.pulled", "Repositorio actualizado: {0}")
+                    .replace("{0}", dir.getFileName() == null ? dir.toString() : dir.getFileName().toString());
+                Platform.runLater(() -> lblStatus.setText(done));
+            } catch (Exception ex) {
+                String error = msg("tool.github.pullError", "Error al actualizar: {0}")
+                    .replace("{0}", ex.getMessage() == null ? "" : ex.getMessage());
+                Platform.runLater(() -> lblStatus.setText(error));
+            }
+        });
     }
 
     // === Helpers ===

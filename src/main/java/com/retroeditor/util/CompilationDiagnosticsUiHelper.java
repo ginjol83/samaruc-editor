@@ -23,7 +23,7 @@ public class CompilationDiagnosticsUiHelper {
         try {
             int paragraphs = codeArea.getParagraphs().size();
             for (int i = 0; i < paragraphs; i++) {
-                codeArea.setParagraphStyle(i, java.util.Collections.emptyList());
+                codeArea.setParagraphStyle(i, EditorLineHighlight.withoutDiagnostics(codeArea, i));
             }
 
             LineNumberGutter.apply(codeArea, showLineNumbers);
@@ -52,14 +52,18 @@ public class CompilationDiagnosticsUiHelper {
                 if (line == null) continue;
                 int paragraphIndex = line - 1;
                 if (paragraphIndex < 0 || paragraphIndex >= maxParagraphs) continue;
-                codeArea.setParagraphStyle(paragraphIndex, java.util.Collections.singleton(STYLE_COMPILE_WARNING_LINE));
+                codeArea.setParagraphStyle(paragraphIndex, EditorLineHighlight.withStyle(
+                        EditorLineHighlight.withoutDiagnostics(codeArea, paragraphIndex),
+                        STYLE_COMPILE_WARNING_LINE));
             }
 
             for (Integer line : safeErrors) {
                 if (line == null) continue;
                 int paragraphIndex = line - 1;
                 if (paragraphIndex < 0 || paragraphIndex >= maxParagraphs) continue;
-                codeArea.setParagraphStyle(paragraphIndex, java.util.Collections.singleton(STYLE_COMPILE_ERROR_LINE));
+                codeArea.setParagraphStyle(paragraphIndex, EditorLineHighlight.withStyle(
+                        EditorLineHighlight.withoutDiagnostics(codeArea, paragraphIndex),
+                        STYLE_COMPILE_ERROR_LINE));
             }
 
             LineNumberGutter.apply(codeArea, showLineNumbers, safeErrors, safeWarnings);

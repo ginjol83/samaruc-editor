@@ -256,6 +256,55 @@ class GitServiceTest {
     }
 
     @Test
+    void addAndUnstageFileOnlyAffectsSelectedPath() throws Exception {
+        assumeTrue(GitService.isGitAvailable(), "git no está instalado en este equipo, se omite el test");
+
+        Path dir = tempDir.resolve("proyecto");
+        Files.createDirectory(dir);
+        service.init(dir);
+
+        Files.write(dir.resolve("a.c"), "int a = 1;\n".getBytes());
+        Files.write(dir.resolve("b.c"), "int b = 2;\n".getBytes());
+
+        service.addFile(dir, "a.c");
+        service.addFile(dir, "b.c");
+        List<GitStatusEntry> staged = service.status(dir);
+        assertEquals(2, staged.size());
+        assertTrue(staged.stream().allMatch(GitStatusEntry::hasStagedChange));
+
+        service.unstageFile(dir, "a.c");
+        List<GitStatusEntry> after = service.status(dir);
+        GitStatusEntry a = after.stream().filter(e -> e.path().equals("a.c")).findFirst().orElseThrow();
+        GitStatusEntry b = after.stream().filter(e -> e.path().equals("b.c")).findFirst().orElseThrow();
+        assertTrue(a.isUntracked(), "a.c vuelve a estar sin seguimiento al quitarla del índice");
+        assertTrue(b.hasStagedChange(), "b.c debe permanecer en el índice");
+    }
+
+    @Test
+    void diffUntrackedShowsFileContentAsAddedLines() throws Exception {
+        Path dir = tempDir.resolve("proyecto");
+        Files.createDirectory(dir);
+        Files.write(dir.resolve("nuevo.c"), "int main(void) {\n    return 0;\n}\n".getBytes());
+
+        List<GitDiffLine> lines = service.diffUntracked(dir, "nuevo.c");
+        assertTrue(lines.stream().anyMatch(l -> l.type() == DiffLineType.HEADER && l.text().contains("nuevo.c")));
+        assertTrue(lines.stream().anyMatch(l -> l.type() == DiffLineType.HUNK && l.text().contains("+1,3")));
+        assertTrue(lines.stream().anyMatch(l -> l.type() == DiffLineType.ADD && l.text().contains("return 0")));
+    }
+
+    @Test
+    void addFileRejectsPathsOutsideProject() throws Exception {
+        Path dir = tempDir.resolve("proyecto");
+        Files.createDirectory(dir);
+
+        GitOperationsException ex = org.junit.jupiter.api.Assertions.assertThrows(
+            GitOperationsException.class,
+            () -> service.addFile(dir, "../fuera.c")
+        );
+        assertTrue(ex.getMessage().contains("dentro del proyecto"));
+    }
+
+    @Test
     void commitThrowsWithoutMessage() throws Exception {
         assumeTrue(GitService.isGitAvailable(), "git no está instalado en este equipo, se omite el test");
 

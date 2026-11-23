@@ -33,6 +33,7 @@ import org.fxmisc.richtext.model.StyleSpansBuilder;
 import org.fxmisc.richtext.model.TwoDimensional;
 
 import com.retroeditor.model.ConfigModel;
+import com.retroeditor.model.EditorTheme;
 import com.retroeditor.service.ExternalFileChangeService;
 import com.retroeditor.service.SymbolBreadcrumbService;
 import com.retroeditor.service.UserActionMonitor;
@@ -59,6 +60,7 @@ import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
@@ -78,6 +80,9 @@ public class FXUtils {
     private static final String TAB_PROP_MARKDOWN_WEBVIEW = "editor.markdownWebView";
     private static final String TAB_PROP_MARKDOWN_PREVIEW = "editor.markdownPreviewVisible";
     private static final String TAB_PROP_DISK_FINGERPRINT = "editor.diskFingerprint";
+    private static final String TAB_PROP_MINIMAP = "editor.minimap";
+    private static final String TAB_PROP_PREVIEW = "editor.preview";
+    private static final String TAB_PROP_CONTEXT_MENU = "editor.tabContextMenu";
     private static final String EDITOR_STYLESHEET_MODERN = "/css/c-syntax.css";
     private static final String EDITOR_STYLESHEET_CLASSIC = "/css/c-syntax-classic.css";
 
@@ -137,6 +142,11 @@ public class FXUtils {
     private java.util.function.Consumer<CodeArea> editorThemeApplier;
     private Label cursorStatusLabel;
     private com.retroeditor.model.ConfigModel configModel;
+    private java.util.function.Supplier<EditorTheme> editorThemeSupplier;
+
+    public void setEditorThemeSupplier(java.util.function.Supplier<EditorTheme> supplier) {
+        this.editorThemeSupplier = supplier;
+    }
 
     public void setCursorStatusLabel(Label label) {
         this.cursorStatusLabel = label;
@@ -144,6 +154,130 @@ public class FXUtils {
 
     public void setConfigModel(com.retroeditor.model.ConfigModel configModel) {
         this.configModel = configModel;
+    }
+
+    public void setTabPreview(Tab tab, boolean preview) {
+        if (tab == null) return;
+        tab.getProperties().put(TAB_PROP_PREVIEW, preview);
+        boolean hasStyle = tab.getStyleClass().contains("tab-preview");
+        if (preview && !hasStyle) {
+            tab.getStyleClass().add("tab-preview");
+        } else if (!preview && hasStyle) {
+            tab.getStyleClass().remove("tab-preview");
+        }
+    }
+
+    public boolean isTabPreview(Tab tab) {
+        return tab != null && Boolean.TRUE.equals(tab.getProperties().get(TAB_PROP_PREVIEW));
+    }
+
+    private boolean isShowMinimap() {
+        if (configModel == null) return true;
+        try {
+            return configModel.isShowMinimap();
+        } catch (Exception ex) {
+            return true;
+        }
+    }
+
+    public void applyMinimapVisibility(TabPane pane) {
+        if (pane == null) return;
+        boolean visible = isShowMinimap();
+        for (Tab tab : pane.getTabs()) {
+            Object stored = tab.getProperties().get(TAB_PROP_MINIMAP);
+            if (!(stored instanceof CodeMinimapPane minimap)) continue;
+            minimap.setManaged(visible);
+            minimap.setVisible(visible);
+            if (visible) minimap.scheduleDraw();
+        }
+    }
+
+    public void updateMinimapTheme(Tab tab, EditorTheme theme) {
+        if (tab == null) return;
+        Object stored = tab.getProperties().get(TAB_PROP_MINIMAP);
+        if (stored instanceof CodeMinimapPane minimap) {
+            minimap.setEditorTheme(theme);
+        }
+    }
+
+    public void refreshMinimapThemes(TabPane... panes) {
+        EditorTheme theme = editorThemeSupplier != null ? editorThemeSupplier.get() : null;
+        if (panes == null) return;
+        for (TabPane pane : panes) {
+            if (pane == null) continue;
+            for (Tab tab : pane.getTabs()) {
+                updateMinimapTheme(tab, theme);
+            }
+        }
+    }
+
+    public interface TabContextActions {
+        void close(Tab tab);
+        void closeOthers(Tab tab);
+        void closeRight(Tab tab);
+        void copyPath(Tab tab);
+        void reveal(Tab tab);
+    }
+
+    public record TabContextLabels(String close, String closeOthers, String closeRight,
+                                   String copyPath, String reveal) {
+    }
+
+    public void installTabContextMenu(TabPane pane, TabContextActions actions,
+                                      java.util.function.Supplier<TabContextLabels> labels) {
+        if (pane == null || actions == null || labels == null) return;
+        if (Boolean.TRUE.equals(pane.getProperties().get(TAB_PROP_CONTEXT_MENU))) return;
+        pane.getProperties().put(TAB_PROP_CONTEXT_MENU, Boolean.TRUE);
+
+        pane.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
+            if (!event.isSecondaryButtonDown()) return;
+            Tab tab = tabUnderCursor(pane, event);
+            if (tab == null || !tab.isClosable() || !pane.getTabs().contains(tab)) return;
+
+            TabContextLabels text = labels.get();
+            if (text == null) return;
+            MenuItem close = new MenuItem(text.close());
+            close.setOnAction(e -> actions.close(tab));
+            MenuItem closeOthers = new MenuItem(text.closeOthers());
+            closeOthers.setOnAction(e -> actions.closeOthers(tab));
+            MenuItem closeRight = new MenuItem(text.closeRight());
+            closeRight.setOnAction(e -> actions.closeRight(tab));
+            MenuItem copyPath = new MenuItem(text.copyPath());
+            copyPath.setOnAction(e -> actions.copyPath(tab));
+            MenuItem reveal = new MenuItem(text.reveal());
+            reveal.setOnAction(e -> actions.reveal(tab));
+
+            ContextMenu menu = new ContextMenu(close, closeOthers, closeRight,
+                    new javafx.scene.control.SeparatorMenuItem(), copyPath, reveal);
+            closeRight.setDisable(pane.getTabs().indexOf(tab) >= pane.getTabs().size() - 1);
+            menu.show(pane, event.getScreenX(), event.getScreenY());
+            event.consume();
+        });
+    }
+
+    private static Tab tabUnderCursor(TabPane pane, MouseEvent event) {
+        Node target = event.getTarget() instanceof Node node ? node : null;
+        Node header = null;
+        for (Node node = target; node != null && node != pane; node = node.getParent()) {
+            if (node.getStyleClass().contains("tab") && isInTabHeader(pane, node)) {
+                header = node;
+                break;
+            }
+        }
+        if (header == null) return null;
+        List<Node> headers = new ArrayList<>();
+        for (Node node : pane.lookupAll(".tab")) {
+            if (isInTabHeader(pane, node)) headers.add(node);
+        }
+        int index = headers.indexOf(header);
+        return index >= 0 && index < pane.getTabs().size() ? pane.getTabs().get(index) : null;
+    }
+
+    private static boolean isInTabHeader(TabPane pane, Node node) {
+        for (Node current = node; current != null && current != pane; current = current.getParent()) {
+            if (current.getStyleClass().contains("tab-header-area")) return true;
+        }
+        return false;
     }
 
     private boolean isShowLineNumbers() {
@@ -159,6 +293,34 @@ public class FXUtils {
 
     private void applyLineNumbers(CodeArea codeArea) {
         LineNumberGutter.apply(codeArea, isShowLineNumbers());
+    }
+
+    private boolean isWordWrap() {
+        if (configModel == null) {
+            return false;
+        }
+        try {
+            return configModel.isWordWrap();
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    private void applyWordWrap(CodeArea codeArea) {
+        codeArea.setWrapText(isWordWrap());
+    }
+
+    public void applyWordWrap(TabPane pane) {
+        if (pane == null) return;
+        for (Tab tab : pane.getTabs()) {
+            Object stored = tab.getProperties().get(TAB_PROP_CODE_AREA);
+            if (!(stored instanceof CodeArea codeArea)) continue;
+            EditorViewport.preserve(codeArea, () -> applyWordWrap(codeArea));
+            Object minimap = tab.getProperties().get(TAB_PROP_MINIMAP);
+            if (minimap instanceof CodeMinimapPane minimapPane) {
+                minimapPane.scheduleDraw();
+            }
+        }
     }
 
     /** Refresca la posición del cursor en la barra de estado a partir de la pestaña activa. */
@@ -452,9 +614,15 @@ public class FXUtils {
     }
 
     public Tab addTab(String title, String content, SyntaxHighlighter syntaxHighlighter, TabPane tabPane) {
+        return addTab(title, content, syntaxHighlighter, tabPane, false);
+    }
+
+    public Tab addTab(String title, String content, SyntaxHighlighter syntaxHighlighter,
+                      TabPane tabPane, boolean preview) {
         CodeArea codeArea = new FoldingCodeArea();
         VirtualizedScrollPane<CodeArea> editorScrollPane = new VirtualizedScrollPane<>(codeArea);
         CodeMinimapPane minimap = new CodeMinimapPane(codeArea);
+        minimap.setEditorTheme(editorThemeSupplier != null ? editorThemeSupplier.get() : null);
         BorderPane editorLayout = new BorderPane();
         editorLayout.setCenter(editorScrollPane);
         editorLayout.setRight(minimap);
@@ -462,6 +630,7 @@ public class FXUtils {
 
         // Habilita la funciÃ³n de numeraciÃ³n de lÃ­neas para los pÃ¡rrafos.
         applyLineNumbers(codeArea);
+        applyWordWrap(codeArea);
         codeArea.replaceText(initialText);
 
         // Aplica el resaltado inicial de sintaxis (respeta el dialecto BASIC de la pestaña)
@@ -472,6 +641,8 @@ public class FXUtils {
         tab.getProperties().put(TAB_PROP_BASE_TITLE, title != null ? title : "");
         tab.getProperties().put(TAB_PROP_BASE_TEXT, initialText);
         tab.getProperties().put(TAB_PROP_CODE_AREA, codeArea);
+        tab.getProperties().put(TAB_PROP_MINIMAP, minimap);
+        setTabPreview(tab, preview);
         applyFileTypeIcon(tab, title);
         recordDiskFingerprint(tab, initialText);
 
@@ -650,7 +821,7 @@ public class FXUtils {
 
                 int maxP = area.getParagraphs().size();
                 for (int p = 0; p < maxP; p++) {
-                    area.setParagraphStyle(p, java.util.Collections.emptyList());
+                    area.setParagraphStyle(p, EditorLineHighlight.withoutDiagnostics(area, p));
                 }
 
                 var diags = com.retroeditor.service.StaticAnalysisService.analyzeCode(area.getText());
@@ -658,10 +829,12 @@ public class FXUtils {
                     if (d.isError()) {
                         int pIdx = d.line() - 1;
                         if (pIdx >= 0 && pIdx < maxP) {
-                            area.setParagraphStyle(pIdx, java.util.Collections.singleton("compile-error-line"));
+                            area.setParagraphStyle(pIdx, EditorLineHighlight.withStyle(
+                                EditorLineHighlight.withoutDiagnostics(area, pIdx), "compile-error-line"));
                         }
                     }
                 }
+                EditorLineHighlight.ensure(area, area.getCurrentParagraph());
                 refreshBreadcrumbIndex.run();
                 refreshExtras.run();
             } catch (Exception ex) {
@@ -676,7 +849,15 @@ public class FXUtils {
                 .successionEnds(Duration.ofMillis(250))
                 .subscribe(ignore -> refreshBaseAndExtras.run());
 
+        final int[] lastHighlightedParagraph = {codeArea.getCurrentParagraph()};
         codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> {
+            int paragraph = codeArea.getCurrentParagraph();
+            if (paragraph != lastHighlightedParagraph[0]) {
+                EditorLineHighlight.move(codeArea, lastHighlightedParagraph[0], paragraph);
+                lastHighlightedParagraph[0] = paragraph;
+            } else {
+                EditorLineHighlight.ensure(codeArea, paragraph);
+            }
             refreshExtras.run();
             renderBreadcrumb.run();
             updateCursorStatus(tabPane, tab);
@@ -684,7 +865,10 @@ public class FXUtils {
 
         attachViewportPreservation(codeArea);
 
-        codeArea.textProperty().addListener((obs, oldText, newText) -> updateTabDirtyIndicator(tab, codeArea));
+        codeArea.textProperty().addListener((obs, oldText, newText) -> {
+            updateTabDirtyIndicator(tab, codeArea);
+            if (isTabPreview(tab)) setTabPreview(tab, false);
+        });
 
         applyEditorThemeToNewCodeArea(codeArea);
         attachCodeAreaDoubleClickHandler(codeArea);
@@ -692,10 +876,12 @@ public class FXUtils {
         attachProfessionalEditingKeys(codeArea);
 
         refreshBreadcrumbIndex.run();
+        EditorLineHighlight.ensure(area, lastHighlightedParagraph[0]);
         updateCursorStatus(tabPane, tab);
 
         tabPane.getTabs().add(tab);
         tabPane.getSelectionModel().select(tab);
+        applyMinimapVisibility(tabPane);
 
         return tab;
     }
@@ -723,6 +909,11 @@ public class FXUtils {
     }
 
     public Tab addMarkdownTab(String title, String content, SyntaxHighlighter syntaxHighlighter, TabPane tabPane) {
+        return addMarkdownTab(title, content, syntaxHighlighter, tabPane, false);
+    }
+
+    public Tab addMarkdownTab(String title, String content, SyntaxHighlighter syntaxHighlighter,
+                              TabPane tabPane, boolean preview) {
         CodeArea codeArea = new FoldingCodeArea();
         VirtualizedScrollPane<CodeArea> editorScrollPane = new VirtualizedScrollPane<>(codeArea);
         WebView previewView = new WebView();
@@ -730,7 +921,10 @@ public class FXUtils {
         Tab tab = new Tab(title);
 
         applyLineNumbers(codeArea);
+        applyWordWrap(codeArea);
         codeArea.replaceText(initialText);
+        final int[] lastMarkdownParagraph = {codeArea.getCurrentParagraph()};
+        EditorLineHighlight.ensure(codeArea, lastMarkdownParagraph[0]);
         applyEditorThemeToNewCodeArea(codeArea);
         attachCodeAreaDoubleClickHandler(codeArea);
         attachViewportPreservation(codeArea);
@@ -773,11 +967,20 @@ public class FXUtils {
         tab.getProperties().put(TAB_PROP_CODE_AREA, codeArea);
         tab.getProperties().put(TAB_PROP_MARKDOWN_WEBVIEW, previewView);
         tab.getProperties().put(TAB_PROP_MARKDOWN_PREVIEW, Boolean.FALSE);
+        setTabPreview(tab, preview);
         applyFileTypeIcon(tab, title);
         recordDiskFingerprint(tab, initialText);
 
-        codeArea.textProperty().addListener((obs, oldText, newText) -> updateTabDirtyIndicator(tab, codeArea));
+        codeArea.textProperty().addListener((obs, oldText, newText) -> {
+            updateTabDirtyIndicator(tab, codeArea);
+            if (isTabPreview(tab)) setTabPreview(tab, false);
+        });
         codeArea.caretPositionProperty().addListener((obs, oldPos, newPos) -> {
+            int paragraph = codeArea.getCurrentParagraph();
+            if (paragraph != lastMarkdownParagraph[0]) {
+                EditorLineHighlight.move(codeArea, lastMarkdownParagraph[0], paragraph);
+                lastMarkdownParagraph[0] = paragraph;
+            }
             if (cursorStatusLabel != null && tabPane.getSelectionModel().getSelectedItem() == tab) {
                 updateCursorStatus(tabPane);
             }
@@ -2979,41 +3182,41 @@ public class FXUtils {
     public static class CodeMinimapPane extends javafx.scene.layout.Pane {
         private final CodeArea codeArea;
         private final javafx.scene.canvas.Canvas canvas = new javafx.scene.canvas.Canvas(90, 600);
+        private final javafx.animation.PauseTransition redraw = new javafx.animation.PauseTransition(
+                javafx.util.Duration.millis(90));
+        private EditorTheme editorTheme;
 
         public CodeMinimapPane(CodeArea codeArea) {
             this.codeArea = codeArea;
+            getStyleClass().add("code-minimap");
             getChildren().add(canvas);
             setMinWidth(90);
             setMaxWidth(90);
+            setCursor(Cursor.HAND);
             prefWidthProperty().bind(widthProperty());
             canvas.widthProperty().bind(widthProperty());
             canvas.heightProperty().bind(heightProperty());
 
-            codeArea.textProperty().addListener((obs, oldV, newV) -> drawMinimap());
-            heightProperty().addListener((obs, oldV, newV) -> drawMinimap());
-            widthProperty().addListener((obs, oldV, newV) -> drawMinimap());
+            redraw.setOnFinished(e -> drawMinimap());
+            codeArea.textProperty().addListener((obs, oldV, newV) -> scheduleDraw());
+            codeArea.estimatedScrollYProperty().addListener((obs, oldV, newV) -> scheduleDraw());
+            heightProperty().addListener((obs, oldV, newV) -> scheduleDraw());
+            widthProperty().addListener((obs, oldV, newV) -> scheduleDraw());
 
-            setOnMouseClicked(e -> {
-                double y = e.getY();
-                double totalLines = Math.max(1, codeArea.getParagraphs().size());
-                double ratio = y / Math.max(1, getHeight());
-                int targetParagraph = (int) Math.round(ratio * totalLines);
-                int p = Math.max(0, Math.min(targetParagraph, codeArea.getParagraphs().size() - 1));
-                codeArea.showParagraphAtTop(p);
-                codeArea.moveTo(p, 0);
-            });
-
-            setOnMouseDragged(e -> {
-                double y = e.getY();
-                double totalLines = Math.max(1, codeArea.getParagraphs().size());
-                double ratio = Math.max(0, Math.min(1.0, y / Math.max(1, getHeight())));
-                int targetParagraph = (int) Math.round(ratio * totalLines);
-                int p = Math.max(0, Math.min(targetParagraph, codeArea.getParagraphs().size() - 1));
-                codeArea.showParagraphAtTop(p);
-                codeArea.moveTo(p, 0);
-            });
-
+            setOnMousePressed(this::navigate);
+            setOnMouseDragged(this::navigate);
             drawMinimap();
+        }
+
+        public void setEditorTheme(EditorTheme theme) {
+            this.editorTheme = theme;
+            scheduleDraw();
+        }
+
+        public void scheduleDraw() {
+            if (!isVisible() || !isManaged()) return;
+            redraw.stop();
+            redraw.playFromStart();
         }
 
         public void drawMinimap() {
@@ -3022,16 +3225,19 @@ public class FXUtils {
             double h = getHeight();
             if (w <= 0 || h <= 0) return;
 
-            gc.setFill(javafx.scene.paint.Color.web("#1e1e1e"));
-            gc.fillRect(0, 0, w, h);
-
             var paragraphs = codeArea.getParagraphs();
             int total = paragraphs.size();
+
+            javafx.scene.paint.Color background = color(EditorTheme.KEY_EDITOR_BACKGROUND,
+                    javafx.scene.paint.Color.web("#1e1e1e"));
+            javafx.scene.paint.Color foreground = color(EditorTheme.KEY_EDITOR_TEXT,
+                    javafx.scene.paint.Color.web("#858585"));
+            gc.setFill(background);
+            gc.fillRect(0, 0, w, h);
             if (total == 0) return;
 
             double lineHeight = Math.max(2.0, h / Math.max(1, total));
-            gc.setFill(javafx.scene.paint.Color.web("#858585", 0.6));
-
+            gc.setFill(withOpacity(foreground, 0.55));
             for (int i = 0; i < total; i++) {
                 String text = paragraphs.get(i).getText();
                 if (text == null || text.isBlank()) continue;
@@ -3039,6 +3245,47 @@ public class FXUtils {
                 double lineW = Math.min(w - 10, text.length() * 1.5);
                 gc.fillRect(5, y, Math.max(4, lineW), Math.max(1.5, lineHeight - 0.5));
             }
+
+            double editorHeight = Math.max(1, codeArea.getHeight());
+            double totalHeight = codeArea.totalHeightEstimateProperty().getValue();
+            double scrollY = codeArea.estimatedScrollYProperty().getValue();
+            double viewRatio = Math.min(1.0, editorHeight / Math.max(totalHeight, editorHeight));
+            double thumbHeight = Math.max(12, h * viewRatio);
+            double travel = Math.max(1, totalHeight - editorHeight);
+            double thumbY = Math.max(0, Math.min(h - thumbHeight,
+                    (Double.isFinite(scrollY) ? scrollY : 0.0) / travel * (h - thumbHeight)));
+
+            javafx.scene.paint.Color accent = color(EditorTheme.KEY_CURRENT_LINE,
+                    color(EditorTheme.KEY_SELECTION, javafx.scene.paint.Color.web("#3b82f6", 0.35)));
+            gc.setFill(withOpacity(accent, 0.22));
+            gc.setStroke(withOpacity(accent, 0.75));
+            gc.setLineWidth(1.0);
+            gc.fillRect(2, thumbY, w - 4, thumbHeight);
+            gc.strokeRect(2, thumbY, w - 4, thumbHeight);
+        }
+
+        private void navigate(javafx.scene.input.MouseEvent event) {
+            double ratio = Math.max(0, Math.min(1.0, event.getY() / Math.max(1, getHeight())));
+            int total = Math.max(1, codeArea.getParagraphs().size());
+            int paragraph = Math.max(0, Math.min((int) Math.round(ratio * (total - 1)), total - 1));
+            codeArea.showParagraphAtTop(paragraph);
+            codeArea.moveTo(paragraph, 0);
+            scheduleDraw();
+        }
+
+        private javafx.scene.paint.Color color(String key, javafx.scene.paint.Color fallback) {
+            if (editorTheme == null) return fallback;
+            String value = editorTheme.getColor(key);
+            if (value == null || value.isBlank()) return fallback;
+            try {
+                return javafx.scene.paint.Color.web(value);
+            } catch (Exception ex) {
+                return fallback;
+            }
+        }
+
+        private javafx.scene.paint.Color withOpacity(javafx.scene.paint.Color color, double opacity) {
+            return new javafx.scene.paint.Color(color.getRed(), color.getGreen(), color.getBlue(), opacity);
         }
     }
 }

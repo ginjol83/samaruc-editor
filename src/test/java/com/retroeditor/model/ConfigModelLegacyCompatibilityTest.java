@@ -122,6 +122,20 @@ class ConfigModelLegacyCompatibilityTest {
     }
 
     @Test
+    void wordWrapDefaultsToDisabledAndPersistsAcrossConfigRoundTrip() {
+        ConfigModel model = new ConfigModel();
+        Assertions.assertFalse(model.isWordWrap());
+        model.setWordWrap(true);
+
+        Properties serialized = model.toProperties();
+        Assertions.assertEquals("true", serialized.getProperty("word_wrap"));
+
+        ConfigModel reloaded = new ConfigModel();
+        reloaded.applyProperties(serialized);
+        Assertions.assertTrue(reloaded.isWordWrap());
+    }
+
+    @Test
     void editorAppearanceDefaultsToModernDarkAndPersistsClassicChoice() {
         ConfigModel model = new ConfigModel();
         Assertions.assertEquals(

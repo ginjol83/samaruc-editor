@@ -1,11 +1,23 @@
 package com.retroeditor.controller.help;
 
 import java.net.URL;
+import java.util.ResourceBundle;
 
 import com.retroeditor.service.UserActionMonitor;
 import com.retroeditor.util.AppInfo;
 
 public class HelpController {
+
+    private ResourceBundle bundle;
+
+    public void setBundle(ResourceBundle bundle) {
+        this.bundle = bundle;
+    }
+
+    private String msg(String key, String fallback) {
+        if (bundle == null || !bundle.containsKey(key)) return fallback;
+        return bundle.getString(key);
+    }
     /**
      * Muestra una ventana emergente con los créditos de la aplicación.
      */
@@ -14,7 +26,7 @@ public class HelpController {
         
         javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.INFORMATION);
 
-        alert.setTitle      ("Créditos");
+        alert.setTitle      (msg("menu.help.credits", "Créditos"));
         alert.setHeaderText ("Samaru C Retro Editor v" + AppInfo.getVersion());
         alert.setContentText("Desarrollado por Andres Gimenez © 2025\n\n¡Gracias por usar Samaru C Retro Editor!");
         alert.showAndWait   ();
@@ -27,8 +39,8 @@ public class HelpController {
         UserActionMonitor.manualOpened();
         openHtmlWindow(
             "/manual.html",
-            "Manual de usuario",
-            "<html><body><h1>Manual no disponible</h1></body></html>",
+            msg("menu.help.manual", "Manual de usuario"),
+            fallbackHtml("help.manual.fallback", "Manual no disponible"),
             820,
             680
         );
@@ -41,8 +53,8 @@ public class HelpController {
         UserActionMonitor.keyboardShortcutsOpened();
         openHtmlWindow(
             "/manual.html",
-            "Atajos de teclado",
-            "<html><body><h1>Atajos de teclado no disponibles</h1></body></html>",
+            msg("menu.help.keyboardShortcuts", "Atajos de teclado"),
+            fallbackHtml("help.shortcuts.fallback", "Atajos de teclado no disponibles"),
             820,
             680,
             "atajos-teclado"
@@ -56,8 +68,8 @@ public class HelpController {
         UserActionMonitor.basicManualOpened();
         openHtmlWindow(
             "/manual-basic.html",
-            "Manual de BASIC",
-            "<html><body><h1>Manual de BASIC no disponible</h1></body></html>",
+            msg("menu.help.basicManual", "Manual de BASIC"),
+            fallbackHtml("help.basicManual.fallback", "Manual de BASIC no disponible"),
             900,
             740
         );
@@ -70,8 +82,8 @@ public class HelpController {
         UserActionMonitor.licensesOpened();
         openHtmlWindow(
             "/third-party-licenses.html",
-            "Licencias de terceros",
-            "<html><body><h1>Licencias no disponibles</h1></body></html>",
+            msg("menu.help.licenses", "Licencias de terceros"),
+            fallbackHtml("help.licenses.fallback", "Licencias no disponibles"),
             900,
             700
         );
@@ -84,8 +96,8 @@ public class HelpController {
         UserActionMonitor.pluginManualOpened();
         openHtmlWindow(
             "/manual-plugins.html",
-            "Manual de plugins",
-            "<html><body><h1>Manual de plugins no disponible</h1></body></html>",
+            msg("menu.help.pluginsManual", "Manual de plugins"),
+            fallbackHtml("help.pluginsManual.fallback", "Manual de plugins no disponible"),
             980,
             760
         );
@@ -98,7 +110,7 @@ public class HelpController {
         UserActionMonitor.gbdkDocsOpened();
         openUrlWindow(
             "https://gbdk.org/docs/api/index.html",
-            "Documentación GBDK-2020",
+            msg("menu.help.gbdkDocs", "Documentación GBDK-2020"),
             1100,
             800
         );
@@ -111,7 +123,7 @@ public class HelpController {
         // Podríamos añadir una acción específica en UserActionMonitor si fuera necesario
         openUrlWindow(
             "https://github.com/z88dk/z88dk/wiki",
-            "Documentación Z88DK",
+            msg("menu.help.z88dkDocs", "Documentación Z88DK"),
             1200,
             800
         );
@@ -123,7 +135,7 @@ public class HelpController {
     public void onOpenCc65Docs() {
         openUrlWindow(
             "https://cc65.github.io/",
-            "Documentación CC65",
+            msg("menu.help.cc65Docs", "Documentación CC65"),
             1200,
             800
         );
@@ -135,7 +147,7 @@ public class HelpController {
     public void onOpenOpenMsxDocs() {
         openUrlWindow(
             "https://openmsx.org/manual/",
-            "Documentación openMSX",
+            msg("menu.help.openMsxDocs", "Documentación openMSX"),
             1200,
             800
         );
@@ -147,10 +159,14 @@ public class HelpController {
     public void onOpenMesenDocs() {
         openUrlWindow(
             "https://www.mesen.ca/",
-            "Documentación Mesen",
+            msg("menu.help.mesenDocs", "Documentación Mesen"),
             1200,
             800
         );
+    }
+
+    private String fallbackHtml(String key, String fallback) {
+        return "<html><body><h1>" + msg(key, fallback) + "</h1></body></html>";
     }
 
     private void openHtmlWindow(String resourcePath, String title, String fallbackHtml, int width, int height) {

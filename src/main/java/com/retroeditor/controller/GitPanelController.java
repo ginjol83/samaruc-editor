@@ -20,7 +20,7 @@ import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
-import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -58,6 +58,7 @@ public class GitPanelController {
     private Consumer<String> statusListener;
     private Consumer<String> operationListener;
     private Supplier<String> githubTokenSupplier = () -> "";
+    private Parent view;
 
     // UI
     private Label lblBranch;
@@ -70,15 +71,22 @@ public class GitPanelController {
     private Button btnPush;
     private Button btnCommit;
     private Button btnRestore;
+    private Button btnStage;
+    private Button btnStageAll;
+    private Button btnUnstage;
+    private Button btnUnstageAll;
     private Button btnNewBranch;
     private Button btnStash;
     private Button btnStashPop;
     private TextField txtCommit;
     private ComboBox<String> cmbBranch;
-    private ListView<GitStatusEntry> changesList;
+    private ListView<GitStatusEntry> stagedList;
+    private ListView<GitStatusEntry> unstagedList;
     private ListView<GitCommitInfo> historyList;
     private ListView<GitDiffLine> diffList;
     private Label lblChanges;
+    private Label lblStaged;
+    private Label lblUnstaged;
     private Label lblHistory;
     private Label lblDiff;
     private Label lblDiffHint;
@@ -121,14 +129,21 @@ public class GitPanelController {
         this.githubTokenSupplier = supplier != null ? supplier : () -> "";
     }
 
-    /** Crea la pestaña del panel Git (el {@code MainController} la añade al editor principal). */
+    public Parent createView() {
+        if (view == null) {
+            view = buildUi();
+        }
+        return view;
+    }
+
+    /** Crea una pestaña del panel Git para usos que aún no montan el panel en la barra lateral. */
     public Tab createTab() {
-        Tab tab = new Tab(msg("git.panel.title", "Git"), buildUi());
+        Tab tab = new Tab(msg("git.panel.title", "Git"), createView());
         tab.setClosable(false);
         return tab;
     }
 
-    private Node buildUi() {
+    private Parent buildUi() {
         BorderPane root = new BorderPane();
         root.setPadding(new Insets(4));
 
@@ -191,20 +206,31 @@ public class GitPanelController {
         // Centro: cambios + historial
         lblChanges = new Label(msg("git.panel.changes", "Cambios"));
         lblChanges.setStyle("-fx-font-weight: bold;");
-        changesList = new ListView<>();
-        changesList.setCellFactory(list -> new ListCell<>() {
-            @Override
-            protected void updateItem(GitStatusEntry entry, boolean empty) {
-                super.updateItem(entry, empty);
-                if (empty || entry == null) {
-                    setText(null);
-                } else {
-                    setText(entry.shortStatus() + "   " + entry.path());
-                }
-            }
-        });
-        changesList.getSelectionModel().selectedItemProperty()
-            .addListener((obs, oldEntry, newEntry) -> showDiffFor(newEntry));
+        stagedList = createStatusList(true);
+        unstagedList = createStatusList(false);
+
+        lblStaged = new Label(msg("git.panel.staged", "En el índice (staged)"));
+        lblUnstaged = new Label(msg("git.panel.unstaged", "Sin añadir (unstaged)"));
+        btnUnstage = new Button(msg("git.panel.unstage", "Quitar del índice"));
+        btnUnstageAll = new Button(msg("git.panel.unstageAll", "Quitar todo"));
+        btnUnstage.setOnAction(e -> unstageSelected());
+        btnUnstageAll.setOnAction(e -> unstageAll());
+        btnStage = new Button(msg("git.panel.stage", "Añadir al índice"));
+        btnStageAll = new Button(msg("git.panel.stageAll", "Añadir todo"));
+        btnStage.setOnAction(e -> stageSelected());
+        btnStageAll.setOnAction(e -> stageAll());
+
+        btnRestore = new Button(msg("git.panel.restore", "Descartar"));
+        btnRestore.setGraphic(new FontIcon("fas-undo"));
+        btnRestore.setOnAction(e -> restoreSelected());
+
+        VBox stagedPane = new VBox(4, lblStaged, stagedList, new HBox(4, btnUnstage, btnUnstageAll));
+        VBox.setVgrow(stagedList, Priority.ALWAYS);
+        VBox unstagedPane = new VBox(4, lblUnstaged, unstagedList, new HBox(4, btnStage, btnStageAll, btnRestore));
+        VBox.setVgrow(unstagedList, Priority.ALWAYS);
+        SplitPane changesSplit = new SplitPane(stagedPane, unstagedPane);
+        changesSplit.setOrientation(Orientation.VERTICAL);
+        changesSplit.setDividerPositions(0.5);
 
         txtCommit = new TextField();
         txtCommit.setPromptText(msg("git.panel.commit.placeholder", "Mensaje del commit"));
@@ -215,16 +241,12 @@ public class GitPanelController {
         btnCommit.setOnAction(e -> commitChanges());
         btnCommit.disableProperty().bind(txtCommit.textProperty().isEmpty());
 
-        btnRestore = new Button(msg("git.panel.restore", "Descartar"));
-        btnRestore.setGraphic(new FontIcon("fas-undo"));
-        btnRestore.setOnAction(e -> restoreSelected());
-
         lblFeedback = new Label();
         lblFeedback.setWrapText(true);
         lblFeedback.getStyleClass().add("git-feedback");
 
-        VBox changesPane = new VBox(4, lblChanges, changesList, new HBox(4, txtCommit, btnCommit, btnRestore), lblFeedback);
-        VBox.setVgrow(changesList, Priority.ALWAYS);
+        VBox changesPane = new VBox(4, lblChanges, changesSplit, new HBox(4, txtCommit, btnCommit), lblFeedback);
+        VBox.setVgrow(changesSplit, Priority.ALWAYS);
         lblChanges.setPadding(new Insets(2, 0, 0, 0));
 
         lblHistory = new Label(msg("git.panel.history", "Historial"));
@@ -292,20 +314,63 @@ public class GitPanelController {
         return root;
     }
 
+    private record SelectedChange(GitStatusEntry entry, boolean staged) {
+    }
+
+    private ListView<GitStatusEntry> createStatusList(boolean staged) {
+        ListView<GitStatusEntry> list = new ListView<>();
+        list.setCellFactory(view -> new ListCell<>() {
+            @Override
+            protected void updateItem(GitStatusEntry entry, boolean empty) {
+                super.updateItem(entry, empty);
+                setText(empty || entry == null ? null : entry.shortStatus() + "   " + entry.path());
+            }
+        });
+        list.getSelectionModel().selectedItemProperty().addListener((obs, oldEntry, newEntry) -> {
+            if (newEntry != null) {
+                if (staged) {
+                    unstagedList.getSelectionModel().clearSelection();
+                } else {
+                    stagedList.getSelectionModel().clearSelection();
+                }
+            }
+            showDiffFor(newEntry, staged);
+        });
+        return list;
+    }
+
+    private SelectedChange selectedChange() {
+        GitStatusEntry entry = stagedList.getSelectionModel().getSelectedItem();
+        if (entry != null) {
+            return new SelectedChange(entry, true);
+        }
+        entry = unstagedList.getSelectionModel().getSelectedItem();
+        return entry == null ? null : new SelectedChange(entry, false);
+    }
+
     /** Reaplica los textos i18n tras un cambio de idioma. */
     public void refreshLanguage() {
+        if (btnRefresh == null) {
+            return;
+        }
         btnRefresh.setText(msg("git.panel.refresh", "Actualizar"));
         btnInit.setText(msg("git.panel.init", "Inicializar repositorio"));
         btnPull.setText(msg("git.panel.pull", "Pull"));
         btnPush.setText(msg("git.panel.push", "Push"));
         btnCommit.setText(msg("git.panel.commit.button", "Commit"));
         btnRestore.setText(msg("git.panel.restore", "Descartar"));
+        btnStage.setText(msg("git.panel.stage", "Añadir al índice"));
+        btnStageAll.setText(msg("git.panel.stageAll", "Añadir todo"));
+        btnUnstage.setText(msg("git.panel.unstage", "Quitar del índice"));
+        btnUnstageAll.setText(msg("git.panel.unstageAll", "Quitar todo"));
         btnNewBranch.setText(msg("git.panel.branch.new", "Nueva rama"));
         btnStash.setText(msg("git.panel.stash", "Stash"));
         btnStashPop.setText(msg("git.panel.stash.pop", "Recuperar stash"));
         txtCommit.setPromptText(msg("git.panel.commit.placeholder", "Mensaje del commit"));
         cmbBranch.setPromptText(msg("git.panel.branch.prompt", "Rama..."));
         lblChanges.setText(msg("git.panel.changes", "Cambios"));
+        lblStaged.setText(msg("git.panel.staged", "En el índice (staged)"));
+        lblUnstaged.setText(msg("git.panel.unstaged", "Sin añadir (unstaged)"));
         lblHistory.setText(msg("git.panel.history", "Historial"));
         lblDiff.setText(msg("git.panel.diff", "Diff"));
         refreshAsync();
@@ -410,9 +475,12 @@ public class GitPanelController {
             showFeedback(msg("git.panel.commit.empty", "Escribe un mensaje para el commit."));
             return;
         }
+        if (stagedList == null || stagedList.getItems().isEmpty()) {
+            showFeedback(msg("git.panel.commit.noStaged", "Añade archivos al índice antes de crear el commit."));
+            return;
+        }
         CompletableFuture.runAsync(() -> {
             try {
-                gitService.addAll(projectDir.toPath());
                 gitService.commit(projectDir.toPath(), message);
                 Platform.runLater(() -> {
                     txtCommit.clear();
@@ -602,59 +670,144 @@ public class GitPanelController {
         });
     }
 
-    // === Descartar cambios ===
+    @FunctionalInterface
+    private interface GitTask {
+        void run() throws GitOperationsException;
+    }
 
-    private void restoreSelected() {
-        GitStatusEntry selected = changesList.getSelectionModel().getSelectedItem();
-        if (selected == null) {
-            showFeedback(msg("git.panel.restore.select", "Selecciona un archivo de la lista para descartar sus cambios."));
+    private void runGitTask(GitTask task, String doneMessage) {
+        if (projectDir == null) {
             return;
         }
+        setBusy(true);
         CompletableFuture.runAsync(() -> {
             try {
-                gitService.restoreFile(projectDir.toPath(), selected.path());
+                task.run();
                 Platform.runLater(() -> {
-                    String done = msg("git.panel.restored", "Cambios descartados de {0}.")
-                        .replace("{0}", selected.path());
-                    showFeedback(done);
-                    notifyOperation(done);
+                    setBusy(false);
+                    showFeedback(doneMessage);
+                    notifyOperation(doneMessage);
                     refreshAsync();
                 });
             } catch (GitOperationsException e) {
-                Platform.runLater(() -> renderError(e.getMessage()));
+                Platform.runLater(() -> {
+                    setBusy(false);
+                    renderError(e.getMessage());
+                });
             }
         });
     }
 
+    private void stageSelected() {
+        SelectedChange selected = selectedChange();
+        if (selected == null || selected.staged()) {
+            showFeedback(msg("git.panel.selectUnstaged", "Selecciona un archivo sin añadir al índice."));
+            return;
+        }
+        String path = selected.entry().path();
+        String done = msg("git.panel.staged.one", "Añadido al índice: {0}").replace("{0}", path);
+        runGitTask(() -> gitService.addFile(projectDir.toPath(), path), done);
+    }
+
+    private void stageAll() {
+        List<String> paths = unstagedList.getItems().stream()
+            .map(GitStatusEntry::path)
+            .distinct()
+            .toList();
+        if (paths.isEmpty()) {
+            showFeedback(msg("git.panel.selectUnstaged", "Selecciona un archivo sin añadir al índice."));
+            return;
+        }
+        java.nio.file.Path dir = projectDir.toPath();
+        String done = msg("git.panel.staged.all", "Cambios añadidos al índice.");
+        runGitTask(() -> {
+            for (String path : paths) {
+                gitService.addFile(dir, path);
+            }
+        }, done);
+    }
+
+    private void unstageSelected() {
+        SelectedChange selected = selectedChange();
+        if (selected == null || !selected.staged()) {
+            showFeedback(msg("git.panel.selectStaged", "Selecciona un archivo en el índice."));
+            return;
+        }
+        String path = selected.entry().path();
+        String done = msg("git.panel.unstaged.one", "Quitado del índice: {0}").replace("{0}", path);
+        runGitTask(() -> gitService.unstageFile(projectDir.toPath(), path), done);
+    }
+
+    private void unstageAll() {
+        List<String> paths = stagedList.getItems().stream()
+            .map(GitStatusEntry::path)
+            .distinct()
+            .toList();
+        if (paths.isEmpty()) {
+            showFeedback(msg("git.panel.selectStaged", "Selecciona un archivo en el índice."));
+            return;
+        }
+        java.nio.file.Path dir = projectDir.toPath();
+        String done = msg("git.panel.unstaged.all", "Cambios quitados del índice.");
+        runGitTask(() -> {
+            for (String path : paths) {
+                gitService.unstageFile(dir, path);
+            }
+        }, done);
+    }
+
+    private void restoreSelected() {
+        SelectedChange selected = selectedChange();
+        if (selected == null) {
+            showFeedback(msg("git.panel.restore.select", "Selecciona un archivo de la lista para descartar sus cambios."));
+            return;
+        }
+        if (selected.staged() || selected.entry().isUntracked()) {
+            String key = selected.entry().isUntracked()
+                ? "git.panel.restore.untracked"
+                : "git.panel.selectUnstaged";
+            String fallback = selected.entry().isUntracked()
+                ? "Los archivos sin seguimiento no se pueden descartar con git restore."
+                : "Selecciona un archivo sin añadir al índice.";
+            showFeedback(msg(key, fallback));
+            return;
+        }
+        String path = selected.entry().path();
+        String done = msg("git.panel.restored", "Cambios descartados de {0}.").replace("{0}", path);
+        runGitTask(() -> gitService.restoreFile(projectDir.toPath(), path), done);
+    }
+
     // === Diff inline ===
 
-    private void showDiffFor(GitStatusEntry entry) {
+    private void showDiffFor(GitStatusEntry entry, boolean staged) {
         diffList.getItems().clear();
         if (projectDir == null || entry == null) {
             lblDiffHint.setText(msg("git.panel.diff.select", "Selecciona un archivo para ver su diff."));
-            return;
-        }
-        if (entry.isUntracked()) {
-            lblDiffHint.setText(msg("git.panel.diff.untracked",
-                "Archivo sin seguimiento (untracked): no muestra diff hasta añadirlo."));
             return;
         }
         lblDiffHint.setText(msg("git.panel.diff.loading", "Cargando diff..."));
         final java.nio.file.Path dir = projectDir.toPath();
         CompletableFuture.runAsync(() -> {
             try {
-                List<GitDiffLine> lines = new java.util.ArrayList<>();
-                if (entry.hasStagedChange()) {
-                    lines.addAll(gitService.diff(dir, entry.path(), true));
+                List<GitDiffLine> lines = entry.isUntracked()
+                    ? gitService.diffUntracked(dir, entry.path())
+                    : new java.util.ArrayList<>();
+                if (!entry.isUntracked()) {
+                    if (staged && entry.hasStagedChange()) {
+                        lines.addAll(gitService.diff(dir, entry.path(), true));
+                    }
+                    if (!staged && entry.hasUnstagedChange()) {
+                        lines.addAll(gitService.diff(dir, entry.path(), false));
+                    }
                 }
-                if (entry.hasUnstagedChange()) {
-                    lines.addAll(gitService.diff(dir, entry.path(), false));
-                }
+                String hint = entry.isUntracked()
+                    ? msg("git.panel.diff.untracked", "Archivo sin seguimiento: se muestra su contenido como archivo nuevo.")
+                    : msg("git.panel.diff.file", "Diff de {0}").replace("{0}", entry.path());
                 Platform.runLater(() -> {
                     diffList.getItems().setAll(lines);
                     lblDiffHint.setText(lines.isEmpty()
                         ? msg("git.panel.diff.empty", "Sin diferencias que mostrar.")
-                        : msg("git.panel.diff.file", "Diff de {0}").replace("{0}", entry.path()));
+                        : hint);
                 });
             } catch (GitOperationsException e) {
                 Platform.runLater(() -> lblDiffHint.setText(
@@ -666,10 +819,18 @@ public class GitPanelController {
     // === Render ===
 
     private void setBusy(boolean busy) {
+        if (btnRefresh == null) {
+            return;
+        }
         btnRefresh.setDisable(busy);
         btnPull.setDisable(busy);
         btnPush.setDisable(busy);
         btnInit.setDisable(busy);
+        btnStage.setDisable(busy);
+        btnStageAll.setDisable(busy);
+        btnUnstage.setDisable(busy);
+        btnUnstageAll.setDisable(busy);
+        btnRestore.setDisable(busy);
         progress.setVisible(busy);
         progress.setManaged(busy);
     }
@@ -682,8 +843,14 @@ public class GitPanelController {
         progress.setVisible(false);
         progress.setManaged(false);
         lblBranch.setText("");
-        changesList.getItems().clear();
+        stagedList.getItems().clear();
+        unstagedList.getItems().clear();
         historyList.getItems().clear();
+        btnStage.setDisable(true);
+        btnStageAll.setDisable(true);
+        btnUnstage.setDisable(true);
+        btnUnstageAll.setDisable(true);
+        btnRestore.setDisable(true);
         lblStatus.setText(msg("git.panel.status.noProject", "Abre un proyecto para ver su estado git."));
         btnInit.setVisible(false);
         btnInit.setManaged(false);
@@ -723,9 +890,15 @@ public class GitPanelController {
         btnPush.setManaged(false);
         branchesBarVisible(false);
         lblBranch.setText("");
-        changesList.getItems().clear();
+        stagedList.getItems().clear();
+        unstagedList.getItems().clear();
         historyList.getItems().clear();
         diffList.getItems().clear();
+        btnStage.setDisable(true);
+        btnStageAll.setDisable(true);
+        btnUnstage.setDisable(true);
+        btnUnstageAll.setDisable(true);
+        btnRestore.setDisable(true);
         lblDiffHint.setText(msg("git.panel.diff.select", "Selecciona un archivo para ver su diff."));
         lblStatus.setText(msg("git.panel.notRepo", "No es un repositorio git."));
         notifyStatus("");
@@ -748,6 +921,11 @@ public class GitPanelController {
         btnNewBranch.setDisable(false);
         btnStash.setDisable(false);
         btnStashPop.setDisable(false);
+        btnStage.setDisable(false);
+        btnStageAll.setDisable(false);
+        btnUnstage.setDisable(false);
+        btnUnstageAll.setDisable(false);
+        btnRestore.setDisable(false);
         branchesBarVisible(true);
 
         String branchLabel = branch != null
@@ -763,7 +941,8 @@ public class GitPanelController {
         }
         updatingBranches = false;
 
-        changesList.getItems().setAll(changes);
+        stagedList.getItems().setAll(changes.stream().filter(GitStatusEntry::hasStagedChange).toList());
+        unstagedList.getItems().setAll(changes.stream().filter(GitStatusEntry::hasUnstagedChange).toList());
         historyList.getItems().setAll(commits);
 
         String statusText = changes.isEmpty()

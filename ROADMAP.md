@@ -48,15 +48,15 @@
 - [ ] **Jerarquía de Llamadas (Call Hierarchy)**: Visualización de qué funciones llaman a una función seleccionada y a qué funciones llama esta.
 
 ### 3. Control de Versiones y Colaboración (Git)
-- [x] **Panel Git Integrado (Source Control View)**: pestaña con archivos modificados (`git status --porcelain`), diff visual en línea coloreado por tipo de línea, historial, staging global, commit, pull, push, stash y restauración (`GitPanelController`, `GitService`, `GitCli`, `GitDiffViewer`).
-  - [ ] Staging y desstaging por archivo (hoy el staging es global vía `addAll`).
-  - [ ] Separar la vista "staged" de la vista "unstaged".
-  - [ ] Mover el panel a la barra lateral (`sidebarTabPane`, hoy sin uso desde el controlador).
-  - [ ] Generar diff de archivos *untracked* (`??`), hoy sin diff.
+- [x] **Panel Git Integrado (Source Control View)**: panel de archivos modificados (`git status --porcelain`), diff visual en línea coloreado por tipo de línea, historial, staging por archivo, commit, pull, push, stash y restauración (`GitPanelController`, `GitService`, `GitCli`, `GitDiffViewer`).
+  - [x] Staging y desstaging por archivo (`GitService.addFile` / `unstageFile`).
+  - [x] Separar la vista "staged" de la vista "unstaged".
+  - [x] Mover el panel a la barra lateral (`sidebarTabPane` / `gitSidebarTab`).
+  - [x] Generar diff de archivos *untracked* (`??`) con `GitService.diffUntracked`.
 - [x] **Gestión de Ramas (Branch Manager)**: selector de ramas y creación de ramas desde el panel Git y desde el menú contextual del explorador (`git checkout -b`).
-  - [ ] Interacción de la rama desde la barra de estado (`lblGitBranch` es solo un indicador de lectura).
+  - [x] Interacción de la rama desde la barra de estado (`lblGitBranch` abre el panel Git).
 - [x] **Explorador de Repositorios GitHub**: búsqueda en la API, catálogo, clonación con `git clone` y fallback a ZIP, listado y borrado de repos clonados, releases e issues (`GitHubRepoBrowserController`, `GitHubCloneService`, `GitHubApiService`).
-  - [ ] Acción de "Actualizar" (pull) sobre un repositorio ya clonado.
+  - [x] Acción de "Actualizar" (pull) sobre un repositorio ya clonado.
 
 ### 4. Emulación y Depuración Avanzada (Retro Debugging)
 - [ ] **Depurador Fuente a Fuente Integrado (Source-level Debugger)**:

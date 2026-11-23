@@ -216,6 +216,11 @@
                             <AnchorPane fx:id="todoViewAnchor" />
                         </content>
                     </Tab>
+                    <Tab fx:id="gitSidebarTab" text="Git">
+                        <content>
+                            <AnchorPane fx:id="gitSidebarAnchor" />
+                        </content>
+                    </Tab>
                     <Tab fx:id="aiTab" text="IA">
                         <content>
                             <AnchorPane fx:id="aiChatAnchor" />

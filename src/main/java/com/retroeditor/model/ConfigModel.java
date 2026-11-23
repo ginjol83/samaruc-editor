@@ -122,6 +122,8 @@ public class ConfigModel {
     private final BooleanProperty showHomeOnStartup                       = new SimpleBooleanProperty(this, "show_home_on_startup", true);
     private final BooleanProperty syntaxCheckOnSave                       = new SimpleBooleanProperty(this, "syntax_check_on_save", true);
     private final BooleanProperty showLineNumbers                        = new SimpleBooleanProperty(this, "show_line_numbers", true);
+    private final BooleanProperty showMinimap                             = new SimpleBooleanProperty(this, "show_minimap", true);
+    private final BooleanProperty wordWrap                                 = new SimpleBooleanProperty(this, "word_wrap", false);
     private final StringProperty  terminalShell                           = new SimpleStringProperty (this, "terminal_shell", TERMINAL_SHELL_AUTO);
 
     private WorkspaceModel activeWorkspace = null;
@@ -258,6 +260,8 @@ public class ConfigModel {
             case "show_home_on_startup"      : return String.valueOf(isShowHomeOnStartup());
             case "syntax_check_on_save"      : return String.valueOf(isSyntaxCheckOnSave());
             case "show_line_numbers"         : return String.valueOf(isShowLineNumbers());
+            case "show_minimap"              : return String.valueOf(isShowMinimap());
+            case "word_wrap"                 : return String.valueOf(isWordWrap());
             case "terminal_shell"            : return getTerminalShell() != null ? getTerminalShell() : defaultValue;
             case "gbdk_opt_level"  : return getGbdkOptLevel()  != null ? getGbdkOptLevel() : defaultValue;
             case "gbdk_opt_speed"  : return Boolean.toString(isGbdkOptSpeed());
@@ -345,6 +349,8 @@ public class ConfigModel {
             case "show_home_on_startup"       : setShowHomeOnStartup(Boolean.parseBoolean(value)); break;
             case "syntax_check_on_save"       : setSyntaxCheckOnSave(Boolean.parseBoolean(value)); break;
             case "show_line_numbers"          : setShowLineNumbers(Boolean.parseBoolean(value)); break;
+            case "show_minimap"               : setShowMinimap(Boolean.parseBoolean(value)); break;
+            case "word_wrap"                  : setWordWrap(Boolean.parseBoolean(value)); break;
             case "terminal_shell"             : setTerminalShell(value); break;
             case "gbdk_opt_level"  : setGbdkOptLevel(value);                                break;
             case "gbdk_opt_speed"  : setGbdkOptSpeed(Boolean.parseBoolean(value));          break;
@@ -468,6 +474,8 @@ public class ConfigModel {
         showHomeOnStartup      .set(Boolean.parseBoolean(source.getProperty("show_home_on_startup", "true")));
         syntaxCheckOnSave      .set(Boolean.parseBoolean(source.getProperty("syntax_check_on_save", "true")));
         showLineNumbers        .set(Boolean.parseBoolean(source.getProperty("show_line_numbers", "true")));
+        showMinimap             .set(Boolean.parseBoolean(source.getProperty("show_minimap", "true")));
+        wordWrap                .set(Boolean.parseBoolean(source.getProperty("word_wrap", "false")));
         terminalShell          .set(normalizeTerminalShell(source.getProperty("terminal_shell", TERMINAL_SHELL_AUTO)));
     }
 
@@ -527,6 +535,8 @@ public class ConfigModel {
         p.setProperty("show_home_on_startup", String.valueOf(isShowHomeOnStartup()));
         p.setProperty("syntax_check_on_save", String.valueOf(isSyntaxCheckOnSave()));
         p.setProperty("show_line_numbers", String.valueOf(isShowLineNumbers()));
+        p.setProperty("show_minimap", String.valueOf(isShowMinimap()));
+        p.setProperty("word_wrap", String.valueOf(isWordWrap()));
         p.setProperty("gbdk_opt_level", getGbdkOptLevel() != null ? getGbdkOptLevel() : GBDK_OPT_NONE);
         p.setProperty("gbdk_opt_speed", Boolean.toString(isGbdkOptSpeed()));
         p.setProperty("gbdk_opt_size", Boolean.toString(isGbdkOptSize()));
@@ -795,6 +805,12 @@ public class ConfigModel {
     public BooleanProperty showLineNumbersProperty()   { return showLineNumbers; }
     public boolean         isShowLineNumbers()          { return showLineNumbers.get(); }
     public void            setShowLineNumbers(boolean v){ showLineNumbers.set(v); }
+    public BooleanProperty showMinimapProperty()       { return showMinimap; }
+    public boolean         isShowMinimap()             { return showMinimap.get(); }
+    public void            setShowMinimap(boolean v)   { showMinimap.set(v); }
+    public BooleanProperty wordWrapProperty()          { return wordWrap; }
+    public boolean         isWordWrap()                { return wordWrap.get(); }
+    public void            setWordWrap(boolean v)      { wordWrap.set(v); }
     public BooleanProperty syntaxCheckOnSaveProperty() { return syntaxCheckOnSave; }
     public boolean         isSyntaxCheckOnSave()        { return syntaxCheckOnSave.get(); }
     public void            setSyntaxCheckOnSave(boolean v) { syntaxCheckOnSave.set(v); }

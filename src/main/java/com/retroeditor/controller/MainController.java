@@ -248,7 +248,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private ResourceBundle bundle;
     private EditorModel editorModel;
     private File currentProjectDir;
-    private Tab gitPanelTab;
 
     private SyntaxHighlighter syntaxHighlighter;
     private ProjectExplorerController projectExplorerController;
@@ -364,6 +363,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private StructureViewController structureViewController;
     @FXML private AnchorPane todoViewAnchor;
     private TodoViewController todoViewController;
+    @FXML private TabPane sidebarTabPane;
+    @FXML private Tab gitSidebarTab;
+    @FXML private AnchorPane gitSidebarAnchor;
     @FXML private AnchorPane aiChatAnchor;
     @FXML private Tab aiTab;
     private AiChatController aiChatController;
@@ -442,6 +444,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private Menu menuVerMenus;
     private Menu menuVerToolbar;
     private Menu menuVerBottom;
+    private CheckMenuItem viewWordWrapItem;
     private CheckMenuItem viewPanelBottomItem;
     private CheckMenuItem viewTabConsoleItem;
     private CheckMenuItem viewTabMonitorItem;
@@ -489,6 +492,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private static final KeyCombination ACCEL_TOGGLE_COMMENT = new KeyCodeCombination(KeyCode.SLASH, KeyCombination.CONTROL_DOWN);
     private static final KeyCombination ACCEL_AUTO_COMPLETE = new KeyCodeCombination(KeyCode.SPACE, KeyCombination.CONTROL_DOWN);
     private static final KeyCombination ACCEL_FORMAT_CODE   = new KeyCodeCombination(KeyCode.L, KeyCombination.CONTROL_DOWN, KeyCombination.ALT_DOWN);
+    private static final KeyCombination ACCEL_WORD_WRAP     = new KeyCodeCombination(KeyCode.Z, KeyCombination.ALT_DOWN);
     private static final KeyCombination ACCEL_RENAME_SYMBOL = new KeyCodeCombination(KeyCode.F2);
     private static final KeyCombination ACCEL_FOLD          = new KeyCodeCombination(KeyCode.OPEN_BRACKET, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN);
     private static final KeyCombination ACCEL_UNFOLD        = new KeyCodeCombination(KeyCode.CLOSE_BRACKET, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN);
@@ -511,6 +515,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         LanguageService langService = new LanguageService(i18nDir);
         bundle          = langService.getBundleForCode(lang);
         buildController.setBundle(bundle);
+        helpController.setBundle(bundle);
 
         AppLogger.setBundle(bundle);
 
@@ -526,6 +531,8 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             String css = ThemeCssGenerator.generateCss(themeService.getThemeOrDefault(activeId));
             fxUtils.applyGeneratedEditorTheme(codeArea, css);
         });
+        fxUtils.setEditorThemeSupplier(() ->
+            themeService.getThemeOrDefault(themeService.resolveActiveThemeId(configModel)));
         fxUtils.setDoubleClickHandler((symbol, area) -> navigateToDefinition(symbol));
         restoreDialogDirectories();
         setupRecentMenus();
@@ -538,6 +545,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 bundle           = ResourceBundle.getBundle("i18n.MessagesBundle", newLocale);
                 AppLogger.setBundle(bundle);
                 buildController.setBundle(bundle);
+                helpController.setBundle(bundle);
                 Platform.runLater(() -> {
                     fxUtils.refreshLanguage(getUIElements(), bundle);
                     applyBundleToUI();
@@ -554,6 +562,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             fxUtils.setEditorAppearance(newV);
             Platform.runLater(() -> {
                 applyEditorAppearanceToOpenTabs();
+                fxUtils.refreshMinimapThemes(tabPane, secondaryTabPane);
                 if (tabPane != null && tabPane.getScene() != null) {
                     applyApplicationAppearance(tabPane.getScene(), newV);
                 }
@@ -562,6 +571,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         configModel.editorThemeProperty().addListener((obs, oldV, newV) -> {
             Platform.runLater(() -> {
                 applyEditorThemeToOpenTabs(newV);
+                fxUtils.refreshMinimapThemes(tabPane, secondaryTabPane);
                 if (tabPane != null && tabPane.getScene() != null) {
                     applyApplicationAppearance(tabPane.getScene(), themeToShellAppearance(newV));
                 }
@@ -576,10 +586,14 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         configModel.showLineNumbersProperty().addListener((obs, oldV, newV) ->
             Platform.runLater(this::reapplyLineNumberGutters));
 
+        configModel.showMinimapProperty().addListener((obs, oldV, newV) ->
+            Platform.runLater(this::applyMinimapVisibility));
+
         buildController.compilationRunningProperty().addListener((obs, wasRunning, isRunning) -> updateCompileStatusUI());
 
         if (tabPane != null) {
             TabPaneDragSupport.install(tabPane);
+            installTabContextMenus();
             tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
                 applyDiagnosticsForTab(newTab);
                 persistSessionState();
@@ -709,16 +723,24 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             }
         }
 
-        // Panel Git: se abre bajo demanda como pestaña del editor principal
+        // Panel Git: acoplado en la pestaña Git de la barra lateral
         gitPanelController.setBundle(bundle);
         gitPanelController.setOnDirtyPathsChanged(this::updateGitDirtyTabMarkers);
         gitPanelController.setOnStatusChanged(this::updateGitStatusLabel);
         gitPanelController.setOperationListener(this::showOperationStatus);
         gitPanelController.setGithubTokenSupplier(
             () -> configModel.getConfigProperty(GitHubAuthService.CONFIG_KEY, ""));
+        if (gitSidebarAnchor != null) {
+            mountInAnchor(gitSidebarAnchor, gitPanelController.createView());
+        }
 
         if (lblCompileStatus != null) {
             lblCompileStatus.setOnMouseClicked(event -> onCompileStatusLabelClicked());
+        }
+        if (lblGitBranch != null) {
+            lblGitBranch.setCursor(javafx.scene.Cursor.HAND);
+            lblGitBranch.setOnMouseClicked(event -> openGitPanel());
+            lblGitBranch.setTooltip(new Tooltip(msg("tooltip.git.openPanel", "Abrir panel Git")));
         }
 
         // Inicializar iconos y tooltips
@@ -906,7 +928,11 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 }
             } catch (Exception ignored) {}
         });
-        Platform.runLater(() -> applyEditorThemeToOpenTabs());
+        Platform.runLater(() -> {
+            applyEditorThemeToOpenTabs();
+            applyMinimapVisibility();
+            fxUtils.refreshMinimapThemes(tabPane, secondaryTabPane);
+        });
 
         if (menuItemCompilar != null) {
             menuItemCompilar.disableProperty().bind(buildController.compilationRunningProperty());
@@ -994,6 +1020,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             secondaryTabPane = new TabPane();
             secondaryTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.ALL_TABS);
             TabPaneDragSupport.install(secondaryTabPane);
+            installTabContextMenus();
+            fxUtils.applyMinimapVisibility(secondaryTabPane);
+            fxUtils.refreshMinimapThemes(secondaryTabPane);
 
             javafx.scene.Parent parent = tabPane.getParent();
             if (parent instanceof javafx.scene.layout.Pane pane) {
@@ -1336,7 +1365,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                     msg("atari.error.syntax.prefix", "Error de sintaxis Atari BASIC") + ": " + ex.getMessage(), consoleOutputArea);
         } catch (XexException ex) {
             Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.setTitle(msg("menu.export.xex", "Exportar XEX"));
+            alert.setTitle(msg("atari.error.xex.title", "Error al empaquetar el XEX"));
             alert.setHeaderText(msg("atari.error.xex.header", "No se pudo empaquetar el XEX"));
             alert.setContentText(ex.getMessage());
             alert.showAndWait();
@@ -1344,7 +1373,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                     msgFmt("atari.error.xex", "Error al empaquetar el XEX: {0}", ex.getMessage()), consoleOutputArea);
         } catch (IOException ex) {
             Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.setTitle(msg("menu.export.xex", "Exportar XEX"));
+            alert.setTitle(msg("atari.error.export.xex.title", "Error al escribir el XEX"));
             alert.setHeaderText(msg("atari.error.export.xex.header", "No se pudo escribir el XEX"));
             alert.setContentText(ex.getMessage());
             alert.showAndWait();
@@ -1676,6 +1705,10 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     public void openFileFromExplorer(File file) {
+        openFileFromExplorer(file, false);
+    }
+
+    public void openFileFromExplorer(File file, boolean preview) {
         if (file == null || !file.isFile()) {
             UserActionMonitor.errorOccurred("FILE_OPEN", "Intento de abrir archivo inválido o nulo");
             return;
@@ -1713,11 +1746,20 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             return;
         }
         for (Map.Entry<Tab, File> entry : tabFileMap.entrySet()) {
-            if (file.equals(entry.getValue())) { 
+            if (file.equals(entry.getValue())) {
                 UserActionMonitor.fileOpenedFromSearch(file.getName());
+                if (!preview && fxUtils.isTabPreview(entry.getKey())) {
+                    fxUtils.setTabPreview(entry.getKey(), false);
+                }
                 tabPane.getSelectionModel().select(entry.getKey());
                 applyDiagnosticsForTab(entry.getKey());
-                return; 
+                return;
+            }
+        }
+
+        if (preview) {
+            for (Tab candidate : new ArrayList<>(tabPane.getTabs())) {
+                if (fxUtils.isTabPreview(candidate)) closeTabFromContextMenu(candidate);
             }
         }
 
@@ -1729,7 +1771,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         }
 
         try {
-            openFileInEditorTab(file, openChoice == OpenChoice.EDITOR_FORCE_TEXT);
+            openFileInEditorTab(file, openChoice == OpenChoice.EDITOR_FORCE_TEXT, preview);
         } catch (IOException e) {
             if (openChoice != OpenChoice.EDITOR_FORCE_TEXT && shouldOfferForceTextOpen(e)) {
                 OpenChoice retryChoice = askHowToOpenFile(file);
@@ -1739,7 +1781,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 }
                 if (retryChoice == OpenChoice.EDITOR_FORCE_TEXT) {
                     try {
-                        openFileInEditorTab(file, true);
+                        openFileInEditorTab(file, true, preview);
                         return;
                     } catch (IOException retryError) {
                         showOpenFileError(file, retryError);
@@ -1796,6 +1838,10 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     private void openFileInEditorTab(File file, boolean forceSingleByteText) throws IOException {
+        openFileInEditorTab(file, forceSingleByteText, false);
+    }
+
+    private void openFileInEditorTab(File file, boolean forceSingleByteText, boolean preview) throws IOException {
         if (TileEditorController.isTileFile(file)) {
             openTileEditorTab(file);
             return;
@@ -1819,8 +1865,8 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
         String content = editorModel.getFileContent(file);
         Tab tab = fxUtils.isMarkdownFileName(file.getName())
-            ? fxUtils.addMarkdownTab(file.getName(), content, syntaxHighlighter, tabPane)
-            : fxUtils.addTab(file.getName(), content, syntaxHighlighter, tabPane);
+            ? fxUtils.addMarkdownTab(file.getName(), content, syntaxHighlighter, tabPane, preview)
+            : fxUtils.addTab(file.getName(), content, syntaxHighlighter, tabPane, preview);
         tabFileMap.put(tab, file);
         applyBasicDialectToTab(tab, file);
         applyDiagnosticsForTab(tab);
@@ -2378,6 +2424,99 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         reapplyLineNumberGutters(secondaryTabPane);
     }
 
+    /** Reaplica la visibilidad del minimapa a todos los paneles de editor. */
+    private void applyMinimapVisibility() {
+        fxUtils.applyMinimapVisibility(tabPane);
+        fxUtils.applyMinimapVisibility(secondaryTabPane);
+    }
+
+    private void installTabContextMenus() {
+        FXUtils.TabContextActions actions = tabContextActions();
+        java.util.function.Supplier<FXUtils.TabContextLabels> labels = this::tabContextLabels;
+        fxUtils.installTabContextMenu(tabPane, actions, labels);
+        fxUtils.installTabContextMenu(secondaryTabPane, actions, labels);
+    }
+
+    private FXUtils.TabContextActions tabContextActions() {
+        return new FXUtils.TabContextActions() {
+            @Override
+            public void close(Tab tab) {
+                closeTabFromContextMenu(tab);
+            }
+
+            @Override
+            public void closeOthers(Tab tab) {
+                TabPane pane = paneForTab(tab);
+                if (pane == null) return;
+                for (Tab other : new ArrayList<>(pane.getTabs())) {
+                    if (other != tab) closeTabFromContextMenu(other);
+                }
+            }
+
+            @Override
+            public void closeRight(Tab tab) {
+                TabPane pane = paneForTab(tab);
+                if (pane == null) return;
+                int index = pane.getTabs().indexOf(tab);
+                if (index < 0) return;
+                for (Tab other : new ArrayList<>(pane.getTabs()).subList(index + 1, pane.getTabs().size())) {
+                    closeTabFromContextMenu(other);
+                }
+            }
+
+            @Override
+            public void copyPath(Tab tab) {
+                File file = tab != null ? tabFileMap.get(tab) : null;
+                if (file == null) return;
+                ClipboardContent content = new ClipboardContent();
+                content.putString(file.getAbsolutePath());
+                Clipboard.getSystemClipboard().setContent(content);
+            }
+
+            @Override
+            public void reveal(Tab tab) {
+                File file = tab != null ? tabFileMap.get(tab) : null;
+                if (file != null && projectExplorerController != null) {
+                    projectExplorerController.revealFile(file);
+                }
+            }
+        };
+    }
+
+    private FXUtils.TabContextLabels tabContextLabels() {
+        return new FXUtils.TabContextLabels(
+            msg("tab.context.close", "Cerrar"),
+            msg("tab.context.closeOthers", "Cerrar otras"),
+            msg("tab.context.closeRight", "Cerrar a la derecha"),
+            msg("tab.context.copyPath", "Copiar ruta"),
+            msg("tab.context.reveal", "Revelar en el explorador"));
+    }
+
+    private TabPane paneForTab(Tab tab) {
+        if (tab == null) return null;
+        if (tabPane != null && tabPane.getTabs().contains(tab)) return tabPane;
+        if (secondaryTabPane != null && secondaryTabPane.getTabs().contains(tab)) return secondaryTabPane;
+        return null;
+    }
+
+    private boolean closeTabFromContextMenu(Tab tab) {
+        TabPane pane = paneForTab(tab);
+        if (pane == null || !tab.isClosable()) return false;
+        if (isTilemapEditorTab(tab) && !confirmCloseTilemapTab(tab)) return false;
+        if (isZxScreenEditorTab(tab) && !confirmCloseZxScreenTab(tab)) return false;
+        if (!confirmCloseEditorTab(tab)) return false;
+
+        File closing = tabFileMap.get(tab);
+        pane.getTabs().remove(tab);
+        if (closing != null) {
+            tabFileMap.remove(tab);
+            editorModel.closeFile(closing);
+            AutoSaveService.clearSnapshot(closing);
+        }
+        persistSessionState();
+        return true;
+    }
+
     private void reapplyLineNumberGutters(TabPane pane) {
         if (pane == null) return;
         for (Tab tab : new ArrayList<>(pane.getTabs())) {
@@ -2455,6 +2594,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
             () -> {
                 String activeId = themeService.resolveActiveThemeId(configModel);
                 applyEditorThemeToOpenTabs(activeId);
+                applyWordWrap();
                 if (tabPane != null && tabPane.getScene() != null) {
                     applyApplicationAppearance(tabPane.getScene(), themeToShellAppearance(activeId));
                 }
@@ -3977,19 +4117,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         dialog.showAndWait();
     }
 
-    /** Abre o selecciona la pestaña del panel Git en el editor principal y fuerza un refresco. Invocable desde el explorador. */
+    /** Selecciona la pestaña Git de la barra lateral y fuerza un refresco. */
     public void openGitPanel() {
-        if (tabPane == null) return;
-        if (gitPanelTab == null || !tabPane.getTabs().contains(gitPanelTab)) {
-            gitPanelTab = gitPanelController.createTab();
-            gitPanelTab.setClosable(true);
-            tabPane.getTabs().add(gitPanelTab);
+        if (sidebarTabPane != null && gitSidebarTab != null) {
+            sidebarTabPane.getSelectionModel().select(gitSidebarTab);
         }
-        tabPane.getSelectionModel().select(gitPanelTab);
         gitPanelController.requestRefresh();
     }
 
-    /** Despliega en el panel Git un commit (añade todo y commitea con el mensaje dado). */
+    /** Despliega en el panel Git un commit con el mensaje dado (requiere cambios en el índice). */
     public void gitCommit(String message) {
         gitPanelController.setProject(currentProjectDir);
         gitPanelController.commitWithMessage(message);
@@ -4930,6 +5066,8 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemPngToC  != null) menuItemPngToC.setText(bundle.getString("menu.tools.pngToC"));
         if (menuItemGitHubRepos != null) menuItemGitHubRepos.setText(bundle.getString("menu.tools.githubRepos"));
         if (menuItemGitPanel    != null) menuItemGitPanel.setText(bundle.getString("menu.git.panel"));
+        if (gitSidebarTab       != null) gitSidebarTab.setText(msg("git.panel.title", "Git"));
+        if (lblGitBranch        != null) lblGitBranch.setTooltip(new Tooltip(msg("tooltip.git.openPanel", "Abrir panel Git")));
         if (menuItemViewDiff    != null) menuItemViewDiff.setText(bundle.getString("menu.git.viewDiff"));
         if (menuItemShareToGithub != null) menuItemShareToGithub.setText(bundle.getString("menu.git.share"));
         if (menuItemPublishRelease != null) menuItemPublishRelease.setText(bundle.containsKey("menu.git.release") ? bundle.getString("menu.git.release") : "Publicar release...");
@@ -4995,12 +5133,21 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         buildViewMenuMenus();
         buildViewMenuToolbar();
         buildViewMenuBottomTabs();
+        viewWordWrapItem = new CheckMenuItem();
+        addViewToggle("word_wrap", viewWordWrapItem, this::applyWordWrap, null, false);
+        menuVer.getItems().add(viewWordWrapItem);
+        menuVer.getItems().add(new SeparatorMenuItem());
         menuVer.getItems().addAll(menuVerMenus, menuVerToolbar, menuVerBottom);
         refreshViewMenuLabels();
     }
 
     private CheckMenuItem addViewToggle(String configKey, CheckMenuItem item, Runnable apply, Runnable reflow) {
-        boolean selected = "true".equalsIgnoreCase(configModel.getConfigProperty(configKey, "true"));
+        return addViewToggle(configKey, item, apply, reflow, true);
+    }
+
+    private CheckMenuItem addViewToggle(String configKey, CheckMenuItem item, Runnable apply,
+                                        Runnable reflow, boolean defaultSelected) {
+        boolean selected = Boolean.parseBoolean(configModel.getConfigProperty(configKey, Boolean.toString(defaultSelected)));
         item.setSelected(selected);
         item.selectedProperty().addListener((obs, oldV, newV) -> {
             configModel.setConfigProperty(configKey, Boolean.toString(newV));
@@ -5142,6 +5289,25 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         applyBottomPanel();
     }
 
+    private void applyWordWrap() {
+        if (viewWordWrapItem != null && viewWordWrapItem.isSelected() != configModel.isWordWrap()) {
+            viewWordWrapItem.setSelected(configModel.isWordWrap());
+        }
+        fxUtils.applyWordWrap(tabPane);
+        fxUtils.applyWordWrap(secondaryTabPane);
+    }
+
+    private void toggleWordWrap() {
+        if (viewWordWrapItem != null) {
+            viewWordWrapItem.fire();
+            return;
+        }
+        boolean next = !configModel.isWordWrap();
+        configModel.setWordWrap(next);
+        configRepository.save(userConfigFile, configModel.toProperties());
+        applyWordWrap();
+    }
+
     private void applyBottomPanel() {
         if (outputContainer == null || editorOutputSplitPane == null) {
             return;
@@ -5185,6 +5351,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         }
         if (menuVerBottom != null) {
             menuVerBottom.setText(msg("menu.view.bottom", "Panel inferior"));
+        }
+        if (viewWordWrapItem != null) {
+            viewWordWrapItem.setText(msg("menu.view.wordWrap", "Ajustar líneas al ancho del editor"));
         }
         for (ViewMenuEntry entry : viewMenuEntries) {
             if (entry.item() != null) {
@@ -5932,7 +6101,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 .forEach(p -> {
                     String rel = currentProjectDir.toPath().relativize(p).toString();
                     File f = p.toFile();
-                    files.add(new CommandPalette.Entry(rel, null, () -> openFileFromExplorer(f)));
+                    files.add(new CommandPalette.Entry(rel, null, () -> openFileFromExplorer(f, true)));
                 });
         } catch (java.io.IOException ignored) {
         }
@@ -6021,6 +6190,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         scene.getAccelerators().put(ACCEL_TOGGLE_COMMENT, () -> editOptionsController.toggleLineComments(tabPane));
         scene.getAccelerators().put(ACCEL_AUTO_COMPLETE, () -> editOptionsController.showAutoComplete(tabPane));
         scene.getAccelerators().put(ACCEL_FORMAT_CODE, () -> onFormatCode(null));
+        scene.getAccelerators().put(ACCEL_WORD_WRAP, this::toggleWordWrap);
         scene.getAccelerators().put(ACCEL_RENAME_SYMBOL, () -> onRenameSymbol(null));
         scene.getAccelerators().put(ACCEL_FOLD, () -> onFoldBlock(null));
         scene.getAccelerators().put(ACCEL_UNFOLD, () -> onUnfoldBlock(null));
@@ -6045,6 +6215,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemGoToLine    != null) menuItemGoToLine.setAccelerator(ACCEL_GOTO_LINE);
         if (menuItemFind        != null) menuItemFind.setAccelerator(ACCEL_FIND_FILE);
         if (menuItemFindProject != null) menuItemFindProject.setAccelerator(ACCEL_FIND_PROJECT);
+        if (viewWordWrapItem    != null) viewWordWrapItem.setAccelerator(ACCEL_WORD_WRAP);
         if (menuItemCompilar    != null) menuItemCompilar.setAccelerator(ACCEL_BUILD);
         if (menuItemEjecutar    != null) menuItemEjecutar.setAccelerator(ACCEL_RUN);
     }

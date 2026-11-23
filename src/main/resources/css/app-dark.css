@@ -36,6 +36,17 @@
     -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.08), 8, 0, 0, 2);
 }
 
+.tab.tab-preview .tab-label {
+    -fx-font-style: italic;
+    -fx-opacity: 0.85;
+}
+
+.code-minimap {
+    -fx-background-color: transparent;
+    -fx-border-color: #1f2937;
+    -fx-border-width: 0 0 0 1;
+}
+
 .output-tab-pane {
     -fx-background-color: #0f1721;
 }

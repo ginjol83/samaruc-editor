@@ -75,6 +75,17 @@
     -fx-background-color: transparent;
 }
 
+.tab.tab-preview .tab-label {
+    -fx-font-style: italic;
+    -fx-opacity: 0.85;
+}
+
+.code-minimap {
+    -fx-background-color: transparent;
+    -fx-border-color: #e5e7eb;
+    -fx-border-width: 0 0 0 1;
+}
+
 .output-tab-pane {
     -fx-background-color: #ffffff;
 }

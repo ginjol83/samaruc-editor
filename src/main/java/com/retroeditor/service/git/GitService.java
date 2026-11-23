@@ -7,6 +7,8 @@ import static com.retroeditor.service.git.GitModels.GitDiffEntry;
 import static com.retroeditor.service.git.GitModels.GitDiffLine;
 import static com.retroeditor.service.git.GitModels.GitStatusEntry;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -72,6 +74,64 @@ public class GitService {
     public void addAll(Path dir) throws GitOperationsException {
         GitCli.GitResult result = cli.execute(dir, "add", "-A");
         requireSuccess(result, "git add -A");
+    }
+
+    /** Añade al índice un único archivo ({@code git add -- <path>}). */
+    public void addFile(Path dir, String path) throws GitOperationsException {
+        String file = normalizePath(path);
+        resolvePath(dir, file);
+        GitCli.GitResult result = cli.execute(dir, "add", "--", file);
+        requireSuccess(result, "git add " + file);
+    }
+
+    /** Quita un único archivo del índice, conservando los cambios en el working tree. */
+    public void unstageFile(Path dir, String path) throws GitOperationsException {
+        String file = normalizePath(path);
+        resolvePath(dir, file);
+        GitCli.GitResult result = cli.execute(dir, "reset", "--", file);
+        requireSuccess(result, "git reset " + file);
+    }
+
+    /**
+     * Diff sintético de un archivo sin seguimiento: no existe en HEAD, así que se
+     * muestra su contenido completo como líneas añadidas.
+     */
+    public List<GitDiffLine> diffUntracked(Path dir, String path) throws GitOperationsException {
+        String file = normalizePath(path);
+        List<GitDiffLine> lines = new ArrayList<>();
+        lines.add(GitDiffLine.header("diff --git a/" + file + " b/" + file));
+        lines.add(GitDiffLine.header("new file"));
+        lines.add(GitDiffLine.hunk("@@ -0,0 +1,? @@"));
+        Path resolved = resolvePath(dir, file);
+        if (!Files.isRegularFile(resolved)) {
+            return lines;
+        }
+        try {
+            List<String> content = Files.readAllLines(resolved, StandardCharsets.UTF_8);
+            lines.set(2, GitDiffLine.hunk("@@ -0,0 +1," + content.size() + " @@"));
+            content.forEach(line -> lines.add(GitDiffLine.add("+" + line)));
+        } catch (IOException ex) {
+            lines.add(GitDiffLine.context("(archivo binario)"));
+        }
+        return lines;
+    }
+
+    private static String normalizePath(String path) throws GitOperationsException {
+        if (path == null || path.isBlank()) {
+            throw new GitOperationsException("La ruta del archivo no puede estar vacía");
+        }
+        String trimmed = path.trim();
+        int arrow = trimmed.indexOf(" -> ");
+        return arrow >= 0 ? trimmed.substring(arrow + 4).trim() : trimmed;
+    }
+
+    private static Path resolvePath(Path dir, String path) throws GitOperationsException {
+        Path base = dir.toAbsolutePath().normalize();
+        Path resolved = base.resolve(path).normalize();
+        if (!resolved.startsWith(base)) {
+            throw new GitOperationsException("La ruta del archivo debe estar dentro del proyecto: " + path);
+        }
+        return resolved;
     }
 
     /** Crea un commit con el mensaje indicado (el trabajo debe estar staged antes). */

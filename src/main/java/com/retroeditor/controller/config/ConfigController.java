@@ -144,6 +144,8 @@ public class ConfigController {
     @FXML private CheckBox         chkShowHomeOnStartup;
     @FXML private CheckBox         chkSyntaxCheckOnSave;
     @FXML private CheckBox         chkShowLineNumbers;
+    @FXML private CheckBox         chkShowMinimap;
+    @FXML private CheckBox         chkWrapLines;
     @FXML private TextField        txtProjectDetectThreshold;
     @FXML private TextField        txtMakeExecutable;
     @FXML private TextField        txtMakeBuildTarget;
@@ -546,6 +548,12 @@ public class ConfigController {
         }
         if (chkShowLineNumbers != null) {
             chkShowLineNumbers.setSelected(configModel.isShowLineNumbers());
+        }
+        if (chkShowMinimap != null) {
+            chkShowMinimap.setSelected(configModel.isShowMinimap());
+        }
+        if (chkWrapLines != null) {
+            chkWrapLines.setSelected(configModel.isWordWrap());
         }
 
         loadZ88dkFlagsFromConfig();
@@ -2569,6 +2577,12 @@ public class ConfigController {
         if (chkShowLineNumbers != null) {
             configModel.setShowLineNumbers(chkShowLineNumbers.isSelected());
         }
+        if (chkShowMinimap != null) {
+            configModel.setShowMinimap(chkShowMinimap.isSelected());
+        }
+        if (chkWrapLines != null) {
+            configModel.setWordWrap(chkWrapLines.isSelected());
+        }
         persistConfig();
         applyApplicationAppearanceToCurrentScene(appearance);
         if (onAppearanceApplied != null) {
@@ -2909,6 +2923,8 @@ public class ConfigController {
         if (chkShowHomeOnStartup != null) chkShowHomeOnStartup.setText(bundle.containsKey("config.appearance.show_home_on_startup") ? bundle.getString("config.appearance.show_home_on_startup") : "Mostrar página de inicio al arrancar");
         if (chkSyntaxCheckOnSave != null) chkSyntaxCheckOnSave.setText(bundle.containsKey("config.appearance.syntax_check_on_save") ? bundle.getString("config.appearance.syntax_check_on_save") : "Comprobar errores de sintaxis al guardar (GCC)");
         if (chkShowLineNumbers != null) chkShowLineNumbers.setText(bundle.containsKey("config.appearance.show_line_numbers") ? bundle.getString("config.appearance.show_line_numbers") : "Mostrar numeros de linea");
+        if (chkShowMinimap != null) chkShowMinimap.setText(bundle.containsKey("config.appearance.show_minimap") ? bundle.getString("config.appearance.show_minimap") : "Mostrar minimapa");
+        if (chkWrapLines != null) chkWrapLines.setText(bundle.containsKey("config.appearance.word_wrap") ? bundle.getString("config.appearance.word_wrap") : "Ajustar líneas al ancho del editor");
         if (btnGuardarCompilador != null) btnGuardarCompilador .setText(bundle.getString("button.saveConfig"));
         if (btnSaveMakeOpts      != null) btnSaveMakeOpts      .setText(bundle.getString("button.saveMake"));
         if (btnGuardarSpectrumBin!= null) btnGuardarSpectrumBin.setText(bundle.getString("button.saveZ88dk"));
