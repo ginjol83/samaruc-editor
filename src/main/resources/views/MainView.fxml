@@ -152,7 +152,7 @@
                     <tooltip><Tooltip text="Buscar en archivo (Ctrl+F)" /></tooltip>
                 </Button>
                 <Button fx:id="btnFindProject" onAction="#onFindInProject">
-                    <tooltip><Tooltip text="Buscar en proyecto (Ctrl+H)" /></tooltip>
+                    <tooltip><Tooltip text="Buscar en proyecto (Ctrl+H / Ctrl+Shift+F)" /></tooltip>
                 </Button>
                 <Button fx:id="btnCut" onAction="#onCut">
                     <tooltip><Tooltip text="Cortar" /></tooltip>

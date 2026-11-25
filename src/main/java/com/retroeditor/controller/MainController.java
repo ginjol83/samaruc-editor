@@ -445,6 +445,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private Menu menuVerToolbar;
     private Menu menuVerBottom;
     private CheckMenuItem viewWordWrapItem;
+    private MenuItem viewZoomInItem;
+    private MenuItem viewZoomOutItem;
+    private MenuItem viewZoomResetItem;
     private CheckMenuItem viewPanelBottomItem;
     private CheckMenuItem viewTabConsoleItem;
     private CheckMenuItem viewTabMonitorItem;
@@ -487,12 +490,16 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     private static final KeyCombination ACCEL_GOTO_LINE    = new KeyCodeCombination(KeyCode.L, KeyCombination.CONTROL_DOWN);
     private static final KeyCombination ACCEL_FIND_FILE    = new KeyCodeCombination(KeyCode.F, KeyCombination.CONTROL_DOWN);
     private static final KeyCombination ACCEL_FIND_PROJECT = new KeyCodeCombination(KeyCode.H, KeyCombination.CONTROL_DOWN);
+    private static final KeyCombination ACCEL_FIND_PROJECT_ALT = new KeyCodeCombination(KeyCode.F, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN);
     private static final KeyCombination ACCEL_MOVE_UP      = new KeyCodeCombination(KeyCode.UP, KeyCombination.ALT_DOWN);
     private static final KeyCombination ACCEL_MOVE_DOWN    = new KeyCodeCombination(KeyCode.DOWN, KeyCombination.ALT_DOWN);
     private static final KeyCombination ACCEL_TOGGLE_COMMENT = new KeyCodeCombination(KeyCode.SLASH, KeyCombination.CONTROL_DOWN);
     private static final KeyCombination ACCEL_AUTO_COMPLETE = new KeyCodeCombination(KeyCode.SPACE, KeyCombination.CONTROL_DOWN);
     private static final KeyCombination ACCEL_FORMAT_CODE   = new KeyCodeCombination(KeyCode.L, KeyCombination.CONTROL_DOWN, KeyCombination.ALT_DOWN);
     private static final KeyCombination ACCEL_WORD_WRAP     = new KeyCodeCombination(KeyCode.Z, KeyCombination.ALT_DOWN);
+    private static final KeyCombination ACCEL_ZOOM_IN       = new KeyCodeCombination(KeyCode.EQUALS, KeyCombination.CONTROL_DOWN);
+    private static final KeyCombination ACCEL_ZOOM_OUT      = new KeyCodeCombination(KeyCode.MINUS, KeyCombination.CONTROL_DOWN);
+    private static final KeyCombination ACCEL_ZOOM_RESET    = new KeyCodeCombination(KeyCode.DIGIT0, KeyCombination.CONTROL_DOWN);
     private static final KeyCombination ACCEL_RENAME_SYMBOL = new KeyCodeCombination(KeyCode.F2);
     private static final KeyCombination ACCEL_FOLD          = new KeyCodeCombination(KeyCode.OPEN_BRACKET, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN);
     private static final KeyCombination ACCEL_UNFOLD        = new KeyCodeCombination(KeyCode.CLOSE_BRACKET, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN);
@@ -528,7 +535,8 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         fxUtils.setEditorAppearance(configModel.getConfigProperty(EDITOR_APPEARANCE_PROPERTY, ConfigModel.EDITOR_APPEARANCE_MODERN_DARK));
         fxUtils.setEditorThemeApplier(codeArea -> {
             String activeId = themeService.resolveActiveThemeId(configModel);
-            String css = ThemeCssGenerator.generateCss(themeService.getThemeOrDefault(activeId));
+            String css = ThemeCssGenerator.generateCss(
+                themeService.getThemeOrDefault(activeId), configModel.getEditorZoom());
             fxUtils.applyGeneratedEditorTheme(codeArea, css);
         });
         fxUtils.setEditorThemeSupplier(() ->
@@ -577,6 +585,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
                 }
             });
         });
+        configModel.editorZoomProperty().addListener((obs, oldV, newV) ->
+            Platform.runLater(this::applyEditorZoom));
+
         configModel.enableLogsProperty().addListener((obs, oldV, newV) -> {
             if (terminalController != null) {
                 terminalController.setEnableLogging(newV);
@@ -5135,7 +5146,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         buildViewMenuBottomTabs();
         viewWordWrapItem = new CheckMenuItem();
         addViewToggle("word_wrap", viewWordWrapItem, this::applyWordWrap, null, false);
+        viewZoomInItem = new MenuItem();
+        viewZoomOutItem = new MenuItem();
+        viewZoomResetItem = new MenuItem();
+        viewZoomInItem.setOnAction(e -> changeEditorZoom(10));
+        viewZoomOutItem.setOnAction(e -> changeEditorZoom(-10));
+        viewZoomResetItem.setOnAction(e -> resetEditorZoom());
         menuVer.getItems().add(viewWordWrapItem);
+        menuVer.getItems().add(new SeparatorMenuItem());
+        menuVer.getItems().addAll(viewZoomInItem, viewZoomOutItem, viewZoomResetItem);
         menuVer.getItems().add(new SeparatorMenuItem());
         menuVer.getItems().addAll(menuVerMenus, menuVerToolbar, menuVerBottom);
         refreshViewMenuLabels();
@@ -5308,6 +5327,28 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         applyWordWrap();
     }
 
+    private void changeEditorZoom(int delta) {
+        setEditorZoom(configModel.getEditorZoom() + delta);
+    }
+
+    private void resetEditorZoom() {
+        setEditorZoom(ConfigModel.EDITOR_ZOOM_DEFAULT);
+    }
+
+    private void setEditorZoom(int zoom) {
+        int normalized = ConfigModel.normalizeEditorZoom(zoom);
+        if (normalized == configModel.getEditorZoom()) {
+            return;
+        }
+        configModel.setEditorZoom(normalized);
+        configRepository.save(userConfigFile, configModel.toProperties());
+        applyEditorZoom();
+    }
+
+    private void applyEditorZoom() {
+        applyEditorThemeToOpenTabs();
+    }
+
     private void applyBottomPanel() {
         if (outputContainer == null || editorOutputSplitPane == null) {
             return;
@@ -5354,6 +5395,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         }
         if (viewWordWrapItem != null) {
             viewWordWrapItem.setText(msg("menu.view.wordWrap", "Ajustar líneas al ancho del editor"));
+        }
+        if (viewZoomInItem != null) {
+            viewZoomInItem.setText(msg("menu.view.zoomIn", "Aumentar zoom del editor"));
+        }
+        if (viewZoomOutItem != null) {
+            viewZoomOutItem.setText(msg("menu.view.zoomOut", "Reducir zoom del editor"));
+        }
+        if (viewZoomResetItem != null) {
+            viewZoomResetItem.setText(msg("menu.view.zoomReset", "Restablecer zoom del editor"));
         }
         for (ViewMenuEntry entry : viewMenuEntries) {
             if (entry.item() != null) {
@@ -5896,10 +5946,15 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     private void applyEditorThemeToOpenTabs(String themeId) {
-        if (tabPane == null) return;
         EditorTheme theme = themeService.getThemeOrDefault(themeId);
-        String generatedCss = ThemeCssGenerator.generateCss(theme);
-        for (Tab tab : tabPane.getTabs()) {
+        String generatedCss = ThemeCssGenerator.generateCss(theme, configModel.getEditorZoom());
+        applyGeneratedCssToPane(tabPane, generatedCss);
+        applyGeneratedCssToPane(secondaryTabPane, generatedCss);
+    }
+
+    private void applyGeneratedCssToPane(TabPane pane, String generatedCss) {
+        if (pane == null) return;
+        for (Tab tab : pane.getTabs()) {
             CodeArea codeArea = fxUtils.getCodeArea(tab);
             if (codeArea != null) {
                 fxUtils.applyGeneratedEditorTheme(codeArea, generatedCss);
@@ -5908,7 +5963,6 @@ public class MainController implements ProjectContextPort, FileOpenPort {
     }
 
     private void applyEditorThemeToOpenTabs() {
-        if (tabPane == null) return;
         String activeThemeId = themeService.resolveActiveThemeId(configModel);
         applyEditorThemeToOpenTabs(activeThemeId);
     }
@@ -6184,6 +6238,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
 
         scene.getAccelerators().put(ACCEL_FIND_FILE, () -> onFindInFile(null));
         scene.getAccelerators().put(ACCEL_FIND_PROJECT, () -> onFindInProject(null));
+        scene.getAccelerators().put(ACCEL_FIND_PROJECT_ALT, () -> onFindInProject(null));
 
         scene.getAccelerators().put(ACCEL_MOVE_UP, () -> editOptionsController.moveLinesUp(tabPane));
         scene.getAccelerators().put(ACCEL_MOVE_DOWN, () -> editOptionsController.moveLinesDown(tabPane));
@@ -6191,6 +6246,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         scene.getAccelerators().put(ACCEL_AUTO_COMPLETE, () -> editOptionsController.showAutoComplete(tabPane));
         scene.getAccelerators().put(ACCEL_FORMAT_CODE, () -> onFormatCode(null));
         scene.getAccelerators().put(ACCEL_WORD_WRAP, this::toggleWordWrap);
+        scene.getAccelerators().put(ACCEL_ZOOM_IN, () -> changeEditorZoom(10));
+        scene.getAccelerators().put(ACCEL_ZOOM_OUT, () -> changeEditorZoom(-10));
+        scene.getAccelerators().put(ACCEL_ZOOM_RESET, this::resetEditorZoom);
         scene.getAccelerators().put(ACCEL_RENAME_SYMBOL, () -> onRenameSymbol(null));
         scene.getAccelerators().put(ACCEL_FOLD, () -> onFoldBlock(null));
         scene.getAccelerators().put(ACCEL_UNFOLD, () -> onUnfoldBlock(null));
@@ -6216,6 +6274,9 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (menuItemFind        != null) menuItemFind.setAccelerator(ACCEL_FIND_FILE);
         if (menuItemFindProject != null) menuItemFindProject.setAccelerator(ACCEL_FIND_PROJECT);
         if (viewWordWrapItem    != null) viewWordWrapItem.setAccelerator(ACCEL_WORD_WRAP);
+        if (viewZoomInItem      != null) viewZoomInItem.setAccelerator(ACCEL_ZOOM_IN);
+        if (viewZoomOutItem     != null) viewZoomOutItem.setAccelerator(ACCEL_ZOOM_OUT);
+        if (viewZoomResetItem   != null) viewZoomResetItem.setAccelerator(ACCEL_ZOOM_RESET);
         if (menuItemCompilar    != null) menuItemCompilar.setAccelerator(ACCEL_BUILD);
         if (menuItemEjecutar    != null) menuItemEjecutar.setAccelerator(ACCEL_RUN);
     }
@@ -6234,7 +6295,7 @@ public class MainController implements ProjectContextPort, FileOpenPort {
         if (btnCopy        != null) btnCopy.setTooltip(new Tooltip(bundle.getString("button.copy") + " (Ctrl+C)"));
         if (btnPaste       != null) btnPaste.setTooltip(new Tooltip(bundle.getString("button.paste") + " (Ctrl+V)"));
         if (btnFind        != null) btnFind.setTooltip(new Tooltip(bundle.getString("tooltip.find.file") + " (Ctrl+F)"));
-        if (btnFindProject != null) btnFindProject.setTooltip(new Tooltip(bundle.getString("tooltip.find.project") + " (Ctrl+H)"));
+        if (btnFindProject != null) btnFindProject.setTooltip(new Tooltip(bundle.getString("tooltip.find.project")));
         if (btnCompilar    != null) btnCompilar.setTooltip(new Tooltip(bundle.getString("button.compile") + " (F5)"));
         if (btnEjecutar    != null) btnEjecutar.setTooltip(new Tooltip(bundle.getString("button.run") + " (F6)"));
     }

@@ -84,6 +84,10 @@
                     <CheckBox fx:id="chkShowMinimap" selected="true" text="Mostrar minimapa" />
                     <CheckBox fx:id="chkWrapLines" text="Ajustar líneas al ancho del editor" />
                     <HBox spacing="8" alignment="CENTER_LEFT">
+                        <Label fx:id="lblEditorZoom" text="Zoom del editor:" />
+                        <Spinner fx:id="spEditorZoom" prefWidth="120" editable="true" />
+                    </HBox>
+                    <HBox spacing="8" alignment="CENTER_LEFT">
                         <Button fx:id="btnGuardarAppearance" text="Guardar cambios" onAction="#onSaveEditorAppearance" prefWidth="170" />
                     </HBox>
                     </VBox>

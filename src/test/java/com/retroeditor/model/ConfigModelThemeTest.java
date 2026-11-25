@@ -63,4 +63,40 @@ class ConfigModelThemeTest {
         model.setEditorTheme("   ");
         assertEquals(ConfigModel.EDITOR_THEME_DEFAULT, model.getEditorTheme());
     }
+
+    @Test
+    void editorZoomDefaultsToOneHundred() {
+        ConfigModel model = new ConfigModel();
+        assertEquals(ConfigModel.EDITOR_ZOOM_DEFAULT, model.getEditorZoom());
+        assertEquals("100", model.getConfigProperty(ConfigModel.EDITOR_ZOOM_PROPERTY, "0"));
+    }
+
+    @Test
+    void editorZoomRoundTripThroughProperties() {
+        ConfigModel model = new ConfigModel();
+        model.setConfigProperty(ConfigModel.EDITOR_ZOOM_PROPERTY, "125");
+
+        Properties serialized = model.toProperties();
+        assertEquals("125", serialized.getProperty(ConfigModel.EDITOR_ZOOM_PROPERTY));
+
+        ConfigModel reloaded = new ConfigModel();
+        reloaded.applyProperties(serialized);
+        assertEquals(125, reloaded.getEditorZoom());
+    }
+
+    @Test
+    void editorZoomIsClampedToSupportedRange() {
+        ConfigModel model = new ConfigModel();
+        model.setEditorZoom(5);
+        assertEquals(ConfigModel.EDITOR_ZOOM_MIN, model.getEditorZoom());
+        model.setEditorZoom(999);
+        assertEquals(ConfigModel.EDITOR_ZOOM_MAX, model.getEditorZoom());
+    }
+
+    @Test
+    void invalidEditorZoomFallsBackToDefault() {
+        ConfigModel model = new ConfigModel();
+        model.setConfigProperty(ConfigModel.EDITOR_ZOOM_PROPERTY, "no-valido");
+        assertEquals(ConfigModel.EDITOR_ZOOM_DEFAULT, model.getEditorZoom());
+    }
 }

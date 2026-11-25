@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.retroeditor.model.BuiltInThemes;
+import com.retroeditor.model.ConfigModel;
 import com.retroeditor.model.EditorTheme;
 
 /**
@@ -95,10 +96,17 @@ public final class ThemeCssGenerator {
      * @return texto CSS completo, nunca {@code null}
      */
     public static String generateCss(EditorTheme theme) {
+        return generateCss(theme, ConfigModel.EDITOR_ZOOM_DEFAULT);
+    }
+
+    public static String generateCss(EditorTheme theme, int zoomPercent) {
         EditorTheme active = theme != null ? theme : BuiltInThemes.modernDark();
         EditorTheme base   = BuiltInThemes.modernDark().isDarkBase() != active.isDarkBase()
             ? BuiltInThemes.classic()
             : BuiltInThemes.modernDark();
+        double scale = ConfigModel.normalizeEditorZoom(zoomPercent) / 100.0;
+        double editorFontSize = fontSize(active, base) * scale;
+        double lineNumberFontSize = lineNumberSize(active, base) * scale;
 
         StringBuilder sb = new StringBuilder(2048);
 
@@ -110,7 +118,7 @@ public final class ThemeCssGenerator {
         sb.append("    -fx-highlight-text-fill: ").append(c(active, base, EditorTheme.KEY_HIGHLIGHT_TEXT_FILL, "#f8fafc")).append(";\n");
         sb.append("    -fx-caret-color: ").append(c(active, base, EditorTheme.KEY_CARET, "#f8fafc")).append(";\n");
         sb.append("    -fx-font-family: \"").append(escapeFontFamily(font(active, base))).append("\";\n");
-        sb.append("    -fx-font-size: ").append(px(fontSize(active, base))).append(";\n");
+        sb.append("    -fx-font-size: ").append(px(editorFontSize)).append(";\n");
         sb.append("}\n\n");
 
         sb.append(".code-area .content {\n");
@@ -131,7 +139,7 @@ public final class ThemeCssGenerator {
         sb.append("    -fx-background-color: ").append(c(active, base, EditorTheme.KEY_LINENO_BACKGROUND, "#111827")).append(";\n");
         sb.append("    -fx-padding: 0 10 0 10;\n");
         sb.append("    -fx-font-family: \"Source Code Pro\", Consolas, \"DejaVu Sans Mono\", monospace;\n");
-        sb.append("    -fx-font-size: ").append(px(lineNumberSize(active, base))).append(";\n");
+        sb.append("    -fx-font-size: ").append(px(lineNumberFontSize)).append(";\n");
         sb.append("}\n\n");
 
         sb.append(".code-area .selection {\n");

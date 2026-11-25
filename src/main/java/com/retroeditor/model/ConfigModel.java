@@ -6,7 +6,9 @@ import java.util.Properties;
 import com.retroeditor.service.PluginMarketplaceService;
 
 import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleBooleanProperty;
+import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 
@@ -27,6 +29,10 @@ public class ConfigModel {
     public static final String EDITOR_APPEARANCE_CLASSIC = "classic";
     public static final String EDITOR_THEME_DEFAULT = "modern_dark";
     public static final String EDITOR_THEME_PROPERTY = "editor_theme";
+    public static final String EDITOR_ZOOM_PROPERTY = "editor_zoom";
+    public static final int EDITOR_ZOOM_DEFAULT = 100;
+    public static final int EDITOR_ZOOM_MIN = 80;
+    public static final int EDITOR_ZOOM_MAX = 160;
     public static final String TERMINAL_SHELL_AUTO = "auto";
     public static final String TERMINAL_SHELL_CMD = "cmd";
     public static final String TERMINAL_SHELL_POWERSHELL = "powershell";
@@ -124,6 +130,7 @@ public class ConfigModel {
     private final BooleanProperty showLineNumbers                        = new SimpleBooleanProperty(this, "show_line_numbers", true);
     private final BooleanProperty showMinimap                             = new SimpleBooleanProperty(this, "show_minimap", true);
     private final BooleanProperty wordWrap                                 = new SimpleBooleanProperty(this, "word_wrap", false);
+    private final IntegerProperty editorZoom                               = new SimpleIntegerProperty(this, EDITOR_ZOOM_PROPERTY, EDITOR_ZOOM_DEFAULT);
     private final StringProperty  terminalShell                           = new SimpleStringProperty (this, "terminal_shell", TERMINAL_SHELL_AUTO);
 
     private WorkspaceModel activeWorkspace = null;
@@ -262,6 +269,7 @@ public class ConfigModel {
             case "show_line_numbers"         : return String.valueOf(isShowLineNumbers());
             case "show_minimap"              : return String.valueOf(isShowMinimap());
             case "word_wrap"                 : return String.valueOf(isWordWrap());
+            case EDITOR_ZOOM_PROPERTY        : return String.valueOf(getEditorZoom());
             case "terminal_shell"            : return getTerminalShell() != null ? getTerminalShell() : defaultValue;
             case "gbdk_opt_level"  : return getGbdkOptLevel()  != null ? getGbdkOptLevel() : defaultValue;
             case "gbdk_opt_speed"  : return Boolean.toString(isGbdkOptSpeed());
@@ -351,7 +359,9 @@ public class ConfigModel {
             case "show_line_numbers"          : setShowLineNumbers(Boolean.parseBoolean(value)); break;
             case "show_minimap"               : setShowMinimap(Boolean.parseBoolean(value)); break;
             case "word_wrap"                  : setWordWrap(Boolean.parseBoolean(value)); break;
+            case EDITOR_ZOOM_PROPERTY         : setEditorZoom(parseEditorZoom(value)); break;
             case "terminal_shell"             : setTerminalShell(value); break;
+
             case "gbdk_opt_level"  : setGbdkOptLevel(value);                                break;
             case "gbdk_opt_speed"  : setGbdkOptSpeed(Boolean.parseBoolean(value));          break;
             case "gbdk_opt_size"   : setGbdkOptSize(Boolean.parseBoolean(value));           break;
@@ -476,6 +486,7 @@ public class ConfigModel {
         showLineNumbers        .set(Boolean.parseBoolean(source.getProperty("show_line_numbers", "true")));
         showMinimap             .set(Boolean.parseBoolean(source.getProperty("show_minimap", "true")));
         wordWrap                .set(Boolean.parseBoolean(source.getProperty("word_wrap", "false")));
+        editorZoom              .set(parseEditorZoom(source.getProperty(EDITOR_ZOOM_PROPERTY, Integer.toString(EDITOR_ZOOM_DEFAULT))));
         terminalShell          .set(normalizeTerminalShell(source.getProperty("terminal_shell", TERMINAL_SHELL_AUTO)));
     }
 
@@ -537,6 +548,7 @@ public class ConfigModel {
         p.setProperty("show_line_numbers", String.valueOf(isShowLineNumbers()));
         p.setProperty("show_minimap", String.valueOf(isShowMinimap()));
         p.setProperty("word_wrap", String.valueOf(isWordWrap()));
+        p.setProperty(EDITOR_ZOOM_PROPERTY, Integer.toString(getEditorZoom()));
         p.setProperty("gbdk_opt_level", getGbdkOptLevel() != null ? getGbdkOptLevel() : GBDK_OPT_NONE);
         p.setProperty("gbdk_opt_speed", Boolean.toString(isGbdkOptSpeed()));
         p.setProperty("gbdk_opt_size", Boolean.toString(isGbdkOptSize()));
@@ -811,6 +823,9 @@ public class ConfigModel {
     public BooleanProperty wordWrapProperty()          { return wordWrap; }
     public boolean         isWordWrap()                { return wordWrap.get(); }
     public void            setWordWrap(boolean v)      { wordWrap.set(v); }
+    public IntegerProperty editorZoomProperty()        { return editorZoom; }
+    public int             getEditorZoom()             { return normalizeEditorZoom(editorZoom.get()); }
+    public void            setEditorZoom(int v)        { editorZoom.set(normalizeEditorZoom(v)); }
     public BooleanProperty syntaxCheckOnSaveProperty() { return syntaxCheckOnSave; }
     public boolean         isSyntaxCheckOnSave()        { return syntaxCheckOnSave.get(); }
     public void            setSyntaxCheckOnSave(boolean v) { syntaxCheckOnSave.set(v); }
@@ -821,6 +836,21 @@ public class ConfigModel {
 
     public static List<String> getSupportedTerminalShells() {
         return TERMINAL_SHELL_OPTIONS;
+    }
+
+    public static int normalizeEditorZoom(int value) {
+        return Math.max(EDITOR_ZOOM_MIN, Math.min(EDITOR_ZOOM_MAX, value));
+    }
+
+    private static int parseEditorZoom(String value) {
+        if (value == null || value.isBlank()) {
+            return EDITOR_ZOOM_DEFAULT;
+        }
+        try {
+            return normalizeEditorZoom(Integer.parseInt(value.trim()));
+        } catch (NumberFormatException ex) {
+            return EDITOR_ZOOM_DEFAULT;
+        }
     }
 
     private String normalizeTerminalShell(String shell) {

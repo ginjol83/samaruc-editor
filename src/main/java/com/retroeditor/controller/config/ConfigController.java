@@ -146,6 +146,8 @@ public class ConfigController {
     @FXML private CheckBox         chkShowLineNumbers;
     @FXML private CheckBox         chkShowMinimap;
     @FXML private CheckBox         chkWrapLines;
+    @FXML private Label            lblEditorZoom;
+    @FXML private Spinner<Integer> spEditorZoom;
     @FXML private TextField        txtProjectDetectThreshold;
     @FXML private TextField        txtMakeExecutable;
     @FXML private TextField        txtMakeBuildTarget;
@@ -554,6 +556,9 @@ public class ConfigController {
         }
         if (chkWrapLines != null) {
             chkWrapLines.setSelected(configModel.isWordWrap());
+        }
+        if (spEditorZoom != null && spEditorZoom.getValueFactory() != null) {
+            spEditorZoom.getValueFactory().setValue(configModel.getEditorZoom());
         }
 
         loadZ88dkFlagsFromConfig();
@@ -2583,6 +2588,9 @@ public class ConfigController {
         if (chkWrapLines != null) {
             configModel.setWordWrap(chkWrapLines.isSelected());
         }
+        if (spEditorZoom != null && spEditorZoom.getValue() != null) {
+            configModel.setEditorZoom(spEditorZoom.getValue());
+        }
         persistConfig();
         applyApplicationAppearanceToCurrentScene(appearance);
         if (onAppearanceApplied != null) {
@@ -2925,6 +2933,7 @@ public class ConfigController {
         if (chkShowLineNumbers != null) chkShowLineNumbers.setText(bundle.containsKey("config.appearance.show_line_numbers") ? bundle.getString("config.appearance.show_line_numbers") : "Mostrar numeros de linea");
         if (chkShowMinimap != null) chkShowMinimap.setText(bundle.containsKey("config.appearance.show_minimap") ? bundle.getString("config.appearance.show_minimap") : "Mostrar minimapa");
         if (chkWrapLines != null) chkWrapLines.setText(bundle.containsKey("config.appearance.word_wrap") ? bundle.getString("config.appearance.word_wrap") : "Ajustar líneas al ancho del editor");
+        if (lblEditorZoom != null) lblEditorZoom.setText(bundle.containsKey("config.appearance.editor_zoom") ? bundle.getString("config.appearance.editor_zoom") : "Zoom del editor:");
         if (btnGuardarCompilador != null) btnGuardarCompilador .setText(bundle.getString("button.saveConfig"));
         if (btnSaveMakeOpts      != null) btnSaveMakeOpts      .setText(bundle.getString("button.saveMake"));
         if (btnGuardarSpectrumBin!= null) btnGuardarSpectrumBin.setText(bundle.getString("button.saveZ88dk"));
@@ -3119,6 +3128,11 @@ public class ConfigController {
         }
         if (spLineNumberSize != null && spLineNumberSize.getValueFactory() == null) {
             spLineNumberSize.setValueFactory(new SpinnerValueFactory.DoubleSpinnerValueFactory(6, 40, 12, 0.5));
+        }
+        if (spEditorZoom != null && spEditorZoom.getValueFactory() == null) {
+            spEditorZoom.setValueFactory(new SpinnerValueFactory.IntegerSpinnerValueFactory(
+                ConfigModel.EDITOR_ZOOM_MIN, ConfigModel.EDITOR_ZOOM_MAX,
+                ConfigModel.EDITOR_ZOOM_DEFAULT, 10));
         }
 
         ResourceBundle bundle = getCurrentBundle();
@@ -3368,7 +3382,7 @@ public class ConfigController {
 
     private void refreshThemePreviews() {
         if (editingTheme == null || previewAreas.isEmpty()) return;
-        String css = ThemeCssGenerator.generateCss(editingTheme);
+        String css = ThemeCssGenerator.generateCss(editingTheme, configModel.getEditorZoom());
         String url = com.retroeditor.util.FXUtils.dataCssUrl(css);
         for (CodeArea area : previewAreas) {
             area.getStylesheets().clear();

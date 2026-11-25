@@ -143,4 +143,13 @@ class ThemeCssGeneratorTest {
         assertEquals("empty", ThemeCssGenerator.contentHash("  "));
         assertEquals("empty", ThemeCssGenerator.contentHash(null));
     }
+
+    @Test
+    void zoomScalesEditorAndLineNumberFontSizes() {
+        String css = ThemeCssGenerator.generateCss(BuiltInThemes.modernDark(), 120);
+
+        assertTrue(css.contains("-fx-font-size: 15.6px"), "13 * 1.2 = 15.6");
+        assertTrue(css.contains("-fx-font-size: 14.4px"), "12 * 1.2 = 14.4");
+        assertFalse(css.contains("-fx-font-size: 13.0px"));
+    }
 }

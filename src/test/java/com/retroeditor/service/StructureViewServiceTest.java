@@ -52,4 +52,31 @@ class StructureViewServiceTest {
         List<StructureViewService.StructureSymbol> symbols = service.getStructure("");
         assertTrue(symbols.isEmpty());
     }
+
+    @Test
+    void indexOfSymbolAtPrefersInnermostContainingSymbol() {
+        List<StructureViewService.StructureSymbol> symbols = List.of(
+            new StructureViewService.StructureSymbol("region", 1, 20, "region", ""),
+            new StructureViewService.StructureSymbol("init", 3, 10, "function", ""),
+            new StructureViewService.StructureSymbol("score", 5, 5, "variable", "")
+        );
+
+        assertEquals(2, StructureViewService.indexOfSymbolAt(symbols, 5));
+        assertEquals(1, StructureViewService.indexOfSymbolAt(symbols, 8));
+        assertEquals(0, StructureViewService.indexOfSymbolAt(symbols, 15));
+    }
+
+    @Test
+    void indexOfSymbolAtFallsBackToNearestPrecedingSymbol() {
+        List<StructureViewService.StructureSymbol> symbols = List.of(
+            new StructureViewService.StructureSymbol("init", 2, 4, "function", ""),
+            new StructureViewService.StructureSymbol("score", 6, 6, "variable", "")
+        );
+
+        assertEquals(-1, StructureViewService.indexOfSymbolAt(symbols, 1));
+        assertEquals(0, StructureViewService.indexOfSymbolAt(symbols, 4));
+        assertEquals(1, StructureViewService.indexOfSymbolAt(symbols, 10));
+        assertEquals(-1, StructureViewService.indexOfSymbolAt(List.of(), 3));
+        assertEquals(-1, StructureViewService.indexOfSymbolAt(symbols, 0));
+    }
 }
